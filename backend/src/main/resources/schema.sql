@@ -12,7 +12,7 @@ CREATE TABLE users (
     full_name VARCHAR(100),
     avatar_url TEXT,
     bio TEXT,
-    role VARCHAR(20) DEFAULT 'STUDENT' CHECK (role IN ('STUDENT', 'INSTRUCTOR', 'ADMIN')),
+    role VARCHAR(20) DEFAULT 'STUDENT' CHECK (role IN ('STUDENT', 'INSTRUCTOR', 'TRAINER', 'ADMIN')),
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
 );
@@ -67,6 +67,13 @@ CREATE TABLE lessons (
 ALTER TABLE lessons ADD COLUMN IF NOT EXISTS module_id UUID;
 ALTER TABLE lessons ADD CONSTRAINT fk_lessons_module
     FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE SET NULL;
+
+-- COURSE vs SERVICE: courses include mentorship + assignments + certificate;
+-- services are short, video-only walk-throughs (no mentor, no cert).
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS type VARCHAR(20) NOT NULL DEFAULT 'COURSE';
+ALTER TABLE courses ADD COLUMN IF NOT EXISTS trainer_id UUID NULL;
+ALTER TABLE courses ADD CONSTRAINT fk_courses_trainer
+    FOREIGN KEY (trainer_id) REFERENCES users(id) ON DELETE SET NULL;
 
 CREATE TABLE enrollments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -150,6 +157,8 @@ CREATE TABLE achievements (
 CREATE INDEX idx_courses_instructor_id ON courses(instructor_id);
 CREATE INDEX idx_courses_slug ON courses(slug);
 CREATE INDEX idx_courses_category ON courses(category);
+CREATE INDEX IF NOT EXISTS idx_courses_type ON courses(type);
+CREATE INDEX IF NOT EXISTS idx_courses_trainer_id ON courses(trainer_id);
 CREATE INDEX idx_modules_course_id ON modules(course_id);
 CREATE INDEX idx_lessons_course_id ON lessons(course_id);
 CREATE INDEX idx_enrollments_user_id ON enrollments(user_id);

@@ -24,7 +24,17 @@ public class CourseService {
     private final UserRepository userRepository;
 
     public List<CourseDTO> getAllCourses() {
-        return courseRepository.findByIsPublished(true).stream()
+        return getAllCourses("COURSE");
+    }
+
+    /**
+     * Public listing filtered by type. type='COURSE' returns regular
+     * learning courses; type='SERVICE' returns Resume Prep / Interview
+     * Training / etc. Default at the controller is 'COURSE' for
+     * backward compatibility with existing /api/courses callers.
+     */
+    public List<CourseDTO> getAllCourses(String type) {
+        return courseRepository.findByTypeAndIsPublished(type, true).stream()
                 .map(CourseDTO::from)
                 .collect(Collectors.toList());
     }

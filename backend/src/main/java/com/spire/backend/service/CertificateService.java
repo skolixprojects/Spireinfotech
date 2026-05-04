@@ -41,13 +41,21 @@ public class CertificateService {
             throw new UnauthorizedException("You must be enrolled in this course");
         }
 
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course", "id", courseId));
+
+        // Services don't grant certificates (PRODUCT.md). Reject early so the
+        // duplicate-check below doesn't accidentally return a stale cert from
+        // before this guard existed.
+        if (course.isService()) {
+            throw new IllegalArgumentException("Services do not include certificates");
+        }
+
         // 2. Check duplicate
         if (certificateRepository.existsByUserIdAndCourseId(userId, courseId)) {
             return certificateRepository.findByUserIdAndCourseId(userId, courseId).get();
         }
 
-        Course course = courseRepository.findById(courseId)
-                .orElseThrow(() -> new ResourceNotFoundException("Course", "id", courseId));
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 

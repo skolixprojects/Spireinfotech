@@ -48,14 +48,22 @@ public class CourseController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<CourseDTO>>> getAllCourses(
             @RequestParam(required = false) String level,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false, defaultValue = "COURSE") String type) {
+        // Default type=COURSE keeps existing /api/courses callers backward
+        // compatible. Pass ?type=SERVICE to list services. Search and level
+        // results are post-filtered by type to avoid mixing the two.
         List<CourseDTO> courses;
         if (search != null && !search.isBlank()) {
-            courses = courseService.searchCourses(search);
+            courses = courseService.searchCourses(search).stream()
+                    .filter(c -> type.equals(c.getType()))
+                    .toList();
         } else if (level != null && !level.isBlank()) {
-            courses = courseService.getCoursesByLevel(level);
+            courses = courseService.getCoursesByLevel(level).stream()
+                    .filter(c -> type.equals(c.getType()))
+                    .toList();
         } else {
-            courses = courseService.getAllCourses();
+            courses = courseService.getAllCourses(type);
         }
         return ResponseEntity.ok(ApiResponse.success(courses));
     }

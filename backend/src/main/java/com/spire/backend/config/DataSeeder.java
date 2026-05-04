@@ -52,7 +52,10 @@ public class DataSeeder implements CommandLineRunner {
                 .orElseGet(() -> roleRepository.save(Role.builder().name("INSTRUCTOR").build()));
         Role adminRole = roleRepository.findByName("ADMIN")
                 .orElseGet(() -> roleRepository.save(Role.builder().name("ADMIN").build()));
-        log.info("Roles ready: STUDENT({}), INSTRUCTOR({}), ADMIN({})", studentRole.getId(), instructorRole.getId(), adminRole.getId());
+        Role trainerRole = roleRepository.findByName("TRAINER")
+                .orElseGet(() -> roleRepository.save(Role.builder().name("TRAINER").build()));
+        log.info("Roles ready: STUDENT({}), INSTRUCTOR({}), TRAINER({}), ADMIN({})",
+                studentRole.getId(), instructorRole.getId(), trainerRole.getId(), adminRole.getId());
 
         if (userRepository.count() > 0) {
             log.info("Database already seeded. Skipping users/courses.");

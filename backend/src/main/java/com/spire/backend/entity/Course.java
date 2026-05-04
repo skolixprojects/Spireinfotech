@@ -52,6 +52,20 @@ public class Course {
     @JoinColumn(name = "instructor_id", nullable = false)
     private User instructor;
 
+    // Distinguishes regular learning courses from short, video-only services
+    // (Resume Prep, Interview Training, etc.). Services skip mentorship,
+    // assignments, quizzes, and certificates — same content tables, no extras.
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private String type = "COURSE";
+
+    // Author when type=SERVICE. instructor_id remains required (the user that
+    // owns the row in the courses table); trainer_id is the editorial owner
+    // surfaced to learners. Nullable for type=COURSE.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "trainer_id")
+    private User trainer;
+
     @Builder.Default
     private Integer lessonsCount = 0;
 
@@ -79,5 +93,9 @@ public class Course {
 
     public enum Level {
         BEGINNER, INTERMEDIATE, ADVANCED
+    }
+
+    public boolean isService() {
+        return "SERVICE".equals(type);
     }
 }

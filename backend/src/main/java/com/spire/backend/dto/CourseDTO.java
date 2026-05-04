@@ -27,6 +27,8 @@ public class CourseDTO {
     private Double durationHours;
     private String thumbnailUrl;
     private UserDTO instructor;
+    private UserDTO trainer;
+    private String type;
     private Integer lessonsCount;
     private Integer enrolledCount;
     private Double rating;
@@ -50,6 +52,8 @@ public class CourseDTO {
                 .durationHours(course.getDurationHours())
                 .thumbnailUrl(course.getThumbnailUrl())
                 .instructor(UserDTO.from(course.getInstructor()))
+                .trainer(course.getTrainer() != null ? UserDTO.from(course.getTrainer()) : null)
+                .type(course.getType())
                 .lessonsCount(course.getLessonsCount())
                 .enrolledCount(course.getEnrolledCount())
                 .rating(course.getRating())

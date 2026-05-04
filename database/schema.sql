@@ -16,7 +16,7 @@ CREATE TABLE roles (
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
-INSERT INTO roles (name) VALUES ('STUDENT'), ('INSTRUCTOR'), ('ADMIN');
+INSERT INTO roles (name) VALUES ('STUDENT'), ('INSTRUCTOR'), ('TRAINER'), ('ADMIN');
 
 -- ============================================================
 -- 2. USERS
@@ -74,6 +74,15 @@ CREATE INDEX idx_courses_instructor_id ON courses(instructor_id);
 CREATE INDEX idx_courses_category      ON courses(category);
 CREATE INDEX idx_courses_level         ON courses(level);
 CREATE INDEX idx_courses_is_published  ON courses(is_published);
+
+-- COURSE vs SERVICE: courses include mentorship + assignments + certificate;
+-- services are short, video-only video walk-throughs (no mentor, no cert).
+ALTER TABLE courses ADD COLUMN type VARCHAR(20) NOT NULL DEFAULT 'COURSE';
+ALTER TABLE courses ADD COLUMN trainer_id BIGINT NULL;
+ALTER TABLE courses ADD CONSTRAINT fk_courses_trainer
+    FOREIGN KEY (trainer_id) REFERENCES users(id) ON DELETE SET NULL;
+CREATE INDEX idx_courses_type ON courses(type);
+CREATE INDEX idx_courses_trainer_id ON courses(trainer_id);
 
 -- ============================================================
 -- MODULES (course → modules → lessons)
