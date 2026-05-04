@@ -7,9 +7,10 @@ import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Clock, BookOpen, Loader2, AlertCircle, Plus, ChevronLeft, Star, Trash2, ChevronDown } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { getCourse, getCourseLessons, getCourseAssignments, enroll, createLesson, deleteLesson, checkCertificate, generateCertificate, getCourseModules, createModule, deleteModule, getMyMentorForCourse } from "@/lib/api";
+import { getCourse, getCourseLessons, getCourseAssignments, enroll, createLesson, deleteLesson, checkCertificate, generateCertificate, getCourseModules, createModule, deleteModule, getMyMentorForCourse, getCourseProgress, type CourseProgress } from "@/lib/api";
 import type { MentorInfo } from "@/lib/types";
 import { MentorCard } from "@/components/mentorship/MentorCard";
+import { CourseProgressCard } from "@/components/courses/CourseProgressCard";
 import { RequestSessionModal } from "@/components/mentorship/RequestSessionModal";
 import { Award, Download, Loader2 as CertLoader } from "lucide-react";
 import { LessonItem } from "@/components/courses/LessonItem";
@@ -75,6 +76,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   // Mentor info + session-request modal (shown only when enrolled)
   const [mentor, setMentor] = useState<MentorInfo | null>(null);
   const [showMentorModal, setShowMentorModal] = useState(false);
+  const [progress, setProgress] = useState<CourseProgress | null>(null);
   const [certificate, setCertificate] = useState<{ exists: boolean; certificateUrl?: string } | null>(null);
   const [generatingCert, setGeneratingCert] = useState(false);
   const [certError, setCertError] = useState("");
@@ -121,6 +123,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
         if (isEnrolled) {
           setEnrolled(true);
           try { const c = await checkCertificate(id); setCertificate(c); } catch {}
+          try { const p = await getCourseProgress(id); setProgress(p); } catch {}
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load course");
@@ -222,6 +225,31 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
     }
   };
 
+  // Set of completed lesson IDs from server (preferred) merged with local
+  // optimistic set for any newly-completed lessons before the next refetch.
+  const completedSet: Set<number> = (() => {
+    const s = new Set<number>(completedLessons);
+    if (progress) {
+      progress.modules.forEach((m) =>
+        m.lessons.forEach((l) => l.completed && s.add(l.lessonId))
+      );
+      progress.orphanLessons.forEach((l) => l.completed && s.add(l.lessonId));
+    }
+    return s;
+  })();
+
+  // First uncompleted lesson in module-then-orphan order — that's "current".
+  const currentLessonId: number | null = (() => {
+    if (!progress) return null;
+    for (const m of progress.modules) {
+      for (const l of m.lessons) if (!completedSet.has(l.lessonId)) return l.lessonId;
+    }
+    for (const l of progress.orphanLessons) {
+      if (!completedSet.has(l.lessonId)) return l.lessonId;
+    }
+    return null;
+  })();
+
   // Reusable lesson row renderer — used for module-nested AND orphan lessons.
   const renderLessonRow = (lesson: LessonData, idx: number) => (
     <div key={lesson.id}>
@@ -235,12 +263,15 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
         videoUrl={lesson.videoUrl}
         canManage={canManage}
         canComplete={enrolled && !canManage}
+        completed={completedSet.has(lesson.id) || undefined}
+        isCurrent={enrolled && lesson.id === currentLessonId}
         index={idx}
         onDelete={handleDeleteLesson}
         onClick={() => setSelectedLessonId(selectedLessonId === lesson.id ? null : lesson.id)}
         onComplete={async () => {
           setCompletedLessons((prev) => new Set(prev).add(lesson.id));
           try { const a = await getCourseAssignments(id); setAssignments((a || []) as typeof assignments); } catch {}
+          try { const p = await getCourseProgress(id); setProgress(p); } catch {}
         }}
       />
       {selectedLessonId === lesson.id && (
@@ -460,6 +491,17 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
             </motion.form>
           )}
 
+          {/* "Your Progress" hero — only for enrolled students with progress loaded */}
+          {enrolled && progress && progress.totalLessons > 0 && (
+            <div className="mb-6">
+              <CourseProgressCard
+                completedLessons={progress.completedLessons}
+                totalLessons={progress.totalLessons}
+                progressPercent={progress.progressPercent}
+              />
+            </div>
+          )}
+
           {/* Curriculum list */}
           {modules.length === 0 && lessons.length === 0 ? (
             <div className="text-center py-12 bg-gray-50 rounded-xl">
@@ -475,6 +517,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
             <div className="space-y-4">
               {modules.map((mod, mIdx) => {
                 const totalDuration = mod.lessons.reduce((sum, l) => sum + (l.durationMinutes || 0), 0);
+                const modProgress = progress?.modules.find((mp) => mp.moduleId === mod.id);
                 return (
                   <details key={mod.id} className="group bg-white rounded-xl border border-gray-200 overflow-hidden" open={mIdx === 0}>
                     <summary className="cursor-pointer px-5 py-4 flex items-center justify-between hover:bg-gray-50 [&::-webkit-details-marker]:hidden">
@@ -483,10 +526,27 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                         {mod.description && (
                           <p className="text-xs text-gray-500 mt-0.5">{mod.description}</p>
                         )}
-                        <p className="text-xs text-gray-400 mt-1">
-                          {mod.lessons.length} lesson{mod.lessons.length !== 1 ? "s" : ""}
-                          {totalDuration > 0 && ` · ${totalDuration} min`}
-                        </p>
+                        <div className="mt-1.5 flex items-center gap-3">
+                          <p className="text-xs text-gray-400 whitespace-nowrap">
+                            {modProgress
+                              ? `${modProgress.completedLessons}/${modProgress.totalLessons} lessons`
+                              : `${mod.lessons.length} lesson${mod.lessons.length !== 1 ? "s" : ""}`}
+                            {totalDuration > 0 && ` · ${totalDuration} min`}
+                          </p>
+                          {modProgress && modProgress.totalLessons > 0 && (
+                            <div className="flex-1 max-w-[200px] flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-[#0E6B6B] to-[#5FA3A3] rounded-full transition-all"
+                                  style={{ width: `${modProgress.progressPercent}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] font-semibold text-[#0E6B6B] tabular-nums">
+                                {modProgress.progressPercent}%
+                              </span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-3 ml-4 flex-shrink-0">
                         {canManage && (

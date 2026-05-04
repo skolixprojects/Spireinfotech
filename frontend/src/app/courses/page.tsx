@@ -5,9 +5,10 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/Toast";
 import { Search, Clock, Loader2, ShoppingCart } from "lucide-react";
-import { getCourses, addToCart, enroll } from "@/lib/api";
+import { getCourses, addToCart, enroll, getDashboardSummary } from "@/lib/api";
 import { LEVELS } from "@/lib/constants";
 import { cn, friendlyEnrollmentError } from "@/lib/utils";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 
 const allLevels = ["All", ...LEVELS] as const;
 
@@ -37,6 +38,22 @@ export default function CoursesPage() {
   const [courses, setCourses] = useState<CourseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Map courseId -> progressPercent for the logged-in user. /courses
+  // is route-protected so we can assume the user is authenticated;
+  // worst case the fetch fails silently and we show no progress bars.
+  const [progressByCourseId, setProgressByCourseId] = useState<Record<number, number>>({});
+
+  useEffect(() => {
+    getDashboardSummary()
+      .then((summary) => {
+        const map: Record<number, number> = {};
+        for (const c of summary.enrolledCourses) {
+          map[c.id] = c.progressPercent;
+        }
+        setProgressByCourseId(map);
+      })
+      .catch(() => setProgressByCourseId({}));
+  }, []);
 
   useEffect(() => {
     const fetchCourses = async () => {
@@ -179,31 +196,50 @@ export default function CoursesPage() {
                       </span>
                     </div>
 
-                    {!course.isFree && (
-                      <p className="mt-2 text-sm font-semibold text-gray-900">₹{course.price}</p>
+                    {progressByCourseId[course.id] !== undefined ? (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-medium text-gray-700">
+                            {progressByCourseId[course.id] === 0
+                              ? "Not started"
+                              : progressByCourseId[course.id] >= 100
+                                ? "Completed"
+                                : `${progressByCourseId[course.id]}% complete`}
+                          </span>
+                          <span className="text-[10px] font-semibold text-[#0E6B6B] tabular-nums">
+                            {progressByCourseId[course.id]}%
+                          </span>
+                        </div>
+                        <ProgressBar percent={progressByCourseId[course.id]} size="sm" />
+                      </div>
+                    ) : (
+                      <>
+                        {!course.isFree && (
+                          <p className="mt-2 text-sm font-semibold text-gray-900">₹{course.price}</p>
+                        )}
+                        <div className="mt-3" onClick={(e) => e.preventDefault()}>
+                          {course.isFree ? (
+                            <button
+                              onClick={async () => {
+                                try { await enroll(course.id); toast("success", "Enrolled successfully!"); } catch (err) { const msg = friendlyEnrollmentError(err); toast(msg.startsWith("You're already enrolled") ? "info" : "error", msg); }
+                              }}
+                              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#0E6B6B] text-white hover:bg-[#5FA3A3] transition-colors cursor-pointer"
+                            >
+                              Enroll Free
+                            </button>
+                          ) : (
+                            <button
+                              onClick={async () => {
+                                try { await addToCart(course.id); toast("cart", "Course added to cart!"); } catch (err) { const msg = friendlyEnrollmentError(err); toast(msg.startsWith("You're already enrolled") ? "info" : "error", msg); }
+                              }}
+                              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#0E6B6B] text-white hover:bg-[#5FA3A3] transition-colors cursor-pointer inline-flex items-center gap-1"
+                            >
+                              <ShoppingCart size={12} /> Add to Cart
+                            </button>
+                          )}
+                        </div>
+                      </>
                     )}
-
-                    <div className="mt-3" onClick={(e) => e.preventDefault()}>
-                      {course.isFree ? (
-                        <button
-                          onClick={async () => {
-                            try { await enroll(course.id); toast("success", "Enrolled successfully!"); } catch (err) { const msg = friendlyEnrollmentError(err); toast(msg.startsWith("You're already enrolled") ? "info" : "error", msg); }
-                          }}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#0E6B6B] text-white hover:bg-[#5FA3A3] transition-colors cursor-pointer"
-                        >
-                          Enroll Free
-                        </button>
-                      ) : (
-                        <button
-                          onClick={async () => {
-                            try { await addToCart(course.id); toast("cart", "Course added to cart!"); } catch (err) { const msg = friendlyEnrollmentError(err); toast(msg.startsWith("You're already enrolled") ? "info" : "error", msg); }
-                          }}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#0E6B6B] text-white hover:bg-[#5FA3A3] transition-colors cursor-pointer inline-flex items-center gap-1"
-                        >
-                          <ShoppingCart size={12} /> Add to Cart
-                        </button>
-                      )}
-                    </div>
                   </div>
                 </div>
               </Link>

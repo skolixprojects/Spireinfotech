@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Lock, Trash2, CheckCircle, Loader2 } from "lucide-react";
+import { Play, Lock, Trash2, CheckCircle, Loader2, Circle } from "lucide-react";
 import { completeLesson } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,10 @@ interface LessonItemProps {
   videoUrl?: string | null;
   canManage?: boolean;
   canComplete?: boolean;  // student is enrolled
+  /** Controlled completion state from server. If unset, falls back to local state. */
+  completed?: boolean;
+  /** First uncompleted lesson — gets a play icon and accent border. */
+  isCurrent?: boolean;
   index?: number;
   onDelete?: (id: number) => void;
   onComplete?: () => void;  // callback after completion
@@ -31,6 +35,8 @@ export function LessonItem({
   videoUrl,
   canManage = false,
   canComplete = false,
+  completed: completedProp,
+  isCurrent = false,
   index = 0,
   onDelete,
   onComplete,
@@ -38,14 +44,15 @@ export function LessonItem({
 }: LessonItemProps) {
   const hasAccess = isFree || !!videoUrl;
   const [completing, setCompleting] = useState(false);
-  const [completed, setCompleted] = useState(false);
+  const [optimisticDone, setOptimisticDone] = useState(false);
+  const completed = completedProp ?? optimisticDone;
 
   const handleComplete = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setCompleting(true);
     try {
       await completeLesson(id);
-      setCompleted(true);
+      setOptimisticDone(true);
       onComplete?.();
     } catch {
       // silently fail — user may not be enrolled
@@ -64,17 +71,21 @@ export function LessonItem({
       className={cn(
         "flex items-center gap-4 p-4 rounded-xl border transition-all",
         completed ? "bg-teal-50/50 border-teal-200" :
+        isCurrent && hasAccess ? "bg-white border-l-4 border-l-[#0E6B6B] border-y-gray-200 border-r-gray-200 hover:shadow-md cursor-pointer" :
         hasAccess ? "bg-white border-gray-200 hover:border-teal-300 hover:shadow-md cursor-pointer" :
         "bg-gray-50 border-gray-100 cursor-default"
       )}
     >
-      {/* Order number */}
+      {/* Status indicator: completed -> check, current -> play, otherwise empty circle */}
       <div className={cn(
         "w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0",
         completed ? "bg-teal-200 text-teal-700" :
+        isCurrent && hasAccess ? "bg-[#0E6B6B] text-white" :
         hasAccess ? "bg-teal-100 text-teal-700" : "bg-gray-200 text-gray-400"
       )}>
-        {completed ? <CheckCircle size={18} /> : orderIndex}
+        {completed ? <CheckCircle size={18} /> :
+         isCurrent && hasAccess ? <Play size={16} className="ml-0.5" /> :
+         hasAccess ? orderIndex : <Circle size={16} />}
       </div>
 
       {/* Lesson info */}

@@ -2,6 +2,7 @@ package com.spire.backend.controller;
 
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.dto.CourseDTO;
+import com.spire.backend.dto.CourseProgressDTO;
 import com.spire.backend.dto.CourseRequest;
 import com.spire.backend.dto.LessonDTO;
 import com.spire.backend.entity.Lesson;
@@ -11,6 +12,7 @@ import com.spire.backend.repository.LessonRepository;
 import com.spire.backend.repository.UserRepository;
 import com.spire.backend.service.CourseService;
 import com.spire.backend.service.EnrollmentService;
+import com.spire.backend.service.ProgressService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -32,6 +34,7 @@ public class CourseController {
     private final LessonRepository lessonRepository;
     private final EnrollmentService enrollmentService;
     private final UserRepository userRepository;
+    private final ProgressService progressService;
 
     // ─── Instructor's own courses ─────────────────────────────────
 
@@ -71,6 +74,20 @@ public class CourseController {
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<CourseDTO>> getCourse(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(courseService.getCourseById(id)));
+    }
+
+    // ─── Course progress (enrolled student only) ────────────────────
+    //
+    // courseId-based instead of enrollmentId-based: the frontend
+    // already has courseId in every URL that needs progress, and the
+    // service resolves the enrollment via (userId, courseId) and 403s
+    // if there isn't one.
+    @GetMapping("/{courseId}/progress")
+    public ResponseEntity<ApiResponse<CourseProgressDTO>> getCourseProgress(
+            @PathVariable Long courseId, Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                progressService.getCourseProgressDetail(userId, courseId)));
     }
 
     @GetMapping("/{id}/lessons")

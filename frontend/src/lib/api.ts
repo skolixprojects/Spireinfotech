@@ -190,6 +190,42 @@ export async function getDashboardSummary() {
   return wrapper.data;
 }
 
+// ─── Course progress (enrolled student) ─────────────────────────────
+
+export interface LessonProgress {
+  lessonId: number;
+  title: string;
+  orderIndex: number;
+  completed: boolean;
+}
+
+export interface ModuleProgress {
+  moduleId: number;
+  moduleTitle: string;
+  orderIndex: number;
+  totalLessons: number;
+  completedLessons: number;
+  progressPercent: number;
+  lessons: LessonProgress[];
+}
+
+export interface CourseProgress {
+  courseId: number;
+  enrollmentId: number;
+  totalLessons: number;
+  completedLessons: number;
+  progressPercent: number;
+  modules: ModuleProgress[];
+  orphanLessons: LessonProgress[];
+}
+
+export async function getCourseProgress(courseId: number | string) {
+  const wrapper = await apiFetch<ApiResponse<CourseProgress>>(
+    `/api/courses/${courseId}/progress`
+  );
+  return wrapper.data;
+}
+
 // ─── Courses ────────────────────────────────────────────────────────
 
 export async function getCourses(params?: { level?: string; search?: string }) {

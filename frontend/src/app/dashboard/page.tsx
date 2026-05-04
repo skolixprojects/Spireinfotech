@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 import { SessionsList } from "@/components/mentorship/SessionsList";
 import { PendingRequests } from "@/components/mentorship/PendingRequests";
 import { MentorSessionsList } from "@/components/mentorship/MentorSessionsList";
@@ -331,12 +332,7 @@ export default function DashboardPage() {
                         <span>{c.completedLessons}/{c.totalLessons} lessons</span>
                         <span className="font-semibold text-[#0E6B6B]">{c.progressPercent}%</span>
                       </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-[#0E6B6B] to-[#5FA3A3] rounded-full transition-all"
-                          style={{ width: `${Math.max(0, Math.min(100, c.progressPercent))}%` }}
-                        />
-                      </div>
+                      <ProgressBar percent={c.progressPercent} size="sm" />
 
                       <div className="mt-4 text-xs font-semibold text-[#0E6B6B] group-hover:underline inline-flex items-center gap-1">
                         Continue <ArrowRight size={12} />
