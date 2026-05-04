@@ -19,7 +19,7 @@ import { QuizBuilder } from "@/components/courses/QuizBuilder";
 import { TaskSection } from "@/components/courses/TaskSection";
 import { VideoPlayer } from "@/components/courses/VideoPlayer";
 import { VideoUpload } from "@/components/courses/VideoUpload";
-import { cn } from "@/lib/utils";
+import { cn, friendlyEnrollmentError } from "@/lib/utils";
 
 interface CourseData {
   id: number; title: string; slug: string; description: string; shortDescription: string;
@@ -93,17 +93,28 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
         setLessons((lessonData || []) as LessonData[]);
         const moduleData = await getCourseModules(id);
         setModules((moduleData || []) as ModuleData[]);
-        // Try to fetch assignments (only works if authenticated)
-        try {
-          const assignmentData = await getCourseAssignments(id);
-          setAssignments((assignmentData || []) as typeof assignments);
+
+        // Detect enrollment via TWO independent signals so a failure in
+        // either endpoint doesn't hide the entire mentorship UI.
+        // Both endpoints require enrollment server-side, so a success
+        // from either is sufficient proof. Run them in parallel.
+        const [assignmentsRes, mentorRes] = await Promise.allSettled([
+          getCourseAssignments(id),
+          getMyMentorForCourse(id),
+        ]);
+
+        let isEnrolled = false;
+        if (assignmentsRes.status === "fulfilled") {
+          setAssignments((assignmentsRes.value || []) as typeof assignments);
+          isEnrolled = true;
+        }
+        if (mentorRes.status === "fulfilled") {
+          setMentor(mentorRes.value);
+          isEnrolled = true;
+        }
+        if (isEnrolled) {
           setEnrolled(true);
-          // Check certificate
           try { const c = await checkCertificate(id); setCertificate(c); } catch {}
-          // Fetch mentor info (only meaningful for enrolled students)
-          try { const m = await getMyMentorForCourse(id); setMentor(m); } catch {}
-        } catch {
-          // Not enrolled or not authenticated
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load course");
@@ -128,8 +139,19 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
       try { const a = await getCourseAssignments(id); setAssignments((a || []) as typeof assignments); } catch {}
       try { const m = await getMyMentorForCourse(id); setMentor(m); } catch {}
     } catch (err) {
-      setEnrollMsg(err instanceof Error ? err.message : "Failed to enroll");
+      const msg = friendlyEnrollmentError(err);
+      setEnrollMsg(msg);
+      // If they were already enrolled, sync local state so UI flips to
+      // the enrolled view without forcing a refresh.
+      if (msg.startsWith("You're already enrolled")) {
+        setEnrolled(true);
+        try { const m = await getMyMentorForCourse(id); setMentor(m); } catch {}
+      }
     } finally { setEnrolling(false); }
+  };
+
+  const handleContinueLearning = () => {
+    document.getElementById("course-content")?.scrollIntoView({ behavior: "smooth" });
   };
 
   const handleAddLesson = async (e: React.FormEvent) => {
@@ -309,12 +331,23 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
               </div>
               <p className="text-sm text-gray-500 mb-6">{course.isFree ? "No payment required" : "One-time payment"}</p>
 
-              <button onClick={handleEnroll} disabled={enrolling}
-                className="w-full py-3 rounded-xl bg-[#0E6B6B] text-white text-sm font-semibold hover:bg-[#5FA3A3] transition disabled:opacity-50 flex items-center justify-center gap-2">
-                {enrolling ? <><Loader2 size={16} className="animate-spin" /> Enrolling...</> : "Enroll Now"}
-              </button>
+              {enrolled ? (
+                <button onClick={handleContinueLearning}
+                  className="w-full py-3 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 transition flex items-center justify-center gap-2">
+                  <BookOpen size={16} /> Continue Learning
+                </button>
+              ) : (
+                <button onClick={handleEnroll} disabled={enrolling}
+                  className="w-full py-3 rounded-xl bg-[#0E6B6B] text-white text-sm font-semibold hover:bg-[#5FA3A3] transition disabled:opacity-50 flex items-center justify-center gap-2">
+                  {enrolling ? <><Loader2 size={16} className="animate-spin" /> Enrolling...</> : "Enroll Now"}
+                </button>
+              )}
 
-              {enrollMsg && <p className={cn("text-xs mt-3 text-center", enrollMsg.includes("success") ? "text-teal-600" : "text-red-500")}>{enrollMsg}</p>}
+              {enrollMsg && <p className={cn(
+                "text-xs mt-3 text-center",
+                enrollMsg.includes("success") || enrollMsg.startsWith("You're already enrolled")
+                  ? "text-teal-600" : "text-red-500"
+              )}>{enrollMsg}</p>}
 
               <div className="mt-6 space-y-2 text-sm text-gray-600">
                 <p>Category: <span className="font-medium text-gray-900">{course.category}</span></p>
@@ -343,7 +376,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
         )}
 
         {/* Curriculum section (modules + lessons) */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+        <motion.div id="course-content" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <div className="flex items-center justify-between mb-6">
             <h2 className="font-serif text-2xl font-bold text-gray-900">Curriculum</h2>
             {canManage && (

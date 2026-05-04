@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, Trash2, ShoppingCart, ArrowRight } from "lucide-react";
 import { getCart, removeFromCart, clearCart, checkoutCart } from "@/lib/api";
+import { friendlyEnrollmentError } from "@/lib/utils";
 
 interface CartCourse {
   id: number;
@@ -65,7 +66,7 @@ export default function CartPage() {
       await checkoutCart();
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Checkout failed");
+      setError(friendlyEnrollmentError(err));
       setCheckingOut(false);
     }
   };
