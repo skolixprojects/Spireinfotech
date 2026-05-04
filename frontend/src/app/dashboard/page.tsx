@@ -23,6 +23,7 @@ import { SessionsList } from "@/components/mentorship/SessionsList";
 import { PendingRequests } from "@/components/mentorship/PendingRequests";
 import { MentorSessionsList } from "@/components/mentorship/MentorSessionsList";
 import { NextActionHero } from "@/components/dashboard/NextActionHero";
+import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import type { SessionRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -70,6 +71,7 @@ export default function DashboardPage() {
   const [nextAction, setNextAction] = useState<NextAction | null>(null);
   const [nextActionLoading, setNextActionLoading] = useState(false);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
   // Admin analytics
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
@@ -198,8 +200,25 @@ export default function DashboardPage() {
   const upcomingForStudent = summary?.upcomingSessions ?? [];
   const enrolledForStudent = summary?.enrolledCourses ?? [];
 
+  // Show the welcome wizard only for un-onboarded students who don't yet
+  // have any enrollments. The enrollment guard means dev-seeded students
+  // (like student@spire.dev which already has 3 enrollments) won't be
+  // re-onboarded just because the column landed default-FALSE.
+  const showWizard =
+    isStudent &&
+    !onboardingDismissed &&
+    user?.onboardingCompleted === false &&
+    summary !== null &&
+    enrolledForStudent.length === 0;
+
   return (
     <section className="mx-auto max-w-7xl px-6 pt-28 pb-20">
+      {showWizard && (
+        <OnboardingWizard
+          studentName={user.fullName ?? ""}
+          onClose={() => setOnboardingDismissed(true)}
+        />
+      )}
       <motion.div {...fadeUp}>
         {/* Greeting */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-8">

@@ -68,6 +68,10 @@ ALTER TABLE lessons ADD COLUMN IF NOT EXISTS module_id UUID;
 ALTER TABLE lessons ADD CONSTRAINT fk_lessons_module
     FOREIGN KEY (module_id) REFERENCES modules(id) ON DELETE SET NULL;
 
+-- Welcome wizard flag. New signups default FALSE; the frontend belt-and-
+-- suspenders also skips the wizard for users who already have enrollments.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- COURSE vs SERVICE: courses include mentorship + assignments + certificate;
 -- services are short, video-only walk-throughs (no mentor, no cert).
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS type VARCHAR(20) NOT NULL DEFAULT 'COURSE';

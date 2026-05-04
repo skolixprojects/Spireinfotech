@@ -20,6 +20,7 @@ public class UserDTO {
     private String role;
     private String avatarUrl;
     private String bio;
+    private Boolean onboardingCompleted;
 
     public static UserDTO from(User user) {
         return UserDTO.builder()
@@ -29,6 +30,7 @@ public class UserDTO {
                 .role(user.getRole().getName())
                 .avatarUrl(user.getAvatarUrl())
                 .bio(user.getBio())
+                .onboardingCompleted(Boolean.TRUE.equals(user.getOnboardingCompleted()))
                 .build();
     }
 }

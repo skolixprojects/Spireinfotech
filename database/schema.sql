@@ -40,6 +40,12 @@ CREATE TABLE users (
 CREATE INDEX idx_users_email   ON users(email);
 CREATE INDEX idx_users_role_id ON users(role_id);
 
+-- New students see a 3-step onboarding wizard on first dashboard visit.
+-- DEFAULT FALSE so signups land in the un-onboarded state. The frontend
+-- additionally suppresses the wizard for students with existing enrollments
+-- so users created before this column landed don't get re-onboarded.
+ALTER TABLE users ADD COLUMN onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- ============================================================
 -- 3. COURSES
 -- ============================================================

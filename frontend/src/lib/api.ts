@@ -16,6 +16,7 @@ export interface UserDTO {
   role: string;
   avatarUrl: string | null;
   bio: string | null;
+  onboardingCompleted?: boolean;
 }
 
 export interface AuthResponse {
@@ -126,6 +127,14 @@ export function logout() {
 
 export async function getProfile(): Promise<UserDTO> {
   const wrapper = await apiFetch<ApiResponse<UserDTO>>("/api/users/profile");
+  return wrapper.data;
+}
+
+export async function completeOnboarding(): Promise<UserDTO> {
+  const wrapper = await apiFetch<ApiResponse<UserDTO>>(
+    "/api/users/complete-onboarding",
+    { method: "PUT" }
+  );
   return wrapper.data;
 }
 

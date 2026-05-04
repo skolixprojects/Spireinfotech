@@ -55,6 +55,15 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Instructor request submitted successfully"));
     }
 
+    @PutMapping("/complete-onboarding")
+    public ResponseEntity<ApiResponse<UserDTO>> completeOnboarding(Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        user.setOnboardingCompleted(true);
+        return ResponseEntity.ok(ApiResponse.success("Onboarding completed", UserDTO.from(userRepository.save(user))));
+    }
+
     @GetMapping("/progress")
     public ResponseEntity<ApiResponse<List<ProgressDTO>>> getProgress(Authentication authentication) {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());

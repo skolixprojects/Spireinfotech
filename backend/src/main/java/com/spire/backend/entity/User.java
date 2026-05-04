@@ -46,6 +46,12 @@ public class User {
     @Builder.Default
     private Boolean instructorApproved = false;
 
+    // Welcome-wizard flag. New signups land FALSE; flipped to TRUE the
+    // first time the student dismisses the wizard or finishes the flow.
+    @Column(name = "onboarding_completed", nullable = false)
+    @Builder.Default
+    private Boolean onboardingCompleted = false;
+
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;
