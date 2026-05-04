@@ -18,4 +18,5 @@ public class ProgressDTO {
     private Double completionPercent;
     private Boolean completed;
     private Integer streakDays;
+    private Integer videoPositionSec;
 }

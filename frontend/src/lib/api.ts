@@ -206,6 +206,7 @@ export interface LessonProgress {
   title: string;
   orderIndex: number;
   completed: boolean;
+  videoPositionSec?: number;
 }
 
 export interface ModuleProgress {
@@ -233,6 +234,24 @@ export async function getCourseProgress(courseId: number | string) {
     `/api/courses/${courseId}/progress`
   );
   return wrapper.data;
+}
+
+// Persists where the student paused — fire-and-forget on pause/unmount.
+export async function saveLessonPosition(
+  courseId: number | string,
+  lessonId: number,
+  videoPositionSec: number
+) {
+  return apiFetch<ApiResponse<unknown>>(
+    `/api/users/progress/${courseId}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        lessonId,
+        videoPositionSec: Math.max(0, Math.round(videoPositionSec)),
+      }),
+    }
+  );
 }
 
 // ─── Courses ────────────────────────────────────────────────────────

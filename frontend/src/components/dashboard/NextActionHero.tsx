@@ -146,6 +146,7 @@ function renderBody(action: NextAction): React.ReactNode {
     }
     case "ASSIGNMENT_DUE": {
       const due = formatDueShort(action.dueDate);
+      // Assignments live on the course detail page; player isn't useful here.
       return (
         <HeroChrome
           icon={ClipboardList}
@@ -189,7 +190,13 @@ function renderBody(action: NextAction): React.ReactNode {
 
           <div className="mt-7 flex flex-col sm:flex-row sm:items-center gap-4">
             <Link
-              href={action.courseId ? `/courses/${action.courseId}` : "/dashboard"}
+              href={
+                action.courseId && action.nextLessonId
+                  ? `/learn/${action.courseId}/${action.nextLessonId}`
+                  : action.courseId
+                    ? `/courses/${action.courseId}`
+                    : "/dashboard"
+              }
               className="inline-flex items-center justify-center gap-2 rounded-full bg-white text-[#0E6B6B] px-7 py-3.5 text-base font-bold shadow-md hover:bg-[#F0EDE8] transition-colors w-fit"
             >
               Resume Lesson <ArrowRight size={16} />
@@ -205,6 +212,12 @@ function renderBody(action: NextAction): React.ReactNode {
       const meta = action.mentorName ? (
         <span>Your mentor: <span className="font-semibold text-white">{action.mentorName}</span></span>
       ) : null;
+      const href =
+        action.courseId && action.firstLessonId
+          ? `/learn/${action.courseId}/${action.firstLessonId}`
+          : action.courseId
+            ? `/courses/${action.courseId}`
+            : "/dashboard";
       return (
         <HeroChrome
           icon={GraduationCap}
@@ -212,10 +225,7 @@ function renderBody(action: NextAction): React.ReactNode {
           title={action.courseTitle ?? "Start your course"}
           subtitle={subtitle}
           meta={meta}
-          primary={{
-            label: "Start Course",
-            href: action.courseId ? `/courses/${action.courseId}` : "/dashboard",
-          }}
+          primary={{ label: "Start Course", href }}
         />
       );
     }

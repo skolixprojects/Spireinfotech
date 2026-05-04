@@ -39,5 +39,10 @@ public class Progress {
     @Builder.Default
     private Integer streakDays = 0;
 
+    // Seconds into the video — used by the focused player to resume.
+    @Column(name = "video_position_sec", nullable = false)
+    @Builder.Default
+    private Integer videoPositionSec = 0;
+
     private LocalDateTime lastAccessed;
 }

@@ -72,6 +72,7 @@ public class ProgressService {
         if (dto.getCompletionPercent() != null) progress.setCompletionPercent(dto.getCompletionPercent());
         if (dto.getCompleted() != null) progress.setCompleted(dto.getCompleted());
         if (dto.getStreakDays() != null) progress.setStreakDays(dto.getStreakDays());
+        if (dto.getVideoPositionSec() != null) progress.setVideoPositionSec(dto.getVideoPositionSec());
         progress.setLastAccessed(LocalDateTime.now());
 
         return toDTO(progressRepository.save(progress));
@@ -90,11 +91,18 @@ public class ProgressService {
         List<Lesson> lessons = lessonRepository.findByCourseIdOrderByOrderIndex(courseId);
         List<Module> modules = moduleRepository.findByCourseIdOrderByOrderIndexAsc(courseId);
 
-        Set<Long> completedIds = progressRepository.findByUserIdAndCourseId(userId, courseId).stream()
+        List<Progress> rows = progressRepository.findByUserIdAndCourseId(userId, courseId);
+        Set<Long> completedIds = rows.stream()
                 .filter(p -> Boolean.TRUE.equals(p.getCompleted()))
                 .filter(p -> p.getLesson() != null)
                 .map(p -> p.getLesson().getId())
                 .collect(Collectors.toSet());
+        java.util.Map<Long, Integer> positionByLessonId = rows.stream()
+                .filter(p -> p.getLesson() != null && p.getVideoPositionSec() != null)
+                .collect(Collectors.toMap(
+                        p -> p.getLesson().getId(),
+                        Progress::getVideoPositionSec,
+                        (a, b) -> a));
 
         List<CourseProgressDTO.ModuleProgress> moduleProgress = modules.stream()
                 .map(m -> {
@@ -107,6 +115,7 @@ public class ProgressService {
                                     .title(l.getTitle())
                                     .orderIndex(l.getOrderIndex())
                                     .completed(completedIds.contains(l.getId()))
+                                    .videoPositionSec(positionByLessonId.getOrDefault(l.getId(), 0))
                                     .build())
                             .toList();
                     int total = ls.size();
@@ -131,6 +140,7 @@ public class ProgressService {
                         .title(l.getTitle())
                         .orderIndex(l.getOrderIndex())
                         .completed(completedIds.contains(l.getId()))
+                        .videoPositionSec(positionByLessonId.getOrDefault(l.getId(), 0))
                         .build())
                 .toList();
 
@@ -169,6 +179,7 @@ public class ProgressService {
                 .completionPercent(p.getCompletionPercent())
                 .completed(p.getCompleted())
                 .streakDays(p.getStreakDays())
+                .videoPositionSec(p.getVideoPositionSec())
                 .build();
     }
 }

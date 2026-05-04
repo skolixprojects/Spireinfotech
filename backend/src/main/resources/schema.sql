@@ -72,6 +72,10 @@ ALTER TABLE lessons ADD CONSTRAINT fk_lessons_module
 -- suspenders also skips the wizard for users who already have enrollments.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Resume position so the focused course player can seek to where the
+-- student left off. MySQL schema already declares this; Postgres backfill.
+ALTER TABLE progress ADD COLUMN IF NOT EXISTS video_position_sec INTEGER NOT NULL DEFAULT 0;
+
 -- COURSE vs SERVICE: courses include mentorship + assignments + certificate;
 -- services are short, video-only walk-throughs (no mentor, no cert).
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS type VARCHAR(20) NOT NULL DEFAULT 'COURSE';

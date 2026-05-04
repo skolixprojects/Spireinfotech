@@ -160,6 +160,24 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   };
 
   const handleContinueLearning = () => {
+    // If we have a next lesson loaded, jump straight to the focused player.
+    // Otherwise fall back to scrolling the curriculum into view.
+    if (progress) {
+      for (const m of progress.modules) {
+        for (const l of m.lessons) {
+          if (!l.completed) {
+            router.push(`/learn/${id}/${l.lessonId}`);
+            return;
+          }
+        }
+      }
+      for (const l of progress.orphanLessons) {
+        if (!l.completed) {
+          router.push(`/learn/${id}/${l.lessonId}`);
+          return;
+        }
+      }
+    }
     document.getElementById("course-content")?.scrollIntoView({ behavior: "smooth" });
   };
 

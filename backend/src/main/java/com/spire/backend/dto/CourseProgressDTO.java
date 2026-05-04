@@ -50,5 +50,6 @@ public class CourseProgressDTO {
         private String title;
         private int orderIndex;
         private boolean completed;
+        private int videoPositionSec; // for resume-where-you-left-off
     }
 }
