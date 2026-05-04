@@ -35,4 +35,9 @@ public class CourseRequest {
     private String category;
     private String tags;
     private Boolean isPublished;
+
+    // Step 5: services share the courses table. type=COURSE (default) or SERVICE.
+    // trainerId only used when type=SERVICE.
+    private String type;
+    private Long trainerId;
 }

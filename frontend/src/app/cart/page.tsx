@@ -13,7 +13,9 @@ interface CartCourse {
   title: string;
   price: number;
   isFree: boolean;
+  type?: string; // "COURSE" | "SERVICE"
   instructor: { id: number; fullName: string } | null;
+  trainer?: { id: number; fullName: string } | null;
   thumbnailUrl: string | null;
 }
 
@@ -127,8 +129,21 @@ export default function CartPage() {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold text-gray-900 truncate">{course.title}</h3>
-                  <p className="text-sm text-gray-500">{course.instructor?.fullName || "Unknown instructor"}</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-semibold text-gray-900 truncate">{course.title}</h3>
+                    <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full ${
+                      course.type === "SERVICE"
+                        ? "bg-violet-100 text-violet-700"
+                        : "bg-teal-100 text-teal-700"
+                    }`}>
+                      {course.type === "SERVICE" ? "Service" : "Course"}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {course.type === "SERVICE"
+                      ? `by ${course.trainer?.fullName ?? course.instructor?.fullName ?? "Spire Trainer"}`
+                      : course.instructor?.fullName || "Unknown instructor"}
+                  </p>
                 </div>
                 <p className="font-semibold text-gray-900 whitespace-nowrap">
                   {course.price > 0 ? `₹${course.price}` : "Free"}
@@ -147,7 +162,7 @@ export default function CartPage() {
           {/* Summary */}
           <div className="mt-8 bg-white rounded-xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-600">Total ({items.length} {items.length === 1 ? "course" : "courses"})</span>
+              <span className="text-gray-600">Total ({items.length} {items.length === 1 ? "item" : "items"})</span>
               <span className="text-2xl font-bold text-[#0E6B6B]">₹{total}</span>
             </div>
             <div className="flex gap-3">

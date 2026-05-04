@@ -88,6 +88,12 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
       setLoading(true);
       try {
         const courseData = await getCourse(id);
+        // If this is actually a service, redirect — service detail page
+        // is a separate route with no mentor / quiz / assignment / cert.
+        if ((courseData as { type?: string })?.type === "SERVICE") {
+          router.replace(`/services/${id}`);
+          return;
+        }
         setCourse(courseData as CourseData);
         const lessonData = await getCourseLessons(id);
         setLessons((lessonData || []) as LessonData[]);

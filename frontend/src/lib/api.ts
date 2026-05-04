@@ -137,6 +137,36 @@ export async function getCourses(params?: { level?: string; search?: string }) {
   return wrapper.data;
 }
 
+// ─── Services ──────────────────────────────────────────────────
+// Services share the courses table — backend filters via ?type=SERVICE.
+// CourseDTO returns a `type` field so the frontend can branch UI.
+
+export async function getServices() {
+  const wrapper = await apiFetch<ApiResponse<unknown[]>>("/api/courses?type=SERVICE");
+  return wrapper.data;
+}
+
+export async function getService(id: string | number) {
+  // Same endpoint as getCourse — response carries `type` field
+  const wrapper = await apiFetch<ApiResponse<unknown>>(`/api/courses/${id}`);
+  return wrapper.data;
+}
+
+export async function createService(data: {
+  title: string;
+  description?: string;
+  shortDescription?: string;
+  price?: number;
+  category?: string;
+  trainerId?: number;
+}) {
+  const wrapper = await apiFetch<ApiResponse<unknown>>("/api/courses", {
+    method: "POST",
+    body: JSON.stringify({ ...data, type: "SERVICE" }),
+  });
+  return wrapper.data;
+}
+
 export async function getInstructorStudents() {
   const wrapper = await apiFetch<ApiResponse<Array<{ studentName: string; email: string; courseTitle: string; enrolledAt: string }>>>("/api/instructor/students");
   return wrapper.data;

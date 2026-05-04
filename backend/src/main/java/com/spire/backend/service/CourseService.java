@@ -85,6 +85,17 @@ public class CourseService {
                 .replaceAll("-+", "-")
                 .replaceAll("^-|-$", "");
 
+        String type = (dto.getType() != null && !dto.getType().isBlank())
+                ? dto.getType().toUpperCase() : "COURSE";
+
+        // Resolve trainer for type=SERVICE. Optional — admin can create the
+        // service first and assign a trainer later.
+        User trainer = null;
+        if ("SERVICE".equals(type) && dto.getTrainerId() != null) {
+            trainer = userRepository.findById(dto.getTrainerId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", dto.getTrainerId()));
+        }
+
         Course course = Course.builder()
                 .title(dto.getTitle())
                 .slug(slug)
@@ -96,6 +107,8 @@ public class CourseService {
                 .durationHours(dto.getDurationHours())
                 .thumbnailUrl(dto.getThumbnailUrl())
                 .instructor(instructor)   // Server-side only — never from request
+                .type(type)
+                .trainer(trainer)
                 .category(dto.getCategory())
                 .tags(dto.getTags())
                 .isPublished(dto.getIsPublished() != null ? dto.getIsPublished() : false)
