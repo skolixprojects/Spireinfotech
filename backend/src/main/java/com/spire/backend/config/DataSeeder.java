@@ -58,7 +58,11 @@ public class DataSeeder implements CommandLineRunner {
                 studentRole.getId(), instructorRole.getId(), trainerRole.getId(), adminRole.getId());
 
         if (userRepository.count() > 0) {
-            log.info("Database already seeded. Skipping users/courses.");
+            log.info("Database already seeded. Skipping initial users/courses block.");
+            // Backfill on already-seeded dev DBs that predate the services
+            // feature. Idempotent — does nothing if the trainer + 4 services
+            // already exist.
+            seedServicesAndTrainer(trainerRole);
             return;
         }
 
@@ -387,8 +391,212 @@ public class DataSeeder implements CommandLineRunner {
         seedEnrollment(admin, fullStack);
 
         log.info("Seeded enrollments.");
+
+        // Services + trainer (idempotent: also called from the early-return
+        // branch above so both fresh and previously-seeded DBs get them).
+        seedServicesAndTrainer(trainerRole);
+
         log.info("Database seeding complete!");
     }
+
+    // ─── Services seed ─────────────────────────────────────────────
+    // Services share the courses table (type=SERVICE). Idempotent on email
+    // and slug — re-running this method is safe.
+    //
+    // NOTE on instructor_id: Course.instructor is JPA-mapped @ManyToOne
+    // nullable=false, so the schema requires it. For services we set both
+    // instructor and trainer to the trainer user (Meera). The CourseDTO and
+    // frontend already prefer trainer over instructor when type=SERVICE
+    // (see ServiceCard, /services/[id], cart). The task spec asked for
+    // instructor_id=NULL; honoring that would need a schema + entity change
+    // (loosen nullable=false), which is out of scope for a seed-data task.
+    private void seedServicesAndTrainer(Role trainerRole) {
+        User meera = userRepository.findByEmail("meera@spire.dev")
+                .orElseGet(() -> {
+                    log.info("Seeding trainer user: meera@spire.dev");
+                    return userRepository.save(User.builder()
+                            .email("meera@spire.dev")
+                            .passwordHash(passwordEncoder.encode("password123"))
+                            .fullName("Meera Iyer")
+                            .role(trainerRole)
+                            .bio("Career coach with 12+ years guiding professionals through resumes, interviews, and placement.")
+                            .build());
+                });
+
+        seedService(meera,
+                "professional-resume-preparation",
+                "Professional Resume Preparation",
+                "Build a resume that gets you interviews. Learn formatting, content strategy, and ATS optimization.",
+                "A practical, video-based walk-through of how to write a resume that survives applicant tracking systems and reads well to a human recruiter. Covers formats, content strategy, and the small details that separate good resumes from great ones.",
+                1999,
+                List.of(
+                        new SvcModule("Resume Fundamentals",
+                                "Start with what recruiters actually look at and the formats that work today.",
+                                List.of(
+                                        new SvcLesson("What Recruiters Look For", 15),
+                                        new SvcLesson("Resume Formats: Chronological vs Functional", 12),
+                                        new SvcLesson("ATS-Friendly Formatting", 10)
+                                )),
+                        new SvcModule("Content Strategy",
+                                "Turn responsibilities into impact statements that convince.",
+                                List.of(
+                                        new SvcLesson("Writing Impact Statements", 18),
+                                        new SvcLesson("Quantifying Your Achievements", 14),
+                                        new SvcLesson("Tailoring for Each Application", 12)
+                                )),
+                        new SvcModule("Final Polish",
+                                "Avoid the common mistakes and build an iteration habit.",
+                                List.of(
+                                        new SvcLesson("Common Mistakes to Avoid", 10),
+                                        new SvcLesson("Review and Iteration Process", 15)
+                                ))
+                ));
+
+        seedService(meera,
+                "interview-training-masterclass",
+                "Interview Training Masterclass",
+                "Prepare for technical and behavioral interviews with proven frameworks and real practice scenarios.",
+                "End-to-end interview preparation: behavioral storytelling with STAR, technical whiteboarding, system design framing, and the soft-skill moments that decide offers.",
+                2999,
+                List.of(
+                        new SvcModule("Interview Fundamentals",
+                                "Map the interview landscape and prepare a research-backed plan.",
+                                List.of(
+                                        new SvcLesson("Understanding Interview Types", 12),
+                                        new SvcLesson("The STAR Method for Behavioral Questions", 18),
+                                        new SvcLesson("Research and Preparation Checklist", 10)
+                                )),
+                        new SvcModule("Technical Interviews",
+                                "Whiteboard, system design, and the patterns behind coding rounds.",
+                                List.of(
+                                        new SvcLesson("Whiteboard Problem-Solving Approach", 20),
+                                        new SvcLesson("System Design Interview Framework", 25),
+                                        new SvcLesson("Coding Interview Patterns", 22)
+                                )),
+                        new SvcModule("Soft Skills & Negotiation",
+                                "Handle pressure, negotiate well, and follow up with intent.",
+                                List.of(
+                                        new SvcLesson("Handling Tough Questions", 15),
+                                        new SvcLesson("Salary Negotiation Strategies", 18),
+                                        new SvcLesson("Post-Interview Follow-Up", 10)
+                                ))
+                ));
+
+        seedService(meera,
+                "linkedin-profile-optimization",
+                "LinkedIn Profile Optimization",
+                "Transform your LinkedIn profile into a powerful career tool that attracts recruiters and opportunities.",
+                "Make your LinkedIn profile work for you. Headline, summary, experience, content, and a connection strategy that gets you noticed by the right people.",
+                999,
+                List.of(
+                        new SvcModule("Profile Essentials",
+                                "Get the basics right — the parts recruiters scan first.",
+                                List.of(
+                                        new SvcLesson("Headline and Summary That Stand Out", 15),
+                                        new SvcLesson("Experience Section Best Practices", 12),
+                                        new SvcLesson("Skills, Endorsements, and Recommendations", 10)
+                                )),
+                        new SvcModule("Advanced LinkedIn Strategy",
+                                "Move beyond the static profile — content, networks, and search.",
+                                List.of(
+                                        new SvcLesson("Content Creation for Visibility", 18),
+                                        new SvcLesson("Networking and Connection Strategy", 14),
+                                        new SvcLesson("Using LinkedIn for Job Search", 16)
+                                ))
+                ));
+
+        seedService(meera,
+                "placement-assistance-program",
+                "Placement Assistance Program",
+                "End-to-end job placement support including job search strategy, application tracking, and interview prep.",
+                "A complete placement playbook: identify targets, build a pipeline, write strong cover letters, and close offers without leaving money on the table.",
+                4999,
+                List.of(
+                        new SvcModule("Job Search Strategy",
+                                "Pick the right targets and build a pipeline you can manage.",
+                                List.of(
+                                        new SvcLesson("Identifying Target Companies", 15),
+                                        new SvcLesson("Job Board and Referral Strategy", 18),
+                                        new SvcLesson("Building Your Application Pipeline", 12)
+                                )),
+                        new SvcModule("Application Process",
+                                "From cover letter to portfolio to follow-up.",
+                                List.of(
+                                        new SvcLesson("Cover Letter Writing", 14),
+                                        new SvcLesson("Portfolio and GitHub Presentation", 16),
+                                        new SvcLesson("Following Up Effectively", 10)
+                                )),
+                        new SvcModule("Closing the Deal",
+                                "Evaluate, negotiate, and ramp up.",
+                                List.of(
+                                        new SvcLesson("Evaluating Job Offers", 15),
+                                        new SvcLesson("Negotiation and Acceptance", 12),
+                                        new SvcLesson("First 90 Days at Your New Job", 18)
+                                ))
+                ));
+    }
+
+    private void seedService(User trainer, String slug, String title, String shortDescription,
+                             String description, int priceRupees, List<SvcModule> modules) {
+        if (courseRepository.findBySlug(slug).isPresent()) {
+            return; // already seeded
+        }
+
+        int totalLessons = modules.stream().mapToInt(m -> m.lessons().size()).sum();
+        int totalMinutes = modules.stream()
+                .flatMap(m -> m.lessons().stream())
+                .mapToInt(SvcLesson::durationMinutes)
+                .sum();
+
+        Course service = courseRepository.save(Course.builder()
+                .title(title)
+                .slug(slug)
+                .description(description)
+                .shortDescription(shortDescription)
+                .level(Course.Level.BEGINNER)
+                .price(BigDecimal.valueOf(priceRupees))
+                .isFree(priceRupees <= 0)
+                .durationHours(Math.round(totalMinutes / 60.0 * 10.0) / 10.0)
+                .type("SERVICE")
+                .trainer(trainer)
+                .instructor(trainer)   // see note in seedServicesAndTrainer
+                .lessonsCount(totalLessons)
+                .enrolledCount(0)
+                .rating(0.0)
+                .ratingsCount(0)
+                .category("Career Services")
+                .isPublished(true)
+                .build());
+
+        int lessonOrder = 1;
+        for (int mIdx = 0; mIdx < modules.size(); mIdx++) {
+            SvcModule mod = modules.get(mIdx);
+            Module module = moduleRepository.save(Module.builder()
+                    .course(service)
+                    .title(mod.title())
+                    .description(mod.description())
+                    .orderIndex(mIdx)
+                    .build());
+            for (SvcLesson l : mod.lessons()) {
+                boolean isFirstLesson = (lessonOrder == 1);
+                lessonRepository.save(Lesson.builder()
+                        .course(service)
+                        .module(module)
+                        .title(l.title())
+                        .orderIndex(lessonOrder)
+                        .durationMinutes(l.durationMinutes())
+                        .isFree(isFirstLesson) // first lesson is a free preview
+                        .build());
+                lessonOrder++;
+            }
+        }
+
+        log.info("Seeded service: {} ({} lessons, ~{}h)", slug, totalLessons,
+                Math.round(totalMinutes / 60.0 * 10.0) / 10.0);
+    }
+
+    private record SvcLesson(String title, int durationMinutes) {}
+    private record SvcModule(String title, String description, List<SvcLesson> lessons) {}
 
     private void seedEnrollment(User user, Course course) {
         if (!enrollmentRepository.existsByUserIdAndCourseId(user.getId(), course.getId())) {
