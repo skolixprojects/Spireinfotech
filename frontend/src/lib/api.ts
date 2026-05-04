@@ -458,3 +458,44 @@ export async function cancelSession(sessionId: number) {
   );
   return wrapper.data;
 }
+
+// Get all session requests for this mentor (pending, accepted, etc.)
+export async function getMentorSessions() {
+  const wrapper = await apiFetch<ApiResponse<import("./types").SessionRequest[]>>(
+    "/api/sessions/mentor"
+  );
+  return wrapper.data;
+}
+
+// Get only pending requests (mentor's inbox)
+export async function getMentorPendingRequests() {
+  const wrapper = await apiFetch<ApiResponse<import("./types").SessionRequest[]>>(
+    "/api/sessions/mentor/pending"
+  );
+  return wrapper.data;
+}
+
+// Accept a session request (set time + meeting URL)
+export async function acceptSessionRequest(
+  sessionId: number,
+  scheduledAt: string,
+  meetingUrl: string
+) {
+  const wrapper = await apiFetch<ApiResponse<import("./types").SessionRequest>>(
+    `/api/sessions/${sessionId}/accept`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ scheduledAt, meetingUrl }),
+    }
+  );
+  return wrapper.data;
+}
+
+// Mark session as completed
+export async function completeSession(sessionId: number) {
+  const wrapper = await apiFetch<ApiResponse<import("./types").SessionRequest>>(
+    `/api/sessions/${sessionId}/complete`,
+    { method: "PUT" }
+  );
+  return wrapper.data;
+}

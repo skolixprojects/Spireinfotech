@@ -1,19 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/Toast";
 import {
   BookOpen, ArrowRight, ShieldCheck, GraduationCap, PlusCircle,
   Users, BarChart3, Loader2, AlertCircle, Trash2, Eye, Globe, GlobeLock,
-  TrendingUp, CreditCard,
+  TrendingUp, CreditCard, Inbox, CalendarClock, History,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { getEnrollments, requestInstructor, getMyCourses, getInstructorStudents, getAnalytics, deleteCourse, publishCourse, unpublishCourse } from "@/lib/api";
+import {
+  getEnrollments, requestInstructor, getMyCourses, getInstructorStudents,
+  getAnalytics, deleteCourse, publishCourse, unpublishCourse, getMentorSessions,
+} from "@/lib/api";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { SessionsList } from "@/components/mentorship/SessionsList";
+import { PendingRequests } from "@/components/mentorship/PendingRequests";
+import { MentorSessionsList } from "@/components/mentorship/MentorSessionsList";
+import type { SessionRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const fadeUp = {
@@ -53,6 +59,9 @@ export default function DashboardPage() {
   const [myStudents, setMyStudents] = useState<Array<{ studentName: string; email: string; courseTitle: string; enrolledAt: string }>>([]);
   const [studentsLoading, setStudentsLoading] = useState(false);
 
+  // Mentor sessions (one fetch shared across upcoming, history, and My Students enrichment)
+  const [mentorSessions, setMentorSessions] = useState<SessionRequest[]>([]);
+
   // Admin analytics
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
 
@@ -79,6 +88,10 @@ export default function DashboardPage() {
         .then((data) => setMyStudents(data ?? []))
         .catch(() => setMyStudents([]))
         .finally(() => setStudentsLoading(false));
+
+      getMentorSessions()
+        .then((data) => setMentorSessions(data ?? []))
+        .catch(() => setMentorSessions([]));
     }
 
     // Admin only — fetch analytics
@@ -116,6 +129,36 @@ export default function DashboardPage() {
       setMyCourses((prev) => prev.map((c) => c.id === courseId ? { ...c, isPublished: !isPublished } : c));
     } catch (err) { toast("error", err instanceof Error ? err.message : "Failed"); }
   };
+
+  // Per-student session stats — keyed by email+courseTitle so a student
+  // enrolled in two courses gets per-course counts. Matches whatever
+  // getMentorSessions returned (mentor sees their own sessions only).
+  const studentStats = useMemo(() => {
+    const map = new Map<string, { completed: number; lastAt: string | null }>();
+    for (const s of mentorSessions) {
+      if (!s.studentEmail) continue;
+      const key = `${s.studentEmail}|${s.courseTitle}`;
+      const cur = map.get(key) ?? { completed: 0, lastAt: null };
+      if (s.status === "COMPLETED") {
+        cur.completed += 1;
+        const at = s.completedAt ?? s.scheduledAt;
+        if (at && (!cur.lastAt || new Date(at) > new Date(cur.lastAt))) {
+          cur.lastAt = at;
+        }
+      } else if (s.status === "ACCEPTED" && s.scheduledAt) {
+        if (!cur.lastAt || new Date(s.scheduledAt) > new Date(cur.lastAt)) {
+          cur.lastAt = s.scheduledAt;
+        }
+      }
+      map.set(key, cur);
+    }
+    return map;
+  }, [mentorSessions]);
+
+  const pendingCount = mentorSessions.filter((s) => s.status === "PENDING").length;
+  const upcomingCount = mentorSessions.filter(
+    (s) => s.status === "ACCEPTED" && s.scheduledAt && new Date(s.scheduledAt) > new Date()
+  ).length;
 
   if (authLoading) {
     return <section className="mx-auto max-w-7xl px-6 pt-32 pb-20 flex items-center justify-center min-h-[60vh]"><Loader2 size={32} className="animate-spin text-[#95C8CB]" /></section>;
@@ -249,9 +292,54 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── INSTRUCTOR: Create Course + My Courses ─────────────── */}
+        {/* ── INSTRUCTOR: Mentorship sections (top — most urgent first) ── */}
         {isInstructor && (
           <>
+            {/* Pending Requests */}
+            <div className="mb-10">
+              <h2 className="text-xl font-bold text-[#0E6B6B] mb-4 flex items-center gap-2">
+                <Inbox size={20} /> Pending Requests
+                {pendingCount > 0 && (
+                  <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
+                    {pendingCount}
+                  </span>
+                )}
+              </h2>
+              <PendingRequests
+                onAccepted={(updated) => {
+                  // Keep the shared mentorSessions list in sync so Upcoming /
+                  // Session History reflect the change without a re-fetch.
+                  setMentorSessions((prev) =>
+                    prev.some((s) => s.id === updated.id)
+                      ? prev.map((s) => (s.id === updated.id ? updated : s))
+                      : [...prev, updated]
+                  );
+                }}
+              />
+            </div>
+
+            {/* Upcoming Sessions */}
+            <div className="mb-10">
+              <h2 className="text-xl font-bold text-[#0E6B6B] mb-4 flex items-center gap-2">
+                <CalendarClock size={20} /> Upcoming Sessions
+                {upcomingCount > 0 && (
+                  <span className="text-xs font-semibold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full">
+                    {upcomingCount}
+                  </span>
+                )}
+              </h2>
+              <MentorSessionsList
+                sessions={mentorSessions}
+                onSessionsChange={setMentorSessions}
+                filter={(s) =>
+                  s.status === "ACCEPTED" &&
+                  !!s.scheduledAt &&
+                  new Date(s.scheduledAt) > new Date()
+                }
+                emptyMessage="No upcoming sessions scheduled."
+              />
+            </div>
+
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
               <GlassCard>
                 <div className="flex items-center gap-3 mb-3">
@@ -337,21 +425,54 @@ export default function DashboardPage() {
                       <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Email</th>
                       <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Course</th>
                       <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Enrolled</th>
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Sessions</th>
+                      <th className="text-left px-6 py-3 text-xs font-semibold text-gray-500 uppercase">Last session</th>
                     </tr></thead>
                     <tbody className="divide-y divide-gray-50">
-                      {myStudents.map((s, i) => (
-                        <motion.tr key={`${s.email}-${i}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }} className="hover:bg-gray-50/50">
-                          <td className="px-6 py-3"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{s.studentName?.charAt(0)?.toUpperCase()}</div><span className="font-medium text-gray-900">{s.studentName}</span></div></td>
-                          <td className="px-6 py-3 text-gray-500">{s.email}</td>
-                          <td className="px-6 py-3"><span className="text-xs font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700">{s.courseTitle}</span></td>
-                          <td className="px-6 py-3 text-gray-400 text-xs">{new Date(s.enrolledAt).toLocaleDateString()}</td>
-                        </motion.tr>
-                      ))}
+                      {myStudents.map((s, i) => {
+                        const stats = studentStats.get(`${s.email}|${s.courseTitle}`);
+                        const sessionsCount = stats?.completed ?? 0;
+                        const lastAt = stats?.lastAt ?? null;
+                        return (
+                          <motion.tr key={`${s.email}-${i}`} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }} className="hover:bg-gray-50/50">
+                            <td className="px-6 py-3"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{s.studentName?.charAt(0)?.toUpperCase()}</div><span className="font-medium text-gray-900">{s.studentName}</span></div></td>
+                            <td className="px-6 py-3 text-gray-500">{s.email}</td>
+                            <td className="px-6 py-3"><span className="text-xs font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700">{s.courseTitle}</span></td>
+                            <td className="px-6 py-3 text-gray-400 text-xs">{new Date(s.enrolledAt).toLocaleDateString()}</td>
+                            <td className="px-6 py-3 text-gray-700 text-xs">
+                              {sessionsCount > 0 ? (
+                                <span className="font-semibold">{sessionsCount}</span>
+                              ) : (
+                                <span className="text-gray-300">—</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-3 text-gray-400 text-xs">
+                              {lastAt ? new Date(lastAt).toLocaleDateString() : <span className="text-gray-300">—</span>}
+                            </td>
+                          </motion.tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             </div>
+
+            {/* Session History (collapsed-feel: at the bottom of the instructor sections) */}
+            <details className="mb-10 group">
+              <summary className="cursor-pointer list-none">
+                <h2 className="text-xl font-bold text-[#0E6B6B] mb-4 flex items-center gap-2">
+                  <History size={20} /> Session History
+                  <span className="text-xs font-normal text-gray-400 group-open:hidden">(click to expand)</span>
+                </h2>
+              </summary>
+              <MentorSessionsList
+                sessions={mentorSessions}
+                onSessionsChange={setMentorSessions}
+                filter={(s) => s.status === "COMPLETED" || s.status === "CANCELLED"}
+                emptyMessage="No completed or cancelled sessions yet."
+              />
+            </details>
           </>
         )}
 
