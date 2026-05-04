@@ -1,16 +1,16 @@
 import Hero from "@/components/home/Hero";
-import StatsStrip from "@/components/home/StatsStrip";
-import FeaturedCourses from "@/components/home/FeaturedCourses";
-import Testimonials from "@/components/home/Testimonials";
+import HowSpireWorks from "@/components/home/HowSpireWorks";
+import WhySpire from "@/components/home/WhySpire";
+import WhatYouCanLearn from "@/components/home/WhatYouCanLearn";
 import CTASection from "@/components/home/CTASection";
 
 export default function Home() {
   return (
     <>
       <Hero />
-      <StatsStrip />
-      <FeaturedCourses />
-      <Testimonials />
+      <HowSpireWorks />
+      <WhySpire />
+      <WhatYouCanLearn />
       <CTASection />
     </>
   );

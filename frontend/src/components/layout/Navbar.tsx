@@ -9,21 +9,48 @@ import { cn } from "@/lib/utils";
 import { APP_NAME } from "@/lib/constants";
 import { useAuth } from "@/lib/auth-context";
 
-// Links shown when NOT logged in
+// Links by audience. /courses and /services are now login-protected,
+// so the public nav doesn't reference them — visitors must sign up
+// to browse. Logged-in nav varies by role: students get cart access;
+// instructors don't see Services (they don't author them); trainers
+// don't see Courses (they don't author them); admins see everything.
 const PUBLIC_LINKS = [
-  { label: "Courses", href: "/courses" },
-  { label: "Services", href: "/services" },
   { label: "About", href: "/about" },
   { label: "Support", href: "/support" },
 ];
 
-// Links shown when logged in
-const AUTH_LINKS = [
-  { label: "Dashboard", href: "/dashboard" },
+const STUDENT_LINKS = [
   { label: "Courses", href: "/courses" },
   { label: "Services", href: "/services" },
+  { label: "Dashboard", href: "/dashboard" },
   { label: "Cart", href: "/cart" },
 ];
+
+const INSTRUCTOR_LINKS = [
+  { label: "Courses", href: "/courses" },
+  { label: "Dashboard", href: "/dashboard" },
+];
+
+const TRAINER_LINKS = [
+  { label: "Services", href: "/services" },
+  { label: "Dashboard", href: "/dashboard" },
+];
+
+const ADMIN_LINKS = [
+  { label: "Courses", href: "/courses" },
+  { label: "Services", href: "/services" },
+  { label: "Admin", href: "/admin" },
+];
+
+function pickNavLinks(isAuthenticated: boolean, role?: string) {
+  if (!isAuthenticated) return PUBLIC_LINKS;
+  switch (role?.toUpperCase()) {
+    case "ADMIN": return ADMIN_LINKS;
+    case "INSTRUCTOR": return INSTRUCTOR_LINKS;
+    case "TRAINER": return TRAINER_LINKS;
+    default: return STUDENT_LINKS;
+  }
+}
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -32,7 +59,7 @@ export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
   const pathname = usePathname();
 
-  const navLinks = isAuthenticated ? AUTH_LINKS : PUBLIC_LINKS;
+  const navLinks = pickNavLinks(isAuthenticated, user?.role);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);

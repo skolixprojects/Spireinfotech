@@ -29,9 +29,9 @@ export default function Hero() {
             animate="visible"
             className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 leading-[1.1]"
           >
-            Master New Skills,
+            Courses with
             <br />
-            <span className="text-[#0E6B6B]">Transform Your Career</span>
+            <span className="text-[#0E6B6B]">real human mentorship</span>
           </motion.h1>
 
           <motion.p
@@ -41,8 +41,9 @@ export default function Hero() {
             animate="visible"
             className="mt-6 text-lg sm:text-xl text-gray-600 max-w-xl mx-auto lg:mx-0"
           >
-            Join 10,000+ learners on Spire — structured courses, expert
-            instructors, certificates.
+            Self-paced learning isn&apos;t lonely when you have a mentor.
+            Every Spire course comes with a dedicated expert who guides
+            you personally.
           </motion.p>
 
           <motion.div
@@ -50,19 +51,19 @@ export default function Hero() {
             variants={fadeUp}
             initial="hidden"
             animate="visible"
-            className="mt-8 flex flex-col sm:flex-row gap-4 justify-center lg:justify-start"
+            className="mt-8 flex flex-col sm:flex-row gap-4 items-center justify-center lg:justify-start"
           >
             <Link
               href="/signup"
               className="inline-flex items-center justify-center rounded-full bg-[#0E6B6B] px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#0E6B6B]/25 hover:bg-[#0a5555] transition-colors"
             >
-              Start Learning Free
+              Create Your Account
             </Link>
             <Link
-              href="/courses"
-              className="inline-flex items-center justify-center rounded-full border-2 border-[#0E6B6B] px-8 py-3.5 text-base font-semibold text-[#0E6B6B] hover:bg-[#0E6B6B]/5 transition-colors"
+              href="/login"
+              className="text-sm font-medium text-[#0E6B6B] hover:underline underline-offset-4"
             >
-              View Courses
+              Already have an account? Sign In
             </Link>
           </motion.div>
         </div>

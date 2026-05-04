@@ -62,7 +62,7 @@ export default function CTASection() {
             animate={inView ? "visible" : "hidden"}
             className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-white"
           >
-            Ready to Start Your Learning Journey?
+            Ready to start learning?
           </motion.h2>
 
           <motion.p
@@ -72,8 +72,7 @@ export default function CTASection() {
             animate={inView ? "visible" : "hidden"}
             className="mt-5 text-[#95C8CB] text-lg sm:text-xl"
           >
-            Join thousands of learners advancing their careers with expert-led
-            courses.
+            Create your free account and browse courses with real mentorship.
           </motion.p>
 
           <motion.div
@@ -86,7 +85,7 @@ export default function CTASection() {
               href="/signup"
               className="mt-8 inline-flex items-center justify-center rounded-full bg-white px-10 py-4 text-base font-semibold text-[#0E6B6B] shadow-lg hover:bg-[#F0EDE8] transition-colors"
             >
-              Get Started for Free
+              Get Started
             </Link>
           </motion.div>
         </div>
