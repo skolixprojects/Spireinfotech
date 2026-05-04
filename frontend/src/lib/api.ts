@@ -129,6 +129,67 @@ export async function getProfile(): Promise<UserDTO> {
   return wrapper.data;
 }
 
+// ─── Dashboard "next action" ────────────────────────────────────────
+
+export type NextActionType =
+  | "SESSION_SOON"
+  | "ASSIGNMENT_DUE"
+  | "CONTINUE_COURSE"
+  | "START_COURSE"
+  | "BROWSE_COURSES"
+  | "ALL_COMPLETE";
+
+export interface NextAction {
+  type: NextActionType;
+  courseId?: number | null;
+  courseTitle?: string | null;
+  mentorName?: string | null;
+  scheduledAt?: string | null;
+  meetingUrl?: string | null;
+  assignmentId?: number | null;
+  assignmentTitle?: string | null;
+  dueDate?: string | null;
+  nextLessonId?: number | null;
+  nextLessonTitle?: string | null;
+  moduleTitle?: string | null;
+  progressPercent?: number | null;
+  firstLessonId?: number | null;
+  firstLessonTitle?: string | null;
+  completedCount?: number | null;
+  certificateCount?: number | null;
+}
+
+export interface DashboardSummary {
+  enrolledCourses: Array<{
+    id: number;
+    title: string;
+    type: string;
+    progressPercent: number;
+    completedLessons: number;
+    totalLessons: number;
+    lastAccessedAt: string | null;
+  }>;
+  upcomingSessions: Array<{
+    sessionId: number;
+    courseTitle: string | null;
+    mentorName: string | null;
+    scheduledAt: string;
+    meetingUrl: string | null;
+  }>;
+  recentActivity: Array<{ type: string; description: string; timestamp: string }>;
+  streakDays: number;
+}
+
+export async function getNextAction() {
+  const wrapper = await apiFetch<ApiResponse<NextAction>>("/api/users/next-action");
+  return wrapper.data;
+}
+
+export async function getDashboardSummary() {
+  const wrapper = await apiFetch<ApiResponse<DashboardSummary>>("/api/users/dashboard-summary");
+  return wrapper.data;
+}
+
 // ─── Courses ────────────────────────────────────────────────────────
 
 export async function getCourses(params?: { level?: string; search?: string }) {

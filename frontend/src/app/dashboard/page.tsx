@@ -7,18 +7,21 @@ import { useToast } from "@/components/ui/Toast";
 import {
   BookOpen, ArrowRight, ShieldCheck, GraduationCap, PlusCircle,
   Users, BarChart3, Loader2, AlertCircle, Trash2, Eye, Globe, GlobeLock,
-  TrendingUp, CreditCard, Inbox, CalendarClock, History,
+  TrendingUp, CreditCard, Inbox, CalendarClock, History, ExternalLink,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
   getEnrollments, requestInstructor, getMyCourses, getInstructorStudents,
   getAnalytics, deleteCourse, publishCourse, unpublishCourse, getMentorSessions,
+  getNextAction, getDashboardSummary,
+  type NextAction, type DashboardSummary,
 } from "@/lib/api";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { SessionsList } from "@/components/mentorship/SessionsList";
 import { PendingRequests } from "@/components/mentorship/PendingRequests";
 import { MentorSessionsList } from "@/components/mentorship/MentorSessionsList";
+import { NextActionHero } from "@/components/dashboard/NextActionHero";
 import type { SessionRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +65,11 @@ export default function DashboardPage() {
   // Mentor sessions (one fetch shared across upcoming, history, and My Students enrichment)
   const [mentorSessions, setMentorSessions] = useState<SessionRequest[]>([]);
 
+  // Student dashboard — "one next action" hero + summary
+  const [nextAction, setNextAction] = useState<NextAction | null>(null);
+  const [nextActionLoading, setNextActionLoading] = useState(false);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+
   // Admin analytics
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
 
@@ -99,6 +107,19 @@ export default function DashboardPage() {
       getAnalytics()
         .then((data) => setAnalytics(data as AnalyticsData))
         .catch(() => setAnalytics(null));
+    }
+
+    // Student only — fetch next action + summary for the new hero/sections
+    if (role === "STUDENT") {
+      setNextActionLoading(true);
+      getNextAction()
+        .then((data) => setNextAction(data))
+        .catch(() => setNextAction(null))
+        .finally(() => setNextActionLoading(false));
+
+      getDashboardSummary()
+        .then((data) => setSummary(data))
+        .catch(() => setSummary(null));
     }
   }, [user]);
 
@@ -171,6 +192,10 @@ export default function DashboardPage() {
   const roleInfo = ROLE_CONFIG[role] ?? ROLE_CONFIG.STUDENT;
   const isInstructor = role === "INSTRUCTOR";
   const isAdmin = role === "ADMIN";
+  const isStudent = role === "STUDENT";
+
+  const upcomingForStudent = summary?.upcomingSessions ?? [];
+  const enrolledForStudent = summary?.enrolledCourses ?? [];
 
   return (
     <section className="mx-auto max-w-7xl px-6 pt-28 pb-20">
@@ -261,6 +286,115 @@ export default function DashboardPage() {
               </>
             ) : (
               <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-[#95C8CB]" /></div>
+            )}
+          </div>
+        )}
+
+        {/* ── STUDENT: One Next Action hero + My Courses + Upcoming ── */}
+        {isStudent && (
+          <div className="mb-10 space-y-10">
+            {/* Section 1: Next-action hero */}
+            <NextActionHero action={nextAction} loading={nextActionLoading} />
+
+            {/* Section 2: My Courses (compact, with real progress) */}
+            {enrolledForStudent.length > 0 && (
+              <div>
+                <h2 className="text-xl font-bold text-[#0E6B6B] mb-4 flex items-center gap-2">
+                  <BookOpen size={20} /> My Courses
+                  <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                    {enrolledForStudent.length}
+                  </span>
+                </h2>
+                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {enrolledForStudent.map((c) => (
+                    <Link
+                      key={c.id}
+                      href={c.type === "SERVICE" ? `/services/${c.id}` : `/courses/${c.id}`}
+                      className="group block bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-[#95C8CB]/60 transition-all p-5"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={cn(
+                          "text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full",
+                          c.type === "SERVICE" ? "bg-violet-100 text-violet-700" : "bg-teal-100 text-teal-700"
+                        )}>
+                          {c.type === "SERVICE" ? "Service" : "Course"}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {c.lastAccessedAt
+                            ? new Date(c.lastAccessedAt).toLocaleDateString()
+                            : "Not started"}
+                        </span>
+                      </div>
+                      <h3 className="font-semibold text-gray-900 line-clamp-2 mb-3">{c.title}</h3>
+
+                      <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+                        <span>{c.completedLessons}/{c.totalLessons} lessons</span>
+                        <span className="font-semibold text-[#0E6B6B]">{c.progressPercent}%</span>
+                      </div>
+                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-[#0E6B6B] to-[#5FA3A3] rounded-full transition-all"
+                          style={{ width: `${Math.max(0, Math.min(100, c.progressPercent))}%` }}
+                        />
+                      </div>
+
+                      <div className="mt-4 text-xs font-semibold text-[#0E6B6B] group-hover:underline inline-flex items-center gap-1">
+                        Continue <ArrowRight size={12} />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Section 3: Upcoming sessions (next 7 days) */}
+            {upcomingForStudent.length > 0 && (
+              <div>
+                <h2 className="text-xl font-bold text-[#0E6B6B] mb-4 flex items-center gap-2">
+                  <CalendarClock size={20} /> Upcoming
+                  <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                    {upcomingForStudent.length}
+                  </span>
+                </h2>
+                <div className="space-y-2">
+                  {upcomingForStudent.map((s) => {
+                    const at = new Date(s.scheduledAt);
+                    const withinHour = at.getTime() - Date.now() <= 60 * 60 * 1000;
+                    return (
+                      <div
+                        key={s.sessionId}
+                        className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 shadow-sm p-4"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
+                          <CalendarClock size={18} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900 truncate">
+                            {s.courseTitle ?? "Mentor session"}
+                          </p>
+                          <p className="text-xs text-gray-500 truncate">
+                            {s.mentorName ? `with ${s.mentorName} · ` : ""}
+                            {at.toLocaleString(undefined, {
+                              weekday: "short", month: "short", day: "numeric",
+                              hour: "numeric", minute: "2-digit",
+                            })}
+                          </p>
+                        </div>
+                        {s.meetingUrl && withinHour && (
+                          <a
+                            href={s.meetingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0E6B6B] text-white text-xs font-semibold hover:bg-[#5FA3A3] transition shrink-0"
+                          >
+                            <ExternalLink size={12} /> Join
+                          </a>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -476,15 +610,17 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* ── Enrolled Courses (ALL roles) ────────────────────────── */}
+        {/* ── Enrolled Courses (admin / instructor only — students see "My Courses" above) ── */}
         {error && (
           <GlassCard className="mb-6 border-red-200 bg-red-50/80">
             <div className="flex items-center gap-2 text-red-600"><AlertCircle size={16} /><p className="text-sm">{error}</p></div>
           </GlassCard>
         )}
 
+        {!isStudent && (
+          <>
         <h2 className="text-xl font-bold text-[#0E6B6B] mb-4">
-          {isAdmin ? "Enrolled Courses" : isInstructor ? "Enrolled Courses" : "Your Courses"}
+          {isAdmin ? "Enrolled Courses" : "Enrolled Courses"}
         </h2>
 
         {enrollLoading ? (
@@ -515,6 +651,8 @@ export default function DashboardPage() {
               );
             })}
           </div>
+        )}
+          </>
         )}
 
         {/* ── Mentor Sessions (all roles) ─────────────────────────── */}
