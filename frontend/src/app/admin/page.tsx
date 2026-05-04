@@ -14,6 +14,11 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
+  ChevronDown,
+  ChevronRight,
+  UserPlus,
+  UserMinus,
+  GraduationCap,
 } from "lucide-react";
 import {
   getAnalytics,
@@ -25,6 +30,10 @@ import {
   deleteCourse,
   publishCourse,
   unpublishCourse,
+  getCourseMentors,
+  addMentorToCourse,
+  removeMentorFromCourse,
+  type CourseMentor,
 } from "@/lib/api";
 import { Eye, Trash2, Globe, GlobeLock } from "lucide-react";
 import Link from "next/link";
@@ -35,6 +44,7 @@ const sidebarLinks = [
   { label: "Overview", icon: LayoutDashboard },
   { label: "Users", icon: Users },
   { label: "Courses", icon: BookOpen },
+  { label: "Mentor Pools", icon: GraduationCap },
   { label: "Instructor Requests", icon: UserCheck },
 ];
 
@@ -110,6 +120,14 @@ function AdminContent() {
   const [actionMsg, setActionMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [processingId, setProcessingId] = useState<number | null>(null);
 
+  // Mentor Pools tab state — lazy per-course pool fetch + cache
+  const [expandedCourseId, setExpandedCourseId] = useState<number | null>(null);
+  const [mentorsByCourse, setMentorsByCourse] = useState<Record<number, CourseMentor[]>>({});
+  const [loadingPoolFor, setLoadingPoolFor] = useState<number | null>(null);
+  const [addPanelFor, setAddPanelFor] = useState<number | null>(null);
+  const [selectedMentorId, setSelectedMentorId] = useState<string>("");
+  const [poolBusy, setPoolBusy] = useState(false);
+
   // Fetch analytics
   useEffect(() => {
     setLoadingAnalytics(true);
@@ -177,6 +195,62 @@ function AdminContent() {
       setActionMsg({ type: "success", text: isPublished ? "Course unpublished." : "Course published." });
     } catch (err: unknown) {
       setActionMsg({ type: "error", text: err instanceof Error ? err.message : "Action failed" });
+    }
+  };
+
+  // ── Mentor Pools handlers ────────────────────────────────────
+  const fetchPool = async (courseId: number) => {
+    setLoadingPoolFor(courseId);
+    try {
+      const data = await getCourseMentors(courseId);
+      setMentorsByCourse((prev) => ({ ...prev, [courseId]: data ?? [] }));
+    } catch (err: unknown) {
+      setActionMsg({ type: "error", text: err instanceof Error ? err.message : "Failed to load pool" });
+    } finally {
+      setLoadingPoolFor(null);
+    }
+  };
+
+  const handleToggleCourse = (courseId: number) => {
+    if (expandedCourseId === courseId) {
+      setExpandedCourseId(null);
+      setAddPanelFor(null);
+      return;
+    }
+    setExpandedCourseId(courseId);
+    setAddPanelFor(null);
+    if (mentorsByCourse[courseId] === undefined) {
+      fetchPool(courseId);
+    }
+  };
+
+  const handleAddMentor = async (courseId: number) => {
+    if (!selectedMentorId) return;
+    setPoolBusy(true);
+    try {
+      await addMentorToCourse(courseId, Number(selectedMentorId));
+      await fetchPool(courseId);
+      setActionMsg({ type: "success", text: "Mentor added to pool." });
+      setSelectedMentorId("");
+      setAddPanelFor(null);
+    } catch (err: unknown) {
+      setActionMsg({ type: "error", text: err instanceof Error ? err.message : "Failed to add mentor" });
+    } finally {
+      setPoolBusy(false);
+    }
+  };
+
+  const handleRemoveMentor = async (courseId: number, mentorId: number) => {
+    if (!confirm("Remove this mentor from the pool? Their existing student assignments will not change.")) return;
+    setPoolBusy(true);
+    try {
+      await removeMentorFromCourse(courseId, mentorId);
+      await fetchPool(courseId);
+      setActionMsg({ type: "success", text: "Mentor removed from pool." });
+    } catch (err: unknown) {
+      setActionMsg({ type: "error", text: err instanceof Error ? err.message : "Failed to remove mentor" });
+    } finally {
+      setPoolBusy(false);
     }
   };
 
@@ -468,6 +542,210 @@ function AdminContent() {
                     </div>
                   )}
                 </>
+              )}
+            </>
+          )}
+
+          {/* ──────────── Mentor Pools Tab ──────────── */}
+          {activeTab === "Mentor Pools" && (
+            <>
+              <div className="flex items-center justify-between mb-2">
+                <h1 className="text-2xl font-bold text-[#0E6B6B]">Mentor Pools</h1>
+                <span className="text-sm text-gray-500">{courses.length} courses</span>
+              </div>
+              <p className="text-sm text-gray-500 mb-6">
+                Each course has its own mentor pool. Capacity is 10 students per mentor across all their courses.
+              </p>
+
+              {/* Action feedback */}
+              {actionMsg && (
+                <div
+                  className={`mb-6 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${
+                    actionMsg.type === "success"
+                      ? "bg-teal-50 border-teal-200 text-teal-700"
+                      : "bg-red-50 border-red-200 text-red-700"
+                  }`}
+                >
+                  {actionMsg.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  {actionMsg.text}
+                  <button onClick={() => setActionMsg(null)} className="ml-auto opacity-60 hover:opacity-100 cursor-pointer">
+                    <XCircle size={16} />
+                  </button>
+                </div>
+              )}
+
+              {loadingCourses ? (
+                <Spinner />
+              ) : courses.length === 0 ? (
+                <GlassCard>
+                  <p className="text-center text-gray-400 py-8">No courses found.</p>
+                </GlassCard>
+              ) : (
+                <div className="space-y-4">
+                  {courses.map((course) => {
+                    const expanded = expandedCourseId === course.id;
+                    const pool = mentorsByCourse[course.id];
+                    const isLoadingPool = loadingPoolFor === course.id;
+                    const showAddPanel = addPanelFor === course.id;
+
+                    const instructorOptions = users.filter(
+                      (u) =>
+                        u.role?.toUpperCase() === "INSTRUCTOR" &&
+                        !(pool ?? []).some((m) => m.mentorId === u.id)
+                    );
+
+                    return (
+                      <GlassCard key={course.id}>
+                        {/* Header row — click to expand */}
+                        <button
+                          onClick={() => handleToggleCourse(course.id)}
+                          className="w-full flex items-center gap-3 text-left cursor-pointer"
+                        >
+                          {expanded ? (
+                            <ChevronDown size={18} className="text-[#0E6B6B] shrink-0" />
+                          ) : (
+                            <ChevronRight size={18} className="text-gray-400 shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="font-semibold text-gray-900 truncate">{course.title}</h3>
+                              <span className={cn(
+                                "text-[10px] font-semibold px-2 py-0.5 rounded-full",
+                                course.isPublished ? "bg-teal-100 text-teal-700" : "bg-gray-100 text-gray-500"
+                              )}>
+                                {course.isPublished ? "Published" : "Draft"}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              {pool
+                                ? `${pool.length} mentor${pool.length === 1 ? "" : "s"} in pool`
+                                : "Click to view pool"}
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* Expanded body */}
+                        {expanded && (
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            {isLoadingPool ? (
+                              <div className="flex items-center justify-center py-8">
+                                <Loader2 size={20} className="animate-spin text-[#95C8CB]" />
+                              </div>
+                            ) : (
+                              <>
+                                {(pool ?? []).length === 0 ? (
+                                  <p className="text-sm text-gray-400 py-4">
+                                    No mentors in this pool yet. Students enrolling in this course will be marked
+                                    <span className="font-mono text-xs"> pending_assignment</span> until you add a mentor.
+                                  </p>
+                                ) : (
+                                  <ul className="space-y-2">
+                                    {(pool ?? []).map((m) => {
+                                      const atCapacity = m.activeStudentCount >= m.maxStudents;
+                                      const nearCapacity =
+                                        !atCapacity && m.activeStudentCount >= m.maxStudents - 2;
+                                      const capColor = atCapacity
+                                        ? "bg-red-100 text-red-700"
+                                        : nearCapacity
+                                        ? "bg-amber-100 text-amber-700"
+                                        : "bg-teal-100 text-teal-700";
+                                      return (
+                                        <li
+                                          key={m.id}
+                                          className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50/60"
+                                        >
+                                          <div className="w-8 h-8 rounded-full bg-[#0E6B6B]/10 text-[#0E6B6B] flex items-center justify-center text-xs font-bold shrink-0">
+                                            {m.mentorName?.charAt(0)?.toUpperCase() ?? "?"}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-medium text-gray-900 truncate">{m.mentorName}</p>
+                                            <p className="text-xs text-gray-500 truncate">{m.mentorEmail}</p>
+                                          </div>
+                                          <span className={cn(
+                                            "text-[10px] font-semibold px-2 py-0.5 rounded-full whitespace-nowrap",
+                                            capColor
+                                          )}>
+                                            {m.activeStudentCount}/{m.maxStudents} students
+                                          </span>
+                                          <button
+                                            onClick={() => handleRemoveMentor(course.id, m.mentorId)}
+                                            disabled={poolBusy}
+                                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition"
+                                          >
+                                            <UserMinus size={12} /> Remove
+                                          </button>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
+
+                                {/* Add Mentor affordance */}
+                                <div className="mt-3">
+                                  {!showAddPanel ? (
+                                    <button
+                                      onClick={() => {
+                                        setAddPanelFor(course.id);
+                                        setSelectedMentorId("");
+                                      }}
+                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[#0E6B6B] bg-[#0E6B6B]/10 hover:bg-[#0E6B6B]/15 transition"
+                                    >
+                                      <UserPlus size={12} /> Add Mentor
+                                    </button>
+                                  ) : (
+                                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg bg-gray-50 border border-gray-100">
+                                      {loadingUsers ? (
+                                        <Loader2 size={14} className="animate-spin text-[#95C8CB]" />
+                                      ) : instructorOptions.length === 0 ? (
+                                        <span className="text-xs text-gray-500 flex-1">
+                                          All instructors are already in this pool.
+                                        </span>
+                                      ) : (
+                                        <select
+                                          value={selectedMentorId}
+                                          onChange={(e) => setSelectedMentorId(e.target.value)}
+                                          disabled={poolBusy}
+                                          className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                        >
+                                          <option value="">Select an instructor…</option>
+                                          {instructorOptions.map((u) => (
+                                            <option key={u.id} value={u.id}>
+                                              {u.fullName} — {u.email}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
+                                      <div className="flex items-center gap-2 shrink-0">
+                                        <button
+                                          onClick={() => handleAddMentor(course.id)}
+                                          disabled={poolBusy || !selectedMentorId || instructorOptions.length === 0}
+                                          className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#0E6B6B] text-white hover:bg-[#5FA3A3] disabled:opacity-50 transition inline-flex items-center gap-1"
+                                        >
+                                          {poolBusy ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />}
+                                          Add
+                                        </button>
+                                        <button
+                                          onClick={() => {
+                                            setAddPanelFor(null);
+                                            setSelectedMentorId("");
+                                          }}
+                                          disabled={poolBusy}
+                                          className="px-3 py-2 rounded-lg text-xs font-medium text-gray-600 border border-gray-300 hover:bg-gray-100 disabled:opacity-50 transition"
+                                        >
+                                          Cancel
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </GlassCard>
+                    );
+                  })}
+                </div>
               )}
             </>
           )}

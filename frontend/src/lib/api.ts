@@ -499,3 +499,38 @@ export async function completeSession(sessionId: number) {
   );
   return wrapper.data;
 }
+
+// ─── Mentor Pools (admin) ──────────────────────────────────────
+
+export interface CourseMentor {
+  id: number;
+  courseId: number;
+  mentorId: number;
+  mentorName: string;
+  mentorEmail: string;
+  activeStudentCount: number;
+  maxStudents: number;
+  isActive: boolean;
+}
+
+export async function getCourseMentors(courseId: number) {
+  const wrapper = await apiFetch<ApiResponse<CourseMentor[]>>(
+    `/api/admin/courses/${courseId}/mentors`
+  );
+  return wrapper.data;
+}
+
+export async function addMentorToCourse(courseId: number, userId: number) {
+  const wrapper = await apiFetch<ApiResponse<CourseMentor>>(
+    `/api/admin/courses/${courseId}/mentors`,
+    { method: "POST", body: JSON.stringify({ userId }) }
+  );
+  return wrapper.data;
+}
+
+export async function removeMentorFromCourse(courseId: number, userId: number) {
+  return apiFetch<ApiResponse<unknown>>(
+    `/api/admin/courses/${courseId}/mentors/${userId}`,
+    { method: "DELETE" }
+  );
+}
