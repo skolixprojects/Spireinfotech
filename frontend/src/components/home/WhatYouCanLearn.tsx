@@ -104,7 +104,7 @@ export default function WhatYouCanLearn() {
           className="text-center mb-12"
         >
           <h2 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900">
-            What you can learn on Spire
+            What you can learn on Spire Info Tech
           </h2>
           <p className="mt-3 text-gray-600 max-w-2xl mx-auto">
             Pick a path. Sign up to browse courses inside each one.

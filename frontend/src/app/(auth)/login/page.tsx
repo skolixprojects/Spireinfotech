@@ -59,7 +59,7 @@ function LoginForm() {
       <div className="flex justify-center mb-6">
         <Image
           src="/logo.png"
-          alt="Spire"
+          alt="Spire Info Tech"
           width={64}
           height={64}
           priority

@@ -233,7 +233,7 @@ function renderBody(action: NextAction): React.ReactNode {
       return (
         <HeroChrome
           icon={Compass}
-          eyebrow="Welcome to Spire"
+          eyebrow="Welcome to Spire Info Tech"
           title="Pick a course and we'll match you with a mentor."
           subtitle="Self-paced video courses in tech, design, and data science. Every course includes a personal mentor."
           primary={{ label: "Browse Courses", href: "/courses" }}

@@ -141,7 +141,7 @@ export default function CartPage() {
                   </div>
                   <p className="text-sm text-gray-500">
                     {course.type === "SERVICE"
-                      ? `by ${course.trainer?.fullName ?? course.instructor?.fullName ?? "Spire Trainer"}`
+                      ? `by ${course.trainer?.fullName ?? course.instructor?.fullName ?? "Spire Info Tech Trainer"}`
                       : course.instructor?.fullName || "Unknown instructor"}
                   </p>
                 </div>

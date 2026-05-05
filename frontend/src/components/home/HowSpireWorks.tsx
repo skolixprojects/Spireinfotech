@@ -52,7 +52,7 @@ export default function HowSpireWorks() {
           className="text-center mb-12"
         >
           <h2 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900">
-            How Spire works
+            How Spire Info Tech works
           </h2>
           <p className="mt-3 text-gray-600 max-w-2xl mx-auto">
             Three steps from &ldquo;I want to learn X&rdquo; to certified.

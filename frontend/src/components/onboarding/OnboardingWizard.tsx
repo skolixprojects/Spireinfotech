@@ -163,7 +163,7 @@ function WelcomeStep({ name }: { name: string }) {
       <div className="text-center">
         <div className="text-4xl mb-3" aria-hidden="true">👋</div>
         <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
-          Welcome to Spire{firstName ? `, ${firstName}` : ""}!
+          Welcome to Spire Info Tech{firstName ? `, ${firstName}` : ""}!
         </h2>
         <p className="text-gray-600 leading-relaxed max-w-md mx-auto">
           You&apos;ve joined a learning platform where every course comes with a
@@ -199,7 +199,7 @@ function HowItWorksStep() {
   return (
     <StepShell>
       <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-1 text-center">
-        How Spire works
+        How Spire Info Tech works
       </h2>
       <p className="text-sm text-gray-500 text-center mb-6">
         Three simple steps from sign-up to certificate.

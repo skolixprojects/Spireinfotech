@@ -16,12 +16,16 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Spire — Advance Your Career with Structured Learning",
+  title: "Spire Info Tech — Advance Your Career with Structured Learning",
   description:
     "Learn at your own pace with courses in tech, design, and data science. Every course pairs you with a dedicated mentor who answers questions along the way.",
-  icons: { icon: "/logo.png" },
+  icons: {
+    icon: "/logo.png",
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
   openGraph: {
-    title: "Spire — Courses with real human mentorship",
+    title: "Spire Info Tech — Courses with real human mentorship",
     description:
       "Self-paced courses in tech, design, and data science. Every course comes with a dedicated mentor.",
     images: [{ url: "/logo.png" }],

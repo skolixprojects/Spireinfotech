@@ -19,7 +19,7 @@ export default function AboutPage() {
           animate={{ opacity: 1, y: 0 }}
           className="font-serif text-4xl font-bold text-gray-900 mb-6"
         >
-          About Spire
+          About Spire Info Tech
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 20 }}
@@ -27,7 +27,7 @@ export default function AboutPage() {
           transition={{ delay: 0.1 }}
           className="text-lg text-gray-600 mb-16 max-w-3xl leading-relaxed"
         >
-          Spire is a self-paced learning platform designed to feel focused, motivating, and premium.
+          Spire Info Tech is a self-paced learning platform designed to feel focused, motivating, and premium.
           We combine structured course delivery, self-paced learning, progress tracking,
           and gamification to help you advance your career in tech.
         </motion.p>

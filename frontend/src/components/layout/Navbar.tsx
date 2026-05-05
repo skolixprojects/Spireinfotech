@@ -93,7 +93,7 @@ export function Navbar() {
           >
             <Image
               src="/logo.png"
-              alt="Spire"
+              alt="Spire Info Tech"
               width={36}
               height={36}
               priority

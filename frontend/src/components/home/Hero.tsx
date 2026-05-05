@@ -40,7 +40,8 @@ export default function Hero() {
           className="mt-6 text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed"
         >
           Self-paced learning isn&apos;t lonely when you have a mentor. Every
-          Spire course comes with a dedicated expert who guides you personally.
+          Spire Info Tech course comes with a dedicated expert who guides you
+          personally.
         </motion.p>
 
         <motion.div

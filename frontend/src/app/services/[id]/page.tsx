@@ -167,7 +167,7 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
   const orphanLessons = lessons.filter((l) => !lessonIdsInModules.has(l.id));
 
   const trainerName =
-    service.trainer?.fullName ?? service.instructor?.fullName ?? "Spire Trainer";
+    service.trainer?.fullName ?? service.instructor?.fullName ?? "Spire Info Tech Trainer";
 
   const renderLesson = (lesson: LessonData, idx: number) => (
     <div key={lesson.id}>

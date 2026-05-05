@@ -1,4 +1,4 @@
-export const APP_NAME = "Spire";
+export const APP_NAME = "Spire Info Tech";
 
 export const NAV_LINKS = [
   { label: "Courses", href: "/courses" },

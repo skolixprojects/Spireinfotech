@@ -10,12 +10,12 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         <Link href="/" className="inline-flex items-center gap-3 font-serif text-3xl font-bold w-fit">
           <Image
             src="/logo.png"
-            alt="Spire"
+            alt="Spire Info Tech"
             width={44}
             height={44}
             className="h-11 w-11 object-contain"
           />
-          <span>Spire</span>
+          <span>Spire Info Tech</span>
         </Link>
 
         <div>

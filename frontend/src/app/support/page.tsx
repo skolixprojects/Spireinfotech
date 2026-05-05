@@ -7,7 +7,7 @@ const supportOptions = [
   { icon: HelpCircle, title: "FAQ", description: "Find answers to commonly asked questions about courses, mentors, and payments.", href: "#faq" },
   { icon: MessageSquare, title: "Live Chat", description: "Chat with our support team in real-time. Available Mon-Fri, 9 AM - 6 PM IST.", href: "#chat" },
   { icon: Mail, title: "Email Support", description: "Send us an email at support@spire-learn.in and we'll respond within 24 hours.", href: "mailto:support@spire-learn.in" },
-  { icon: FileText, title: "Documentation", description: "Browse our detailed guides and tutorials on using the Spire platform.", href: "#docs" },
+  { icon: FileText, title: "Documentation", description: "Browse our detailed guides and tutorials on using the Spire Info Tech platform.", href: "#docs" },
 ];
 
 const faqs = [

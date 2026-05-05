@@ -55,7 +55,7 @@ export default function WhySpire() {
           className="text-center mb-12"
         >
           <h2 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900">
-            Why learners choose Spire
+            Why learners choose Spire Info Tech
           </h2>
         </motion.div>
 

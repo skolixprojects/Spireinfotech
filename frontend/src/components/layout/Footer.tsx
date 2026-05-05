@@ -36,7 +36,7 @@ export function Footer() {
             <Link href="/" className="inline-flex items-center gap-2 font-serif text-2xl font-bold">
               <Image
                 src="/logo.png"
-                alt="Spire"
+                alt="Spire Info Tech"
                 width={32}
                 height={32}
                 className="h-8 w-8 object-contain"
@@ -79,7 +79,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 border-t border-white/10 pt-6 text-center text-sm text-white/50">
-          &copy; 2026 Spire. All rights reserved.
+          &copy; 2026 Spire Info Tech. All rights reserved.
         </div>
       </div>
     </footer>

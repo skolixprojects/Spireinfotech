@@ -59,7 +59,7 @@ export default function SignupPage() {
       <div className="flex justify-center mb-6">
         <Image
           src="/logo.png"
-          alt="Spire"
+          alt="Spire Info Tech"
           width={64}
           height={64}
           priority
@@ -70,7 +70,7 @@ export default function SignupPage() {
         Create your account
       </h1>
       <p className="text-gray-500 mb-8">
-        Start your learning journey with Spire today.
+        Start your learning journey with Spire Info Tech today.
       </p>
 
       {error && (
