@@ -76,18 +76,10 @@ export function Navbar() {
 
   return (
     <>
-      {/* Promo Banner */}
-      {!isAuthenticated && (
-        <div className="fixed top-0 inset-x-0 z-[60] bg-[#00A3A8] text-white text-center text-sm py-2 px-4 font-medium">
-          🎓 New courses added weekly — Start your journey today
-        </div>
-      )}
-
       {/* Navbar */}
       <header
         className={cn(
-          "fixed inset-x-0 z-50 transition-all duration-300",
-          isAuthenticated ? "top-0" : "top-[36px]",
+          "fixed inset-x-0 top-0 z-50 transition-all duration-300",
           scrolled
             ? "bg-white/80 backdrop-blur-xl shadow-sm border-b border-gray-200/50"
             : "bg-white/50 backdrop-blur-sm"
