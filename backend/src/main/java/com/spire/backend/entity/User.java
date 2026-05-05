@@ -42,6 +42,13 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String bio;
 
+    // Profile-page extras
+    @Column(length = 20)
+    private String phone;
+
+    @Column(length = 255)
+    private String location;
+
     @Column(name = "instructor_approved", nullable = false)
     @Builder.Default
     private Boolean instructorApproved = false;

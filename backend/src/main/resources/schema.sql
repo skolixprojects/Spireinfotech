@@ -76,6 +76,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_completed BOOLEAN NOT NULL
 -- student left off. MySQL schema already declares this; Postgres backfill.
 ALTER TABLE progress ADD COLUMN IF NOT EXISTS video_position_sec INTEGER NOT NULL DEFAULT 0;
 
+-- Profile-page extras (avatar_url and bio already exist).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20) NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS location VARCHAR(255) NULL;
+
 -- COURSE vs SERVICE: courses include mentorship + assignments + certificate;
 -- services are short, video-only walk-throughs (no mentor, no cert).
 ALTER TABLE courses ADD COLUMN IF NOT EXISTS type VARCHAR(20) NOT NULL DEFAULT 'COURSE';

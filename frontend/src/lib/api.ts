@@ -125,8 +125,32 @@ export function logout() {
 
 // ─── User / Profile ─────────────────────────────────────────────────
 
-export async function getProfile(): Promise<UserDTO> {
-  const wrapper = await apiFetch<ApiResponse<UserDTO>>("/api/users/profile");
+export interface ProfileData extends UserDTO {
+  phone: string | null;
+  location: string | null;
+  createdAt: string | null;
+  enrolledCoursesCount: number;
+  completedCoursesCount: number;
+  certificatesCount: number;
+}
+
+export async function getProfile(): Promise<ProfileData> {
+  const wrapper = await apiFetch<ApiResponse<ProfileData>>("/api/users/profile");
+  return wrapper.data;
+}
+
+export interface UpdateProfileBody {
+  fullName: string;
+  phone?: string;
+  bio?: string;
+  location?: string;
+}
+
+export async function updateProfile(data: UpdateProfileBody): Promise<ProfileData> {
+  const wrapper = await apiFetch<ApiResponse<ProfileData>>("/api/users/profile", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
   return wrapper.data;
 }
 

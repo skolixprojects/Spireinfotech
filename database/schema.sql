@@ -46,6 +46,11 @@ CREATE INDEX idx_users_role_id ON users(role_id);
 -- so users created before this column landed don't get re-onboarded.
 ALTER TABLE users ADD COLUMN onboarding_completed BOOLEAN NOT NULL DEFAULT FALSE;
 
+-- Profile-page extras. Existing avatar_url and bio columns already cover
+-- the image and bio fields surfaced on /profile.
+ALTER TABLE users ADD COLUMN phone VARCHAR(20) NULL;
+ALTER TABLE users ADD COLUMN location VARCHAR(255) NULL;
+
 -- ============================================================
 -- 3. COURSES
 -- ============================================================

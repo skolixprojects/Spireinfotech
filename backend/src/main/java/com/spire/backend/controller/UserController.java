@@ -5,6 +5,7 @@ import com.spire.backend.entity.User;
 import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.repository.UserRepository;
 import com.spire.backend.service.InstructorRequestService;
+import com.spire.backend.service.ProfileService;
 import com.spire.backend.service.ProgressService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,28 +24,20 @@ public class UserController {
 
     private final UserRepository userRepository;
     private final ProgressService progressService;
+    private final ProfileService profileService;
     private final InstructorRequestService instructorRequestService;
 
     @GetMapping("/profile")
-    public ResponseEntity<ApiResponse<UserDTO>> getProfile(Authentication authentication) {
+    public ResponseEntity<ApiResponse<ProfileDTO>> getProfile(Authentication authentication) {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        return ResponseEntity.ok(ApiResponse.success(UserDTO.from(user)));
+        return ResponseEntity.ok(ApiResponse.success(profileService.getProfile(userId)));
     }
 
     @PutMapping("/profile")
-    public ResponseEntity<ApiResponse<UserDTO>> updateProfile(
+    public ResponseEntity<ApiResponse<ProfileDTO>> updateProfile(
             Authentication authentication, @Valid @RequestBody UpdateProfileRequest dto) {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-
-        if (dto.getFullName() != null) user.setFullName(dto.getFullName());
-        if (dto.getAvatarUrl() != null) user.setAvatarUrl(dto.getAvatarUrl());
-        if (dto.getBio() != null) user.setBio(dto.getBio());
-
-        return ResponseEntity.ok(ApiResponse.success(UserDTO.from(userRepository.save(user))));
+        return ResponseEntity.ok(ApiResponse.success(profileService.updateProfile(userId, dto)));
     }
 
     @PostMapping("/request-instructor")
