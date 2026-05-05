@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -99,6 +99,7 @@ function roleBadgeColor(role: string) {
 }
 
 function AdminContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "Overview";
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -408,9 +409,10 @@ function AdminContent() {
           {/* ──────────── Users Tab ──────────── */}
           {activeTab === "Users" && (
             <>
-              <h1 className="text-2xl font-bold text-[#0F766E] mb-6">
-                All Users
-              </h1>
+              <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold text-[#0F766E]">All Users</h1>
+                <p className="text-xs text-gray-400">Click any row to view full profile + activity</p>
+              </div>
               {loadingUsers ? (
                 <Spinner />
               ) : (
@@ -426,7 +428,11 @@ function AdminContent() {
                     </thead>
                     <tbody>
                       {users.map((user) => (
-                        <tr key={user.id} className="border-b border-gray-50 last:border-0">
+                        <tr
+                          key={user.id}
+                          onClick={() => router.push(`/admin/users/${user.id}`)}
+                          className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-[#0F766E]/5 transition-colors"
+                        >
                           <td className="py-3 text-gray-400">#{user.id}</td>
                           <td className="py-3 font-medium text-[#1a1a1a]">{user.fullName}</td>
                           <td className="py-3 text-gray-500">{user.email}</td>

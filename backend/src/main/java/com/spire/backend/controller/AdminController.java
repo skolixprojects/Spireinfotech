@@ -3,10 +3,12 @@ package com.spire.backend.controller;
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.dto.CourseDTO;
 import com.spire.backend.dto.InstructorRequestDTO;
+import com.spire.backend.dto.ProfileDTO;
 import com.spire.backend.dto.UserDTO;
 import com.spire.backend.service.AdminService;
 import com.spire.backend.service.CourseService;
 import com.spire.backend.service.InstructorRequestService;
+import com.spire.backend.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -24,6 +26,7 @@ public class AdminController {
     private final AdminService adminService;
     private final CourseService courseService;
     private final InstructorRequestService instructorRequestService;
+    private final ProfileService profileService;
 
     @GetMapping("/analytics")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getAnalytics() {
@@ -33,6 +36,13 @@ public class AdminController {
     @GetMapping("/users")
     public ResponseEntity<ApiResponse<List<UserDTO>>> getAllUsers() {
         return ResponseEntity.ok(ApiResponse.success(adminService.getAllUsers()));
+    }
+
+    // Admin oversight: full profile of any user — name, contact, learning
+    // stats, activity analytics, contribution heatmap.
+    @GetMapping("/users/{userId}/profile")
+    public ResponseEntity<ApiResponse<ProfileDTO>> getUserProfile(@PathVariable Long userId) {
+        return ResponseEntity.ok(ApiResponse.success(profileService.getProfile(userId)));
     }
 
     @PutMapping("/users/{id}/role")

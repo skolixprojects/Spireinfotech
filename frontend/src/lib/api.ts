@@ -159,6 +159,26 @@ export async function updateProfile(data: UpdateProfileBody): Promise<ProfileDat
   return wrapper.data;
 }
 
+// Admin: read any user's full profile (analytics + activity heatmap).
+export async function getUserProfileAsAdmin(userId: number | string): Promise<ProfileData> {
+  const wrapper = await apiFetch<ApiResponse<ProfileData>>(
+    `/api/admin/users/${userId}/profile`
+  );
+  return wrapper.data;
+}
+
+// Admin: change a user's role (uses the existing PUT /api/admin/users/{id}/role).
+export async function updateUserRoleAsAdmin(userId: number | string, role: string) {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/admin/users/${userId}/role`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ role }),
+    }
+  );
+  return wrapper.data;
+}
+
 export async function completeOnboarding(): Promise<UserDTO> {
   const wrapper = await apiFetch<ApiResponse<UserDTO>>(
     "/api/users/complete-onboarding",
