@@ -62,7 +62,7 @@ export default function Hero() {
 
   return (
     <section
-      className="relative flex items-center min-h-[calc(100vh-64px)] py-12 md:py-16 px-6 md:px-12 lg:px-20 overflow-hidden"
+      className="relative flex items-center min-h-screen py-12 md:py-16 px-6 md:px-12 lg:px-20 overflow-hidden"
       style={{
         background: "linear-gradient(180deg, #F0FDFA 0%, #ffffff 100%)",
       }}
