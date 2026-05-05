@@ -24,23 +24,27 @@ const STUDENT_LINKS = [
   { label: "Courses", href: "/courses" },
   { label: "Services", href: "/services" },
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Profile", href: "/profile" },
   { label: "Cart", href: "/cart" },
 ];
 
 const INSTRUCTOR_LINKS = [
   { label: "Courses", href: "/courses" },
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Profile", href: "/profile" },
 ];
 
 const TRAINER_LINKS = [
   { label: "Services", href: "/services" },
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Profile", href: "/profile" },
 ];
 
 const ADMIN_LINKS = [
   { label: "Courses", href: "/courses" },
   { label: "Services", href: "/services" },
   { label: "Admin", href: "/admin" },
+  { label: "Profile", href: "/profile" },
 ];
 
 function pickNavLinks(isAuthenticated: boolean, role?: string) {

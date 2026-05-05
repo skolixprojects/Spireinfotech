@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User as UserIcon, Mail, Phone, MapPin, Calendar, Lock,
@@ -205,11 +206,13 @@ export default function ProfilePage() {
                   icon={BookOpen}
                   value={profile.enrolledCoursesCount}
                   label="Enrolled"
+                  href="/dashboard"
                 />
                 <StatCard
                   icon={GraduationCap}
                   value={profile.completedCoursesCount}
                   label="Completed"
+                  href="/dashboard"
                 />
                 <StatCard
                   icon={Award}
@@ -367,18 +370,36 @@ function StatCard({
   icon: Icon,
   value,
   label,
+  href,
 }: {
   icon: typeof BookOpen;
   value: number;
   label: string;
+  href?: string;
 }) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-white p-4 text-center">
+  const inner = (
+    <>
       <div className="w-9 h-9 rounded-lg bg-[#0F766E]/10 mx-auto flex items-center justify-center mb-2">
         <Icon size={16} className="text-[#0F766E]" />
       </div>
       <p className="text-2xl font-bold text-gray-900 tabular-nums">{value}</p>
       <p className="text-xs text-gray-500 mt-0.5">{label}</p>
+    </>
+  );
+
+  if (href) {
+    return (
+      <Link
+        href={href}
+        className="block rounded-xl border border-gray-100 bg-white p-4 text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-[#0F766E]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+      >
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-4 text-center">
+      {inner}
     </div>
   );
 }
