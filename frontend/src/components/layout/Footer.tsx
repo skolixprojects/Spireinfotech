@@ -28,7 +28,7 @@ const columns = [
 
 export function Footer() {
   return (
-    <footer className="bg-[#00A3A8] text-white">
+    <footer className="bg-[#0F766E] text-white">
       <div className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
           {/* Company info */}

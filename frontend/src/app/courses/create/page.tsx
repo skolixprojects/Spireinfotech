@@ -112,7 +112,7 @@ export default function CreateCoursePage() {
         >
           {/* Header */}
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 rounded-xl bg-[#00A3A8] text-white flex items-center justify-center">
+            <div className="w-12 h-12 rounded-xl bg-[#0F766E] text-white flex items-center justify-center">
               <BookPlus size={24} />
             </div>
             <div>
@@ -144,7 +144,7 @@ export default function CreateCoursePage() {
                 onChange={handleChange}
                 required
                 placeholder="e.g., Full-Stack Web Development"
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition"
               />
             </div>
 
@@ -160,7 +160,7 @@ export default function CreateCoursePage() {
                 onChange={handleChange}
                 placeholder="One-line summary of the course"
                 maxLength={200}
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition"
               />
             </div>
 
@@ -175,7 +175,7 @@ export default function CreateCoursePage() {
                 onChange={handleChange}
                 rows={4}
                 placeholder="Detailed course description..."
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition resize-none"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition resize-none"
               />
             </div>
 
@@ -193,7 +193,7 @@ export default function CreateCoursePage() {
                   min="0"
                   step="1"
                   placeholder="0 = Free"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition"
                 />
                 <p className="text-xs text-gray-400 mt-1">Leave empty or 0 for free courses</p>
               </div>
@@ -206,7 +206,7 @@ export default function CreateCoursePage() {
                   name="level"
                   value={form.level}
                   onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition"
                 >
                   {LEVELS.map((level) => (
                     <option key={level} value={level}>
@@ -229,7 +229,7 @@ export default function CreateCoursePage() {
                   value={form.category}
                   onChange={handleChange}
                   placeholder="e.g., Web Development"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition"
                 />
               </div>
 
@@ -243,7 +243,7 @@ export default function CreateCoursePage() {
                   value={form.tags}
                   onChange={handleChange}
                   placeholder="react, javascript, web"
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition"
                 />
               </div>
             </div>
@@ -259,7 +259,7 @@ export default function CreateCoursePage() {
                 value={form.thumbnailUrl}
                 onChange={handleChange}
                 placeholder="https://example.com/image.jpg"
-                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-xl border border-gray-300 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent transition"
               />
             </div>
 
@@ -267,7 +267,7 @@ export default function CreateCoursePage() {
             <button
               type="submit"
               disabled={loading || !form.title.trim()}
-              className="w-full py-3.5 rounded-xl bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00B4B8] focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full py-3.5 rounded-xl bg-[#0F766E] text-white text-sm font-semibold hover:bg-[#0D9488] focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading && <Loader2 size={16} className="animate-spin" />}
               {loading ? "Creating..." : "Create Course"}

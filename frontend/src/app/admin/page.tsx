@@ -285,7 +285,7 @@ function AdminContent() {
 
   const Spinner = () => (
     <div className="flex items-center justify-center py-16">
-      <Loader2 className="animate-spin text-[#00A3A8]" size={32} />
+      <Loader2 className="animate-spin text-[#0F766E]" size={32} />
     </div>
   );
 
@@ -293,7 +293,7 @@ function AdminContent() {
     <div className="flex min-h-screen pt-20">
       {/* Sidebar */}
       <aside className="hidden lg:flex flex-col w-64 bg-white/60 backdrop-blur-sm border-r border-white/40 px-4 py-8 shrink-0">
-        <h2 className="font-[family-name:var(--font-playfair)] text-xl font-bold text-[#00A3A8] px-3 mb-8">
+        <h2 className="font-[family-name:var(--font-playfair)] text-xl font-bold text-[#0F766E] px-3 mb-8">
           Admin
         </h2>
         <nav className="flex-1 space-y-1">
@@ -303,7 +303,7 @@ function AdminContent() {
               onClick={() => setActiveTab(link.label)}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
                 activeTab === link.label
-                  ? "bg-[#00A3A8] text-white"
+                  ? "bg-[#0F766E] text-white"
                   : "text-gray-600 hover:bg-gray-100"
               }`}
             >
@@ -340,7 +340,7 @@ function AdminContent() {
           {/* ──────────── Overview Tab ──────────── */}
           {activeTab === "Overview" && (
             <>
-              <h1 className="text-2xl font-bold text-[#00A3A8] mb-6">
+              <h1 className="text-2xl font-bold text-[#0F766E] mb-6">
                 Dashboard Overview
               </h1>
 
@@ -352,8 +352,8 @@ function AdminContent() {
                   {statCards.map((stat) => (
                     <GlassCard key={stat.label}>
                       <div className="flex items-center justify-between mb-3">
-                        <div className="w-10 h-10 rounded-full bg-[#00A3A8]/10 flex items-center justify-center">
-                          <stat.icon size={18} className="text-[#00A3A8]" />
+                        <div className="w-10 h-10 rounded-full bg-[#0F766E]/10 flex items-center justify-center">
+                          <stat.icon size={18} className="text-[#0F766E]" />
                         </div>
                       </div>
                       <p className="text-2xl font-bold text-[#1a1a1a]">
@@ -366,7 +366,7 @@ function AdminContent() {
               )}
 
               {/* Recent users table */}
-              <h2 className="text-lg font-bold text-[#00A3A8] mb-4">
+              <h2 className="text-lg font-bold text-[#0F766E] mb-4">
                 Recent Users
               </h2>
               {loadingUsers ? (
@@ -408,7 +408,7 @@ function AdminContent() {
           {/* ──────────── Users Tab ──────────── */}
           {activeTab === "Users" && (
             <>
-              <h1 className="text-2xl font-bold text-[#00A3A8] mb-6">
+              <h1 className="text-2xl font-bold text-[#0F766E] mb-6">
                 All Users
               </h1>
               {loadingUsers ? (
@@ -453,7 +453,7 @@ function AdminContent() {
           {activeTab === "Courses" && (
             <>
               <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-bold text-[#00A3A8]">Manage Courses</h1>
+                <h1 className="text-2xl font-bold text-[#0F766E]">Manage Courses</h1>
                 <span className="text-sm text-gray-500">{courses.length} total courses</span>
               </div>
               {loadingCourses ? (
@@ -529,7 +529,7 @@ function AdminContent() {
                       {Array.from({ length: Math.ceil(courses.length / COURSES_PER_PAGE) }, (_, i) => (
                         <button key={i + 1} onClick={() => setCoursePage(i + 1)}
                           className={cn("w-9 h-9 rounded-lg text-sm font-medium transition",
-                            coursePage === i + 1 ? "bg-[#00A3A8] text-white" : "border border-gray-200 hover:bg-gray-50"
+                            coursePage === i + 1 ? "bg-[#0F766E] text-white" : "border border-gray-200 hover:bg-gray-50"
                           )}>
                           {i + 1}
                         </button>
@@ -550,7 +550,7 @@ function AdminContent() {
           {activeTab === "Mentor Pools" && (
             <>
               <div className="flex items-center justify-between mb-2">
-                <h1 className="text-2xl font-bold text-[#00A3A8]">Mentor Pools</h1>
+                <h1 className="text-2xl font-bold text-[#0F766E]">Mentor Pools</h1>
                 <span className="text-sm text-gray-500">{courses.length} courses</span>
               </div>
               <p className="text-sm text-gray-500 mb-6">
@@ -602,7 +602,7 @@ function AdminContent() {
                           className="w-full flex items-center gap-3 text-left cursor-pointer"
                         >
                           {expanded ? (
-                            <ChevronDown size={18} className="text-[#00A3A8] shrink-0" />
+                            <ChevronDown size={18} className="text-[#0F766E] shrink-0" />
                           ) : (
                             <ChevronRight size={18} className="text-gray-400 shrink-0" />
                           )}
@@ -629,7 +629,7 @@ function AdminContent() {
                           <div className="mt-4 pt-4 border-t border-gray-100">
                             {isLoadingPool ? (
                               <div className="flex items-center justify-center py-8">
-                                <Loader2 size={20} className="animate-spin text-[#5FE0E3]" />
+                                <Loader2 size={20} className="animate-spin text-[#14B8A6]" />
                               </div>
                             ) : (
                               <>
@@ -654,7 +654,7 @@ function AdminContent() {
                                           key={m.id}
                                           className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50/60"
                                         >
-                                          <div className="w-8 h-8 rounded-full bg-[#00A3A8]/10 text-[#00A3A8] flex items-center justify-center text-xs font-bold shrink-0">
+                                          <div className="w-8 h-8 rounded-full bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center text-xs font-bold shrink-0">
                                             {m.mentorName?.charAt(0)?.toUpperCase() ?? "?"}
                                           </div>
                                           <div className="flex-1 min-w-0">
@@ -688,14 +688,14 @@ function AdminContent() {
                                         setAddPanelFor(course.id);
                                         setSelectedMentorId("");
                                       }}
-                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[#00A3A8] bg-[#00A3A8]/10 hover:bg-[#00A3A8]/15 transition"
+                                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[#0F766E] bg-[#0F766E]/10 hover:bg-[#0F766E]/15 transition"
                                     >
                                       <UserPlus size={12} /> Add Mentor
                                     </button>
                                   ) : (
                                     <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg bg-gray-50 border border-gray-100">
                                       {loadingUsers ? (
-                                        <Loader2 size={14} className="animate-spin text-[#5FE0E3]" />
+                                        <Loader2 size={14} className="animate-spin text-[#14B8A6]" />
                                       ) : instructorOptions.length === 0 ? (
                                         <span className="text-xs text-gray-500 flex-1">
                                           All instructors are already in this pool.
@@ -719,7 +719,7 @@ function AdminContent() {
                                         <button
                                           onClick={() => handleAddMentor(course.id)}
                                           disabled={poolBusy || !selectedMentorId || instructorOptions.length === 0}
-                                          className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#00A3A8] text-white hover:bg-[#00B4B8] disabled:opacity-50 transition inline-flex items-center gap-1"
+                                          className="px-3 py-2 rounded-lg text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-50 transition inline-flex items-center gap-1"
                                         >
                                           {poolBusy ? <Loader2 size={12} className="animate-spin" /> : <UserPlus size={12} />}
                                           Add
@@ -753,7 +753,7 @@ function AdminContent() {
           {/* ──────────── Instructor Requests Tab ──────────── */}
           {activeTab === "Instructor Requests" && (
             <>
-              <h1 className="text-2xl font-bold text-[#00A3A8] mb-6">
+              <h1 className="text-2xl font-bold text-[#0F766E] mb-6">
                 Pending Instructor Requests
               </h1>
 
@@ -834,7 +834,7 @@ function AdminContent() {
 
 export default function AdminPage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen pt-24"><Loader2 className="animate-spin text-[#00A3A8]" size={32} /></div>}>
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen pt-24"><Loader2 className="animate-spin text-[#0F766E]" size={32} /></div>}>
       <AdminContent />
     </Suspense>
   );

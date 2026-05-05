@@ -16,7 +16,7 @@ export default function CTASection() {
         >
           <path
             d="M0 100V60C240 0 480 80 720 60C960 40 1200 80 1440 40V100H0Z"
-            fill="#00A3A8"
+            fill="#0F766E"
           />
         </svg>
       </div>
@@ -26,7 +26,7 @@ export default function CTASection() {
         whileInView={{ opacity: 1, scale: 1 }}
         viewport={{ once: true, margin: "-100px" }}
         transition={{ duration: 0.6, ease: "easeOut" }}
-        className="relative bg-[#00A3A8] py-24 overflow-hidden"
+        className="relative bg-[#0F766E] py-24 overflow-hidden"
       >
         {/* Subtle pattern decoration */}
         <div className="absolute inset-0 pointer-events-none opacity-10">
@@ -52,13 +52,13 @@ export default function CTASection() {
             Ready to start learning?
           </h2>
 
-          <p className="mt-5 text-[#5FE0E3] text-lg sm:text-xl">
+          <p className="mt-5 text-[#14B8A6] text-lg sm:text-xl">
             Create your free account and browse courses with real mentorship.
           </p>
 
           <Link
             href="/signup"
-            className="mt-8 inline-flex items-center justify-center rounded-full bg-white px-10 py-4 text-base font-semibold text-[#00A3A8] shadow-lg transition-all duration-200 hover:bg-[#F0EDE8] hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
+            className="mt-8 inline-flex items-center justify-center rounded-full bg-white px-10 py-4 text-base font-semibold text-[#0F766E] shadow-lg transition-all duration-200 hover:bg-[#F0EDE8] hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
           >
             Get Started
           </Link>

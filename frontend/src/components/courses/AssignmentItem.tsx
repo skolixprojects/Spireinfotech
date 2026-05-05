@@ -83,7 +83,7 @@ export function AssignmentItem({ id, title, description, assignmentType, dueDate
 
           {unlocked && !submitted && !showSubmit && (
             <button onClick={() => setShowSubmit(true)}
-              className="mt-3 px-4 py-2 rounded-lg bg-[#00A3A8] text-white text-xs font-semibold hover:bg-[#00B4B8] transition">
+              className="mt-3 px-4 py-2 rounded-lg bg-[#0F766E] text-white text-xs font-semibold hover:bg-[#0D9488] transition">
               Start Assignment
             </button>
           )}
@@ -101,7 +101,7 @@ export function AssignmentItem({ id, title, description, assignmentType, dueDate
               {error && <p className="text-xs text-red-500">{error}</p>}
               <div className="flex gap-2">
                 <button onClick={handleSubmit} disabled={submitting || !content.trim()}
-                  className="px-4 py-2 rounded-lg bg-[#00A3A8] text-white text-xs font-semibold hover:bg-[#00B4B8] transition disabled:opacity-50 flex items-center gap-1">
+                  className="px-4 py-2 rounded-lg bg-[#0F766E] text-white text-xs font-semibold hover:bg-[#0D9488] transition disabled:opacity-50 flex items-center gap-1">
                   {submitting && <Loader2 size={12} className="animate-spin" />}
                   {submitting ? "Submitting..." : "Submit"}
                 </button>

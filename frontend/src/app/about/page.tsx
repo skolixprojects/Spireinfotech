@@ -54,7 +54,7 @@ export default function AboutPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="rounded-2xl bg-[#00A3A8] text-white p-10 text-center"
+          className="rounded-2xl bg-[#0F766E] text-white p-10 text-center"
         >
           <h2 className="font-serif text-2xl font-bold mb-3">Our Mission</h2>
           <p className="text-teal-100 max-w-2xl mx-auto leading-relaxed">

@@ -34,7 +34,7 @@ export default function ServicesPage() {
       >
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-10">
           <div>
-            <h1 className="font-serif text-4xl font-bold text-[#00A3A8]">Services</h1>
+            <h1 className="font-serif text-4xl font-bold text-[#0F766E]">Services</h1>
             <p className="text-gray-500 mt-2">
               Professional development services to boost your career.
             </p>

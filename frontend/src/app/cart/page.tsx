@@ -77,11 +77,11 @@ export default function CartPage() {
 
   return (
     <section className="mx-auto max-w-4xl px-6 pt-32 pb-20 min-h-screen" style={{ backgroundColor: "#F0EDE8" }}>
-      <h1 className="font-serif text-4xl font-bold text-[#00A3A8] mb-8">Your Cart</h1>
+      <h1 className="font-serif text-4xl font-bold text-[#0F766E] mb-8">Your Cart</h1>
 
       {loading && (
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="animate-spin text-[#00A3A8]" size={32} />
+          <Loader2 className="animate-spin text-[#0F766E]" size={32} />
         </div>
       )}
 
@@ -101,7 +101,7 @@ export default function CartPage() {
           <p className="text-gray-500 text-lg mb-4">Your cart is empty</p>
           <Link
             href="/courses"
-            className="inline-flex items-center gap-2 bg-[#00A3A8] text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-[#00B4B8] transition-colors"
+            className="inline-flex items-center gap-2 bg-[#0F766E] text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-[#0D9488] transition-colors"
           >
             Browse Courses <ArrowRight size={16} />
           </Link>
@@ -121,11 +121,11 @@ export default function CartPage() {
                 transition={{ duration: 0.3 }}
                 className="flex items-center gap-4 bg-white rounded-xl p-4 mb-3 shadow-sm border border-gray-100"
               >
-                <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-[#00A3A8]/10 to-[#00B4B8]/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-[#0F766E]/10 to-[#0D9488]/20 flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {course.thumbnailUrl ? (
                     <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" />
                   ) : (
-                    <ShoppingCart size={20} className="text-[#00A3A8]/40" />
+                    <ShoppingCart size={20} className="text-[#0F766E]/40" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -163,7 +163,7 @@ export default function CartPage() {
           <div className="mt-8 bg-white rounded-xl p-6 shadow-sm border border-gray-100">
             <div className="flex items-center justify-between mb-4">
               <span className="text-gray-600">Total ({items.length} {items.length === 1 ? "item" : "items"})</span>
-              <span className="text-2xl font-bold text-[#00A3A8]">₹{total}</span>
+              <span className="text-2xl font-bold text-[#0F766E]">₹{total}</span>
             </div>
             <div className="flex gap-3">
               <button
@@ -175,7 +175,7 @@ export default function CartPage() {
               <button
                 onClick={handleCheckout}
                 disabled={checkingOut}
-                className="flex-1 flex items-center justify-center gap-2 bg-[#00A3A8] text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-[#00B4B8] transition-colors disabled:opacity-50 cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-2 bg-[#0F766E] text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-[#0D9488] transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {checkingOut ? (
                   <Loader2 className="animate-spin" size={16} />

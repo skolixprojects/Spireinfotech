@@ -61,7 +61,7 @@ export function OnboardingWizard({ studentName, onClose }: OnboardingWizardProps
     <span
       key={i}
       className={`block h-2 rounded-full transition-all ${
-        i === step ? "bg-[#00A3A8] w-6" : "bg-gray-300 w-2"
+        i === step ? "bg-[#0F766E] w-6" : "bg-gray-300 w-2"
       }`}
     />
   ));
@@ -120,7 +120,7 @@ export function OnboardingWizard({ studentName, onClose }: OnboardingWizardProps
           {step < TOTAL_STEPS - 1 ? (
             <button
               onClick={() => setStep((s) => s + 1)}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00B4B8] transition shadow-sm"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#0F766E] text-white text-sm font-semibold hover:bg-[#0D9488] transition shadow-sm"
             >
               Next <ArrowRight size={14} />
             </button>
@@ -128,7 +128,7 @@ export function OnboardingWizard({ studentName, onClose }: OnboardingWizardProps
             <button
               onClick={handleBrowseAll}
               disabled={busy}
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00B4B8] disabled:opacity-50 transition shadow-sm"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#0F766E] text-white text-sm font-semibold hover:bg-[#0D9488] disabled:opacity-50 transition shadow-sm"
             >
               {busy ? <Loader2 size={14} className="animate-spin" /> : null}
               Browse All Courses <ArrowRight size={14} />
@@ -209,12 +209,12 @@ function HowItWorksStep() {
           const Icon = s.icon;
           return (
             <div key={s.n} className="flex gap-4 items-start">
-              <div className="w-10 h-10 rounded-xl bg-[#00A3A8]/10 text-[#00A3A8] flex items-center justify-center font-bold shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-[#0F766E]/10 text-[#0F766E] flex items-center justify-center font-bold shrink-0">
                 {s.n}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <Icon size={14} className="text-[#00A3A8] shrink-0" />
+                  <Icon size={14} className="text-[#0F766E] shrink-0" />
                   <h3 className="font-semibold text-gray-900 text-sm">{s.title}</h3>
                 </div>
                 <p className="text-sm text-gray-600 leading-relaxed">{s.body}</p>
@@ -250,7 +250,7 @@ function ChoosePathStep({
               key={tile.label}
               onClick={() => onPick(tile.redirect)}
               disabled={disabled}
-              className={`group flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 ${tile.bg} hover:border-[#00A3A8]/40 hover:shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed`}
+              className={`group flex flex-col items-center gap-2 p-4 rounded-xl border border-gray-200 ${tile.bg} hover:border-[#0F766E]/40 hover:shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed`}
             >
               <div className="w-10 h-10 rounded-lg bg-white/80 flex items-center justify-center group-hover:scale-105 transition">
                 <Icon size={20} className={tile.iconColor} />

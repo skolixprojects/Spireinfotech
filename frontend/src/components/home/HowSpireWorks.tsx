@@ -70,13 +70,13 @@ export default function HowSpireWorks() {
               <motion.div
                 key={step.label}
                 variants={itemVariants}
-                className="rounded-2xl border border-[#E3DED7] bg-white p-7 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#00A3A8]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+                className="rounded-2xl border border-[#E3DED7] bg-white p-7 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#0F766E]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
               >
                 <div className="flex items-center justify-between mb-5">
-                  <div className="w-12 h-12 rounded-xl bg-[#00A3A8]/10 flex items-center justify-center">
-                    <Icon className="h-6 w-6 text-[#00A3A8]" />
+                  <div className="w-12 h-12 rounded-xl bg-[#0F766E]/10 flex items-center justify-center">
+                    <Icon className="h-6 w-6 text-[#0F766E]" />
                   </div>
-                  <span className="text-sm font-semibold text-[#5FE0E3]">
+                  <span className="text-sm font-semibold text-[#14B8A6]">
                     {step.label}
                   </span>
                 </div>

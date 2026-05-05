@@ -24,12 +24,12 @@ export function CourseProgressCard({
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[#00A3A8]/10 flex items-center justify-center">
-            <TrendingUp size={16} className="text-[#00A3A8]" />
+          <div className="w-8 h-8 rounded-lg bg-[#0F766E]/10 flex items-center justify-center">
+            <TrendingUp size={16} className="text-[#0F766E]" />
           </div>
           <p className="text-sm font-semibold text-gray-900">Your Progress</p>
         </div>
-        <p className="text-2xl font-bold text-[#00A3A8] tabular-nums">
+        <p className="text-2xl font-bold text-[#0F766E] tabular-nums">
           {progressPercent}%
         </p>
       </div>

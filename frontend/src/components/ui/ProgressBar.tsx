@@ -24,7 +24,7 @@ const SIZE_CLASS = {
 function defaultFill(percent: number): string {
   if (percent <= 0) return "bg-gray-300";
   if (percent >= 100) return "bg-emerald-500";
-  return "bg-gradient-to-r from-[#00A3A8] to-[#00B4B8]";
+  return "bg-gradient-to-r from-[#0F766E] to-[#0D9488]";
 }
 
 export function ProgressBar({

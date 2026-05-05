@@ -6,7 +6,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       {/* Left - Branding panel */}
-      <div className="hidden lg:flex flex-col justify-between bg-[#00A3A8] p-12 text-white">
+      <div className="hidden lg:flex flex-col justify-between bg-[#0F766E] p-12 text-white">
         <Link href="/" className="inline-flex items-center gap-3 font-serif text-3xl font-bold w-fit">
           <Image
             src="/logo.png"

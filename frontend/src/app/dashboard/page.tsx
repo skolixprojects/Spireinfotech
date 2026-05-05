@@ -185,7 +185,7 @@ export default function DashboardPage() {
   ).length;
 
   if (authLoading) {
-    return <section className="mx-auto max-w-7xl px-6 pt-32 pb-20 flex items-center justify-center min-h-[60vh]"><Loader2 size={32} className="animate-spin text-[#5FE0E3]" /></section>;
+    return <section className="mx-auto max-w-7xl px-6 pt-32 pb-20 flex items-center justify-center min-h-[60vh]"><Loader2 size={32} className="animate-spin text-[#14B8A6]" /></section>;
   }
   if (!user) {
     return <section className="mx-auto max-w-7xl px-6 pt-32 pb-20 text-center"><p className="text-gray-500">Please log in.</p><Button asChild className="mt-4"><Link href="/login">Go to Login</Link></Button></section>;
@@ -223,7 +223,7 @@ export default function DashboardPage() {
         {/* Greeting */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-8">
           <div>
-            <h1 className="font-serif text-3xl font-bold text-[#00A3A8]">Welcome back, {user.fullName}!</h1>
+            <h1 className="font-serif text-3xl font-bold text-[#0F766E]">Welcome back, {user.fullName}!</h1>
             <p className="text-gray-500 mt-1">Here&apos;s your overview.</p>
           </div>
           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${roleInfo.color} w-fit`}>
@@ -234,7 +234,7 @@ export default function DashboardPage() {
         {/* ── ADMIN: Analytics Dashboard ──────────────────────────── */}
         {isAdmin && (
           <div className="mb-10">
-            <h2 className="text-xl font-bold text-[#00A3A8] mb-4 flex items-center gap-2">
+            <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">
               <BarChart3 size={20} /> Platform Analytics
             </h2>
 
@@ -305,7 +305,7 @@ export default function DashboardPage() {
                 </div>
               </>
             ) : (
-              <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-[#5FE0E3]" /></div>
+              <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-[#14B8A6]" /></div>
             )}
           </div>
         )}
@@ -319,7 +319,7 @@ export default function DashboardPage() {
             {/* Section 2: My Courses (compact, with real progress) */}
             {enrolledForStudent.length > 0 && (
               <div>
-                <h2 className="text-xl font-bold text-[#00A3A8] mb-4 flex items-center gap-2">
+                <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">
                   <BookOpen size={20} /> My Courses
                   <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                     {enrolledForStudent.length}
@@ -330,7 +330,7 @@ export default function DashboardPage() {
                     <Link
                       key={c.id}
                       href={c.type === "SERVICE" ? `/services/${c.id}` : `/courses/${c.id}`}
-                      className="group block bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-[#5FE0E3]/60 transition-all p-5"
+                      className="group block bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-[#14B8A6]/60 transition-all p-5"
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className={cn(
@@ -349,11 +349,11 @@ export default function DashboardPage() {
 
                       <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
                         <span>{c.completedLessons}/{c.totalLessons} lessons</span>
-                        <span className="font-semibold text-[#00A3A8]">{c.progressPercent}%</span>
+                        <span className="font-semibold text-[#0F766E]">{c.progressPercent}%</span>
                       </div>
                       <ProgressBar percent={c.progressPercent} size="sm" />
 
-                      <div className="mt-4 text-xs font-semibold text-[#00A3A8] group-hover:underline inline-flex items-center gap-1">
+                      <div className="mt-4 text-xs font-semibold text-[#0F766E] group-hover:underline inline-flex items-center gap-1">
                         Continue <ArrowRight size={12} />
                       </div>
                     </Link>
@@ -365,7 +365,7 @@ export default function DashboardPage() {
             {/* Section 3: Upcoming sessions (next 7 days) */}
             {upcomingForStudent.length > 0 && (
               <div>
-                <h2 className="text-xl font-bold text-[#00A3A8] mb-4 flex items-center gap-2">
+                <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">
                   <CalendarClock size={20} /> Upcoming
                   <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
                     {upcomingForStudent.length}
@@ -400,7 +400,7 @@ export default function DashboardPage() {
                             href={s.meetingUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#00A3A8] text-white text-xs font-semibold hover:bg-[#00B4B8] transition shrink-0"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0F766E] text-white text-xs font-semibold hover:bg-[#0D9488] transition shrink-0"
                           >
                             <ExternalLink size={12} /> Join
                           </a>
@@ -446,7 +446,7 @@ export default function DashboardPage() {
           <>
             {/* Pending Requests */}
             <div className="mb-10">
-              <h2 className="text-xl font-bold text-[#00A3A8] mb-4 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">
                 <Inbox size={20} /> Pending Requests
                 {pendingCount > 0 && (
                   <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">
@@ -469,7 +469,7 @@ export default function DashboardPage() {
 
             {/* Upcoming Sessions */}
             <div className="mb-10">
-              <h2 className="text-xl font-bold text-[#00A3A8] mb-4 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">
                 <CalendarClock size={20} /> Upcoming Sessions
                 {upcomingCount > 0 && (
                   <span className="text-xs font-semibold text-teal-700 bg-teal-100 px-2 py-0.5 rounded-full">
@@ -509,13 +509,13 @@ export default function DashboardPage() {
             {/* My Courses */}
             <div className="mb-10">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-[#00A3A8]">My Courses</h2>
+                <h2 className="text-xl font-bold text-[#0F766E]">My Courses</h2>
                 <Link href="/courses/create" className="text-sm text-teal-600 hover:text-teal-700 font-medium flex items-center gap-1">
                   <PlusCircle size={14} /> New Course
                 </Link>
               </div>
               {myCoursesLoading ? (
-                <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-[#5FE0E3]" /></div>
+                <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-[#14B8A6]" /></div>
               ) : myCourses.length === 0 ? (
                 <GlassCard className="text-center py-12">
                   <BookOpen size={40} className="mx-auto text-violet-300 mb-3" />
@@ -558,12 +558,12 @@ export default function DashboardPage() {
 
             {/* My Students */}
             <div className="mb-10">
-              <h2 className="text-xl font-bold text-[#00A3A8] mb-4 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">
                 <Users size={20} /> My Students
                 {myStudents.length > 0 && <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{myStudents.length} enrolled</span>}
               </h2>
               {studentsLoading ? (
-                <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-[#5FE0E3]" /></div>
+                <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-[#14B8A6]" /></div>
               ) : myStudents.length === 0 ? (
                 <GlassCard className="text-center py-12"><Users size={40} className="mx-auto text-gray-300 mb-3" /><p className="text-gray-500 text-sm">No students enrolled yet.</p></GlassCard>
               ) : (
@@ -610,7 +610,7 @@ export default function DashboardPage() {
             {/* Session History (collapsed-feel: at the bottom of the instructor sections) */}
             <details className="mb-10 group">
               <summary className="cursor-pointer list-none">
-                <h2 className="text-xl font-bold text-[#00A3A8] mb-4 flex items-center gap-2">
+                <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">
                   <History size={20} /> Session History
                   <span className="text-xs font-normal text-gray-400 group-open:hidden">(click to expand)</span>
                 </h2>
@@ -634,15 +634,15 @@ export default function DashboardPage() {
 
         {!isStudent && (
           <>
-        <h2 className="text-xl font-bold text-[#00A3A8] mb-4">
+        <h2 className="text-xl font-bold text-[#0F766E] mb-4">
           {isAdmin ? "Enrolled Courses" : "Enrolled Courses"}
         </h2>
 
         {enrollLoading ? (
-          <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-[#5FE0E3]" /></div>
+          <div className="flex items-center justify-center py-12"><Loader2 size={24} className="animate-spin text-[#14B8A6]" /></div>
         ) : enrollments.length === 0 ? (
           <GlassCard className="text-center py-12">
-            <BookOpen size={40} className="mx-auto text-[#5FE0E3]/40 mb-3" />
+            <BookOpen size={40} className="mx-auto text-[#14B8A6]/40 mb-3" />
             <p className="text-gray-500 text-sm mb-4">No enrolled courses yet.</p>
             <Button size="sm" asChild><Link href="/courses">Browse Courses <ArrowRight size={14} className="ml-1" /></Link></Button>
           </GlassCard>
@@ -656,8 +656,8 @@ export default function DashboardPage() {
               return (
                 <Link key={String(id)} href={`/courses/${id}`}>
                   <GlassCard hover className="h-full">
-                    <div className="h-28 -mx-6 -mt-6 mb-4 rounded-t-2xl bg-gradient-to-br from-[#00A3A8]/10 to-[#00B4B8]/20 flex items-center justify-center">
-                      <BookOpen size={24} className="text-[#00A3A8]/30" />
+                    <div className="h-28 -mx-6 -mt-6 mb-4 rounded-t-2xl bg-gradient-to-br from-[#0F766E]/10 to-[#0D9488]/20 flex items-center justify-center">
+                      <BookOpen size={24} className="text-[#0F766E]/30" />
                     </div>
                     <h3 className="font-semibold text-sm text-[#1a1a1a] line-clamp-2">{title}</h3>
                     {typeof course.shortDescription === "string" && <p className="text-xs text-gray-500 mt-1 line-clamp-2">{course.shortDescription}</p>}
@@ -671,7 +671,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── Mentor Sessions (all roles) ─────────────────────────── */}
-        <h2 className="text-xl font-bold text-[#00A3A8] mb-4 mt-10">Mentor Sessions</h2>
+        <h2 className="text-xl font-bold text-[#0F766E] mb-4 mt-10">Mentor Sessions</h2>
         <SessionsList />
       </motion.div>
     </section>

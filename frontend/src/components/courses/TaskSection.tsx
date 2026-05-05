@@ -123,7 +123,7 @@ export function TaskSection({ lessonId, isAuthenticated }: TaskSectionProps) {
                     <button
                       onClick={() => handleComplete(task.id)}
                       disabled={completingId === task.id}
-                      className="mt-2 px-4 py-2 rounded-lg bg-[#00A3A8] text-white text-xs font-semibold hover:bg-[#00B4B8] transition disabled:opacity-50 flex items-center gap-1.5"
+                      className="mt-2 px-4 py-2 rounded-lg bg-[#0F766E] text-white text-xs font-semibold hover:bg-[#0D9488] transition disabled:opacity-50 flex items-center gap-1.5"
                     >
                       {completingId === task.id ? (
                         <><Loader2 size={12} className="animate-spin" /> Completing...</>

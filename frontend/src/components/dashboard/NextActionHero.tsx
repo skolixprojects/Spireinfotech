@@ -44,7 +44,7 @@ function formatDueShort(iso: string | null | undefined): string {
 export function NextActionHero({ action, loading }: NextActionHeroProps) {
   if (loading || !action) {
     return (
-      <div className="rounded-2xl bg-gradient-to-br from-[#00A3A8] to-[#00B4B8] p-8 sm:p-10 animate-pulse">
+      <div className="rounded-2xl bg-gradient-to-br from-[#0F766E] to-[#0D9488] p-8 sm:p-10 animate-pulse">
         <div className="h-6 w-48 bg-white/20 rounded mb-4" />
         <div className="h-10 w-3/4 bg-white/30 rounded mb-3" />
         <div className="h-5 w-1/2 bg-white/20 rounded mb-8" />
@@ -58,7 +58,7 @@ export function NextActionHero({ action, loading }: NextActionHeroProps) {
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className="rounded-2xl bg-gradient-to-br from-[#00A3A8] to-[#00B4B8] text-white p-8 sm:p-10 shadow-lg shadow-[#00A3A8]/15"
+      className="rounded-2xl bg-gradient-to-br from-[#0F766E] to-[#0D9488] text-white p-8 sm:p-10 shadow-lg shadow-[#0F766E]/15"
     >
       {renderBody(action)}
     </motion.div>
@@ -101,14 +101,14 @@ function HeroChrome({
             href={primary.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-white text-[#00A3A8] px-7 py-3.5 text-base font-bold shadow-md hover:bg-[#F0EDE8] transition-colors w-fit"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-white text-[#0F766E] px-7 py-3.5 text-base font-bold shadow-md hover:bg-[#F0EDE8] transition-colors w-fit"
           >
             <ExternalLink size={16} /> {primary.label}
           </a>
         ) : (
           <Link
             href={primary.href}
-            className="inline-flex items-center justify-center gap-2 rounded-full bg-white text-[#00A3A8] px-7 py-3.5 text-base font-bold shadow-md hover:bg-[#F0EDE8] transition-colors w-fit"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-white text-[#0F766E] px-7 py-3.5 text-base font-bold shadow-md hover:bg-[#F0EDE8] transition-colors w-fit"
           >
             {primary.label} <ArrowRight size={16} />
           </Link>
@@ -197,7 +197,7 @@ function renderBody(action: NextAction): React.ReactNode {
                     ? `/courses/${action.courseId}`
                     : "/dashboard"
               }
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white text-[#00A3A8] px-7 py-3.5 text-base font-bold shadow-md hover:bg-[#F0EDE8] transition-colors w-fit"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white text-[#0F766E] px-7 py-3.5 text-base font-bold shadow-md hover:bg-[#F0EDE8] transition-colors w-fit"
             >
               Resume Lesson <ArrowRight size={16} />
             </Link>
@@ -260,7 +260,7 @@ function renderBody(action: NextAction): React.ReactNode {
           <div className="mt-7 flex flex-col sm:flex-row sm:items-center gap-4">
             <Link
               href="/courses"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-white text-[#00A3A8] px-7 py-3.5 text-base font-bold shadow-md hover:bg-[#F0EDE8] transition-colors w-fit"
+              className="inline-flex items-center justify-center gap-2 rounded-full bg-white text-[#0F766E] px-7 py-3.5 text-base font-bold shadow-md hover:bg-[#F0EDE8] transition-colors w-fit"
             >
               Browse More Courses <ArrowRight size={16} />
             </Link>

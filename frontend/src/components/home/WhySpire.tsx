@@ -69,10 +69,10 @@ export default function WhySpire() {
               <motion.div
                 key={p.title}
                 variants={itemVariants}
-                className="rounded-2xl border border-[#E3DED7] bg-[#F0EDE8] p-7 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#00A3A8]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+                className="rounded-2xl border border-[#E3DED7] bg-[#F0EDE8] p-7 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#0F766E]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
               >
-                <div className="w-11 h-11 rounded-xl bg-[#00A3A8]/10 flex items-center justify-center mb-4">
-                  <Icon className="h-5 w-5 text-[#00A3A8]" />
+                <div className="w-11 h-11 rounded-xl bg-[#0F766E]/10 flex items-center justify-center mb-4">
+                  <Icon className="h-5 w-5 text-[#0F766E]" />
                 </div>
                 <h3 className="font-semibold text-gray-900 text-lg leading-snug">
                   {p.title}

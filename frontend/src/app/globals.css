@@ -6,22 +6,21 @@
 
 @layer base {
   :root {
-    /* Primary palette derived from the logo. The bright cyan
-       (#00CED1) is reserved for accents/highlights/icons; primary
-       backgrounds use a slightly darkened variant to keep white
-       text accessible (WCAG AA on solid fills). */
-    --color-primary: #00A3A8;        /* button bg, solid fills (was #00A3A8) */
-    --color-primary-light: #00CED1;  /* bright accent, headlines (was #00B4B8) */
-    --color-primary-dark: #007E82;   /* hover/active (was #007E82) */
-    --color-accent: #5FE0E3;         /* light teal for tints (was #5FE0E3) */
-    --color-accent-light: #C7F4F5;   /* very light tint backgrounds (was #B8DDE0) */
-    --color-accent-dark: #00B4B8;    /* hover variant (was #00B4B8) */
+    /* Deeper, richer teal palette (Tailwind teal-700/600/500/50/900).
+       Replaces the brighter cyan we ran with previously — same logo,
+       slightly darker shade for a more professional, readable tone. */
+    --color-primary: #0F766E;        /* primary buttons, solid fills */
+    --color-primary-light: #14B8A6;  /* gradient end, lighter accent */
+    --color-primary-dark: #134E4A;   /* hover/active deep variant */
+    --color-accent: #14B8A6;         /* mid teal for tints / highlights */
+    --color-accent-light: #F0FDFA;   /* very light tint backgrounds */
+    --color-accent-dark: #0D9488;    /* hover variant */
     --color-bg: #F0EDE8;
     --color-bg-secondary: #E3DED7;
     --color-text: #1A2332;
     --color-text-secondary: #3D4F5F;
     --color-text-muted: #6B7E8D;
-    --color-border: #5FE0E3;
+    --color-border: #14B8A6;
   }
 
   html {
@@ -48,16 +47,31 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #00B4B8;
+    background: #0D9488;
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #00A3A8;
+    background: #0F766E;
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: #00B4B8 #E3DED7;
+    scrollbar-color: #0D9488 #E3DED7;
+  }
+
+  /* Hero decorative animations — kept in CSS (not framer-motion)
+     so they don't burn JS frames for purely visual loops. */
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 0.8; transform: scale(1); }
+    50%      { opacity: 0.4; transform: scale(1.5); }
+  }
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 0.1; }
+    50%      { opacity: 0.2; }
+  }
+  @keyframes float-y {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-12px); }
   }
 }

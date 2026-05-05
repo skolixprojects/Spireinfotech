@@ -41,7 +41,7 @@ export function MentorCard({ mentorInfo, onRequestSession }: MentorCardProps) {
         </>
       ) : (
         <>
-          <h3 className="text-lg font-bold text-[#00A3A8] mb-1">{mentorInfo.mentorName}</h3>
+          <h3 className="text-lg font-bold text-[#0F766E] mb-1">{mentorInfo.mentorName}</h3>
           <a
             href={`mailto:${mentorInfo.mentorEmail}`}
             className="text-xs text-gray-500 hover:text-teal-600 inline-flex items-center gap-1 mb-4 break-all"
@@ -51,7 +51,7 @@ export function MentorCard({ mentorInfo, onRequestSession }: MentorCardProps) {
           </a>
           <button
             onClick={onRequestSession}
-            className="w-full py-2.5 rounded-xl bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00B4B8] transition flex items-center justify-center gap-2"
+            className="w-full py-2.5 rounded-xl bg-[#0F766E] text-white text-sm font-semibold hover:bg-[#0D9488] transition flex items-center justify-center gap-2"
           >
             <MessageCircle size={16} />
             Request a Session

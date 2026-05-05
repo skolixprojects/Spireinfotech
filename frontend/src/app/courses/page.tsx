@@ -77,7 +77,7 @@ export default function CoursesPage() {
 
   return (
     <section className="mx-auto max-w-7xl px-6 pt-32 pb-20">
-      <h1 className="font-serif text-4xl font-bold text-[#00A3A8] mb-2">
+      <h1 className="font-serif text-4xl font-bold text-[#0F766E] mb-2">
         Explore Courses
       </h1>
       <p className="text-gray-600 mb-8">
@@ -94,7 +94,7 @@ export default function CoursesPage() {
               className={cn(
                 "px-4 py-1.5 text-sm font-medium rounded-full transition-colors cursor-pointer",
                 selectedLevel === level
-                  ? "bg-[#00A3A8] text-white"
+                  ? "bg-[#0F766E] text-white"
                   : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
               )}
             >
@@ -110,7 +110,7 @@ export default function CoursesPage() {
             placeholder="Search courses..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 rounded-full border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#00A3A8]/30"
+            className="w-full pl-9 pr-4 py-2 rounded-full border border-gray-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F766E]/30"
           />
         </div>
       </div>
@@ -154,11 +154,11 @@ export default function CoursesPage() {
               <Link href={`/courses/${course.id}`} className="block group">
                 <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden transition-shadow hover:shadow-md">
                   {/* Thumbnail */}
-                  <div className="h-44 bg-gradient-to-br from-[#00A3A8]/10 to-[#00B4B8]/20 flex items-center justify-center overflow-hidden">
+                  <div className="h-44 bg-gradient-to-br from-[#0F766E]/10 to-[#0D9488]/20 flex items-center justify-center overflow-hidden">
                     {course.thumbnailUrl ? (
                       <img src={course.thumbnailUrl} alt={course.title} className="w-full h-full object-cover" loading="lazy" />
                     ) : (
-                      <span className="text-[#00A3A8]/40 text-sm font-medium">{course.category}</span>
+                      <span className="text-[#0F766E]/40 text-sm font-medium">{course.category}</span>
                     )}
                   </div>
 
@@ -177,7 +177,7 @@ export default function CoursesPage() {
                       )}
                     </div>
 
-                    <h3 className="font-semibold text-gray-900 group-hover:text-[#00A3A8] transition-colors line-clamp-1">
+                    <h3 className="font-semibold text-gray-900 group-hover:text-[#0F766E] transition-colors line-clamp-1">
                       {course.title}
                     </h3>
 
@@ -206,7 +206,7 @@ export default function CoursesPage() {
                                 ? "Completed"
                                 : `${progressByCourseId[course.id]}% complete`}
                           </span>
-                          <span className="text-[10px] font-semibold text-[#00A3A8] tabular-nums">
+                          <span className="text-[10px] font-semibold text-[#0F766E] tabular-nums">
                             {progressByCourseId[course.id]}%
                           </span>
                         </div>
@@ -223,7 +223,7 @@ export default function CoursesPage() {
                               onClick={async () => {
                                 try { await enroll(course.id); toast("success", "Enrolled successfully!"); } catch (err) { const msg = friendlyEnrollmentError(err); toast(msg.startsWith("You're already enrolled") ? "info" : "error", msg); }
                               }}
-                              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#00A3A8] text-white hover:bg-[#00B4B8] transition-colors cursor-pointer"
+                              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#0F766E] text-white hover:bg-[#0D9488] transition-colors cursor-pointer"
                             >
                               Enroll Free
                             </button>
@@ -232,7 +232,7 @@ export default function CoursesPage() {
                               onClick={async () => {
                                 try { await addToCart(course.id); toast("cart", "Course added to cart!"); } catch (err) { const msg = friendlyEnrollmentError(err); toast(msg.startsWith("You're already enrolled") ? "info" : "error", msg); }
                               }}
-                              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#00A3A8] text-white hover:bg-[#00B4B8] transition-colors cursor-pointer inline-flex items-center gap-1"
+                              className="text-xs font-semibold px-3 py-1.5 rounded-full bg-[#0F766E] text-white hover:bg-[#0D9488] transition-colors cursor-pointer inline-flex items-center gap-1"
                             >
                               <ShoppingCart size={12} /> Add to Cart
                             </button>

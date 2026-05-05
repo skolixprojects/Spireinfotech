@@ -71,7 +71,7 @@ export function LessonItem({
       className={cn(
         "flex items-center gap-4 p-4 rounded-xl border transition-all",
         completed ? "bg-teal-50/50 border-teal-200" :
-        isCurrent && hasAccess ? "bg-white border-l-4 border-l-[#00A3A8] border-y-gray-200 border-r-gray-200 hover:shadow-md cursor-pointer" :
+        isCurrent && hasAccess ? "bg-white border-l-4 border-l-[#0F766E] border-y-gray-200 border-r-gray-200 hover:shadow-md cursor-pointer" :
         hasAccess ? "bg-white border-gray-200 hover:border-teal-300 hover:shadow-md cursor-pointer" :
         "bg-gray-50 border-gray-100 cursor-default"
       )}
@@ -80,7 +80,7 @@ export function LessonItem({
       <div className={cn(
         "w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0",
         completed ? "bg-teal-200 text-teal-700" :
-        isCurrent && hasAccess ? "bg-[#00A3A8] text-white" :
+        isCurrent && hasAccess ? "bg-[#0F766E] text-white" :
         hasAccess ? "bg-teal-100 text-teal-700" : "bg-gray-200 text-gray-400"
       )}>
         {completed ? <CheckCircle size={18} /> :
@@ -111,7 +111,7 @@ export function LessonItem({
         {/* Mark Complete button (for enrolled students with access) */}
         {hasAccess && canComplete && !completed && !canManage && (
           <button onClick={handleComplete} disabled={completing}
-            className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-[#00A3A8] text-white hover:bg-[#00B4B8] transition disabled:opacity-50 flex items-center gap-1">
+            className="text-[10px] font-semibold px-2.5 py-1 rounded-full bg-[#0F766E] text-white hover:bg-[#0D9488] transition disabled:opacity-50 flex items-center gap-1">
             {completing ? <Loader2 size={10} className="animate-spin" /> : <CheckCircle size={10} />}
             {completing ? "..." : "Complete"}
           </button>
