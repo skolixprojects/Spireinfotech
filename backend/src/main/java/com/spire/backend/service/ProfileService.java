@@ -15,10 +15,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Profile read + write. Reuses existing repositories for the learning-
@@ -76,9 +79,21 @@ public class ProfileService {
                 .max(Comparator.naturalOrder())
                 .orElse(null);
 
+        // Daily contribution map for the heatmap. Counts lesson-completions
+        // per day over the last 365 days.
+        LocalDate cutoff = LocalDate.now().minusDays(365);
+        Map<String, Integer> contributions = rows.stream()
+                .filter(p -> Boolean.TRUE.equals(p.getCompleted()))
+                .filter(p -> p.getLastAccessed() != null)
+                .filter(p -> !p.getLastAccessed().toLocalDate().isBefore(cutoff))
+                .collect(Collectors.groupingBy(
+                        p -> p.getLastAccessed().toLocalDate().toString(),
+                        Collectors.summingInt(p -> 1)));
+
         return ProfileDTO.from(
                 user, enrolled, completed, certificates,
-                streakDays, totalLessonsCompleted, totalLearningMinutes, lastActiveAt);
+                streakDays, totalLessonsCompleted, totalLearningMinutes,
+                lastActiveAt, contributions);
     }
 
     @Transactional

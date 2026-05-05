@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -56,7 +56,6 @@ export default function ProfilePage() {
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
 
-  // Edit-form state — copied from profile when entering edit mode.
   const [form, setForm] = useState({
     fullName: "",
     phone: "",
@@ -101,11 +100,6 @@ export default function ProfilePage() {
     setSaving(true);
     setSaveError("");
     try {
-      // Send the actual form values (including empty strings) so the
-      // backend can distinguish "user cleared this field" from "user
-      // didn't touch this field". Stripping with `|| undefined` was
-      // previously dropping cleared values and, more importantly,
-      // could omit fresh entries depending on JSON.stringify behavior.
       const updated = await updateProfile({
         fullName: form.fullName.trim(),
         phone: form.phone,
@@ -124,7 +118,7 @@ export default function ProfilePage() {
 
   if (authLoading || loading) {
     return (
-      <section className="mx-auto max-w-3xl px-6 pt-32 pb-20 flex items-center justify-center min-h-[60vh]">
+      <section className="mx-auto max-w-6xl px-6 pt-32 pb-20 flex items-center justify-center min-h-[60vh]">
         <Loader2 size={32} className="animate-spin text-[#0F766E]" />
       </section>
     );
@@ -132,7 +126,7 @@ export default function ProfilePage() {
 
   if (error || !profile) {
     return (
-      <section className="mx-auto max-w-3xl px-6 pt-32 pb-20">
+      <section className="mx-auto max-w-6xl px-6 pt-32 pb-20">
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-600 flex items-center gap-2">
           <AlertCircle size={16} /> {error || "Profile not found"}
         </div>
@@ -141,7 +135,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <section className="mx-auto max-w-3xl px-6 pt-28 pb-20">
+    <section className="mx-auto max-w-6xl px-6 pt-28 pb-20">
       <AnimatePresence mode="wait">
         {!editing ? (
           <motion.div
@@ -150,132 +144,138 @@ export default function ProfilePage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.25 }}
-            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8"
+            className="grid grid-cols-1 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-6"
           >
-            {/* Header — avatar + identity + edit button */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-5 sm:gap-6">
-              {profile.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={profile.avatarUrl}
-                  alt={profile.fullName}
-                  className="w-20 h-20 rounded-full object-cover shrink-0"
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-[#0F766E] text-white flex items-center justify-center text-2xl font-medium shrink-0">
-                  {initialsOf(profile.fullName)}
-                </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <h1 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 truncate">
+            {/* ─── LEFT: Profile card ─── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8">
+              <div className="flex flex-col items-center text-center">
+                {profile.avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profile.avatarUrl}
+                    alt={profile.fullName}
+                    className="w-24 h-24 rounded-full object-cover mb-4"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-[#0F766E] text-white flex items-center justify-center text-3xl font-medium mb-4">
+                    {initialsOf(profile.fullName)}
+                  </div>
+                )}
+                <h1 className="font-serif text-2xl font-bold text-gray-900 break-words">
                   {profile.fullName}
                 </h1>
                 <p className="text-sm text-gray-500 mt-0.5 break-all">{profile.email}</p>
                 <span className="inline-block mt-2 text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#0F766E]/10 text-[#115E59]">
                   {profile.role}
                 </span>
+                <button
+                  onClick={handleEdit}
+                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#0F766E] text-sm font-medium text-[#0F766E] hover:bg-[#0F766E]/5 transition-colors"
+                >
+                  <Edit2 size={14} /> Edit Profile
+                </button>
               </div>
-              <button
-                onClick={handleEdit}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-[#0F766E] text-sm font-medium text-[#0F766E] hover:bg-[#0F766E]/5 transition-colors"
-              >
-                <Edit2 size={14} /> Edit Profile
-              </button>
-            </div>
 
-            <hr className="my-6 border-gray-100" />
+              <hr className="my-6 border-gray-100" />
 
-            {/* About */}
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 mb-2">About</h2>
-              <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
-                {profile.bio?.trim() ? profile.bio : (
-                  <span className="text-gray-400 italic">No bio added yet.</span>
-                )}
-              </p>
-            </div>
+              {/* About */}
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 mb-2">About</h2>
+                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">
+                  {profile.bio?.trim() ? profile.bio : (
+                    <span className="text-gray-400 italic">No bio added yet.</span>
+                  )}
+                </p>
+              </div>
 
-            <hr className="my-6 border-gray-100" />
+              <hr className="my-6 border-gray-100" />
 
-            {/* Details */}
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Details</h2>
-              <ul className="space-y-2.5 text-sm">
-                <li className="flex items-center gap-2.5 text-gray-700">
-                  <Phone size={14} className="text-gray-400 shrink-0" />
-                  <span className="text-gray-500 w-20">Phone</span>
-                  <span>{profile.phone || <span className="text-gray-400">Not provided</span>}</span>
-                </li>
-                <li className="flex items-center gap-2.5 text-gray-700">
-                  <MapPin size={14} className="text-gray-400 shrink-0" />
-                  <span className="text-gray-500 w-20">Location</span>
-                  <span>{profile.location || <span className="text-gray-400">Not provided</span>}</span>
-                </li>
-                <li className="flex items-center gap-2.5 text-gray-700">
-                  <Calendar size={14} className="text-gray-400 shrink-0" />
-                  <span className="text-gray-500 w-20">Member since</span>
-                  <span>{formatJoined(profile.createdAt)}</span>
-                </li>
-              </ul>
-            </div>
-
-            <hr className="my-6 border-gray-100" />
-
-            {/* Stats */}
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Learning Stats</h2>
-              <div className="grid grid-cols-3 gap-3">
-                <StatCard
-                  icon={BookOpen}
-                  value={profile.enrolledCoursesCount}
-                  label="Enrolled"
-                  href="/dashboard"
-                />
-                <StatCard
-                  icon={GraduationCap}
-                  value={profile.completedCoursesCount}
-                  label="Completed"
-                  href="/dashboard"
-                />
-                <StatCard
-                  icon={Award}
-                  value={profile.certificatesCount}
-                  label={profile.certificatesCount === 1 ? "Certificate" : "Certificates"}
-                />
+              {/* Details */}
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 mb-3">Details</h2>
+                <ul className="space-y-2.5 text-sm">
+                  <li className="flex items-center gap-2.5 text-gray-700">
+                    <Phone size={14} className="text-gray-400 shrink-0" />
+                    <span className="text-gray-500 w-24">Phone</span>
+                    <span className="truncate">{profile.phone || <span className="text-gray-400">Not provided</span>}</span>
+                  </li>
+                  <li className="flex items-center gap-2.5 text-gray-700">
+                    <MapPin size={14} className="text-gray-400 shrink-0" />
+                    <span className="text-gray-500 w-24">Location</span>
+                    <span className="truncate">{profile.location || <span className="text-gray-400">Not provided</span>}</span>
+                  </li>
+                  <li className="flex items-center gap-2.5 text-gray-700">
+                    <Calendar size={14} className="text-gray-400 shrink-0" />
+                    <span className="text-gray-500 w-24">Member since</span>
+                    <span>{formatJoined(profile.createdAt)}</span>
+                  </li>
+                </ul>
               </div>
             </div>
 
-            <hr className="my-6 border-gray-100" />
-
-            {/* Activity analytics */}
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 mb-3">Activity</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <AnalyticsCard
-                  icon={Flame}
-                  iconClass="text-amber-500 bg-amber-50"
-                  value={String(profile.streakDays ?? 0)}
-                  label={profile.streakDays === 1 ? "Day streak" : "Day streak"}
-                />
-                <AnalyticsCard
-                  icon={CheckCircle2}
-                  iconClass="text-[#0F766E] bg-[#0F766E]/10"
-                  value={String(profile.totalLessonsCompleted ?? 0)}
-                  label="Lessons done"
-                />
-                <AnalyticsCard
-                  icon={Clock}
-                  iconClass="text-[#0D9488] bg-[#0D9488]/10"
-                  value={formatLearningTime(profile.totalLearningMinutes ?? 0)}
-                  label="Time studied"
-                />
-                <AnalyticsCard
-                  icon={Calendar}
-                  iconClass="text-violet-600 bg-violet-50"
-                  value={formatRelativeDay(profile.lastActiveAt)}
-                  label="Last active"
-                />
+            {/* ─── RIGHT: Activity panel ─── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8">
+              {/* Learning Stats */}
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 mb-3">Learning Stats</h2>
+                <div className="grid grid-cols-3 gap-3">
+                  <StatCard
+                    icon={BookOpen}
+                    value={profile.enrolledCoursesCount}
+                    label="Enrolled"
+                    href="/dashboard"
+                  />
+                  <StatCard
+                    icon={GraduationCap}
+                    value={profile.completedCoursesCount}
+                    label="Completed"
+                    href="/dashboard"
+                  />
+                  <StatCard
+                    icon={Award}
+                    value={profile.certificatesCount}
+                    label={profile.certificatesCount === 1 ? "Certificate" : "Certificates"}
+                  />
+                </div>
               </div>
+
+              <hr className="my-6 border-gray-100" />
+
+              {/* Activity analytics */}
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 mb-3">Activity</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <AnalyticsCard
+                    icon={Flame}
+                    iconClass="text-amber-500 bg-amber-50"
+                    value={String(profile.streakDays ?? 0)}
+                    label="Day streak"
+                  />
+                  <AnalyticsCard
+                    icon={CheckCircle2}
+                    iconClass="text-[#0F766E] bg-[#0F766E]/10"
+                    value={String(profile.totalLessonsCompleted ?? 0)}
+                    label="Lessons done"
+                  />
+                  <AnalyticsCard
+                    icon={Clock}
+                    iconClass="text-[#0D9488] bg-[#0D9488]/10"
+                    value={formatLearningTime(profile.totalLearningMinutes ?? 0)}
+                    label="Time studied"
+                  />
+                  <AnalyticsCard
+                    icon={Calendar}
+                    iconClass="text-violet-600 bg-violet-50"
+                    value={formatRelativeDay(profile.lastActiveAt)}
+                    label="Last active"
+                  />
+                </div>
+              </div>
+
+              <hr className="my-6 border-gray-100" />
+
+              {/* Contribution heatmap */}
+              <ContributionGraph contributions={profile.contributions ?? {}} />
             </div>
           </motion.div>
         ) : (
@@ -286,7 +286,7 @@ export default function ProfilePage() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.25 }}
             onSubmit={handleSave}
-            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8"
+            className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8 max-w-3xl mx-auto"
           >
             <div className="flex items-center justify-between mb-6">
               <h1 className="font-serif text-2xl font-bold text-gray-900">Edit Profile</h1>
@@ -307,7 +307,6 @@ export default function ProfilePage() {
             )}
 
             <div className="space-y-5">
-              {/* Full Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Full Name <span className="text-red-400">*</span>
@@ -327,7 +326,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Email — locked */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Email <span className="text-xs text-gray-400 font-normal">(cannot be changed)</span>
@@ -345,7 +343,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Phone */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
                 <div className="relative">
@@ -362,7 +359,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Location */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Location</label>
                 <div className="relative">
@@ -379,7 +375,6 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Bio */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Bio</label>
                 <textarea
@@ -421,6 +416,8 @@ export default function ProfilePage() {
     </section>
   );
 }
+
+// ─── Stat / analytics tiles ────────────────────────────────────────
 
 function StatCard({
   icon: Icon,
@@ -482,6 +479,161 @@ function AnalyticsCard({
         </span>
       </div>
       <p className="text-xl font-bold text-gray-900 tabular-nums truncate">{value}</p>
+    </div>
+  );
+}
+
+// ─── Contribution heatmap ──────────────────────────────────────────
+
+interface HeatCell {
+  date: string;
+  count: number;
+  dayOfWeek: number; // 0=Sun..6=Sat
+  month: number;     // 0..11
+  inWindow: boolean; // within the last 365 days
+}
+
+function buildCells(contributions: Record<string, number>): HeatCell[] {
+  const cells: HeatCell[] = [];
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const start = new Date(today);
+  start.setDate(start.getDate() - 364);
+  // Snap start back to Sunday so each column is a full week
+  while (start.getDay() !== 0) start.setDate(start.getDate() - 1);
+
+  const cur = new Date(start);
+  const yearAgo = new Date(today);
+  yearAgo.setDate(yearAgo.getDate() - 364);
+
+  while (cur <= today) {
+    const yyyy = cur.getFullYear();
+    const mm = String(cur.getMonth() + 1).padStart(2, "0");
+    const dd = String(cur.getDate()).padStart(2, "0");
+    const dateStr = `${yyyy}-${mm}-${dd}`;
+    cells.push({
+      date: dateStr,
+      count: contributions[dateStr] ?? 0,
+      dayOfWeek: cur.getDay(),
+      month: cur.getMonth(),
+      inWindow: cur >= yearAgo,
+    });
+    cur.setDate(cur.getDate() + 1);
+  }
+  return cells;
+}
+
+function colorClassFor(count: number, inWindow: boolean): string {
+  if (!inWindow) return "bg-transparent";
+  if (count === 0) return "bg-gray-100";
+  if (count <= 2) return "bg-[#14B8A6]/40";
+  if (count <= 4) return "bg-[#14B8A6]/70";
+  if (count <= 6) return "bg-[#0D9488]";
+  return "bg-[#0F766E]";
+}
+
+function ContributionGraph({ contributions }: { contributions: Record<string, number> }) {
+  const cells = useMemo(() => buildCells(contributions), [contributions]);
+
+  // Group into week-columns of 7 cells each (column-major).
+  const weeks: HeatCell[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
+  }
+
+  // Total contributions in the visible window.
+  const totalContributions = cells
+    .filter((c) => c.inWindow)
+    .reduce((sum, c) => sum + c.count, 0);
+
+  // Month labels: show on first week of each month.
+  const monthAbbr = (m: number) =>
+    new Date(2000, m, 1).toLocaleDateString(undefined, { month: "short" });
+  const labels: Array<string | null> = weeks.map((w, i) => {
+    const firstMonth = w[0]?.month;
+    const prevMonth = i > 0 ? weeks[i - 1][0]?.month : -1;
+    return firstMonth !== undefined && firstMonth !== prevMonth ? monthAbbr(firstMonth) : null;
+  });
+
+  const dayLabels = ["", "Mon", "", "Wed", "", "Fri", ""];
+
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-3">
+        <h2 className="text-sm font-semibold text-gray-900">
+          {totalContributions} contribution{totalContributions === 1 ? "" : "s"} in the last year
+        </h2>
+      </div>
+
+      <div className="overflow-x-auto -mx-2 px-2 pb-1">
+        <div className="inline-block">
+          {/* Month labels row (offset by day-of-week label column) */}
+          <div className="flex pl-7 mb-1">
+            {labels.map((label, i) => (
+              <div
+                key={i}
+                className="text-[10px] text-gray-400"
+                style={{ width: 12, minWidth: 12 }}
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+
+          <div className="flex">
+            {/* Day-of-week labels (Mon, Wed, Fri visible) */}
+            <div className="flex flex-col gap-[2px] mr-1.5 pt-[1px]">
+              {dayLabels.map((d, i) => (
+                <div
+                  key={i}
+                  className="h-[10px] text-[9px] leading-[10px] text-gray-400"
+                  style={{ width: 20 }}
+                >
+                  {d}
+                </div>
+              ))}
+            </div>
+
+            {/* Week columns */}
+            <div className="flex gap-[2px]">
+              {weeks.map((week, i) => (
+                <div key={i} className="flex flex-col gap-[2px]">
+                  {Array.from({ length: 7 }).map((_, dayIdx) => {
+                    const cell = week[dayIdx];
+                    if (!cell) {
+                      return (
+                        <div
+                          key={dayIdx}
+                          className="w-[10px] h-[10px] rounded-sm bg-transparent"
+                        />
+                      );
+                    }
+                    return (
+                      <div
+                        key={cell.date}
+                        title={`${cell.count} ${cell.count === 1 ? "lesson" : "lessons"} · ${cell.date}`}
+                        className={`w-[10px] h-[10px] rounded-sm ${colorClassFor(cell.count, cell.inWindow)}`}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Legend */}
+          <div className="flex items-center justify-end gap-1.5 mt-3 text-[10px] text-gray-400">
+            <span>Less</span>
+            <div className="w-[10px] h-[10px] rounded-sm bg-gray-100" />
+            <div className="w-[10px] h-[10px] rounded-sm bg-[#14B8A6]/40" />
+            <div className="w-[10px] h-[10px] rounded-sm bg-[#14B8A6]/70" />
+            <div className="w-[10px] h-[10px] rounded-sm bg-[#0D9488]" />
+            <div className="w-[10px] h-[10px] rounded-sm bg-[#0F766E]" />
+            <span>More</span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

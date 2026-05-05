@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 
 /**
  * Extended user profile shown on /profile. Superset of UserDTO —
@@ -42,6 +43,12 @@ public class ProfileDTO {
     private Integer totalLearningMinutes;
     private LocalDateTime lastActiveAt;
 
+    // Per-day contribution map for the GitHub-style heatmap.
+    // Keys are ISO local dates (YYYY-MM-DD); values are lessons completed
+    // that day. Only days with activity are included; the frontend
+    // fills in zeroes for the missing dates.
+    private Map<String, Integer> contributions;
+
     public static ProfileDTO from(
             User user,
             int enrolledCoursesCount,
@@ -50,7 +57,8 @@ public class ProfileDTO {
             int streakDays,
             int totalLessonsCompleted,
             int totalLearningMinutes,
-            LocalDateTime lastActiveAt) {
+            LocalDateTime lastActiveAt,
+            Map<String, Integer> contributions) {
         return ProfileDTO.builder()
                 .id(user.getId())
                 .email(user.getEmail())
@@ -69,6 +77,7 @@ public class ProfileDTO {
                 .totalLessonsCompleted(totalLessonsCompleted)
                 .totalLearningMinutes(totalLearningMinutes)
                 .lastActiveAt(lastActiveAt)
+                .contributions(contributions)
                 .build();
     }
 }

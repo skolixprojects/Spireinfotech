@@ -136,6 +136,7 @@ export interface ProfileData extends UserDTO {
   totalLessonsCompleted: number;
   totalLearningMinutes: number;
   lastActiveAt: string | null;
+  contributions: Record<string, number>;
 }
 
 export async function getProfile(): Promise<ProfileData> {
