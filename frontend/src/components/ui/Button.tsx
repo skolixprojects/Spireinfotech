@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 
 const variants = {
   primary:
-    "bg-[#0E6B6B] text-white hover:bg-[#5FA3A3] rounded-full",
+    "bg-[#00A3A8] text-white hover:bg-[#00B4B8] rounded-full",
   secondary:
-    "border border-[#0E6B6B] text-[#0E6B6B] bg-transparent hover:bg-[#0E6B6B]/5 rounded-full",
+    "border border-[#00A3A8] text-[#00A3A8] bg-transparent hover:bg-[#00A3A8]/5 rounded-full",
   ghost:
-    "bg-transparent text-[#0E6B6B] hover:bg-[#0E6B6B]/5 rounded-lg",
+    "bg-transparent text-[#00A3A8] hover:bg-[#00A3A8]/5 rounded-lg",
 } as const;
 
 const sizes = {
@@ -37,7 +37,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         <Slot
           ref={ref}
           className={cn(
-            "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B6B]/50 disabled:pointer-events-none disabled:opacity-50",
+            "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00A3A8]/50 disabled:pointer-events-none disabled:opacity-50",
             variants[variant],
             sizes[size],
             className
@@ -54,7 +54,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         whileTap={{ scale: 0.97 }}
         transition={{ type: "spring", stiffness: 400, damping: 17 }}
         className={cn(
-          "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0E6B6B]/50 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
+          "inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00A3A8]/50 disabled:pointer-events-none disabled:opacity-50 cursor-pointer",
           variants[variant],
           sizes[size],
           className

@@ -19,6 +19,13 @@ export const metadata: Metadata = {
   title: "Spire — Advance Your Career with Structured Learning",
   description:
     "Learn at your own pace with courses in tech, design, and data science. Every course pairs you with a dedicated mentor who answers questions along the way.",
+  icons: { icon: "/logo.png" },
+  openGraph: {
+    title: "Spire — Courses with real human mentorship",
+    description:
+      "Self-paced courses in tech, design, and data science. Every course comes with a dedicated mentor.",
+    images: [{ url: "/logo.png" }],
+  },
 };
 
 export default function RootLayout({

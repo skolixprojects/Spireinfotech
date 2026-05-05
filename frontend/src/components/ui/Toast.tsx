@@ -31,7 +31,7 @@ const STYLES = {
   success: "bg-teal-600 text-white",
   error: "bg-red-500 text-white",
   info: "bg-gray-800 text-white",
-  cart: "bg-[#0E6B6B] text-white",
+  cart: "bg-[#00A3A8] text-white",
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {

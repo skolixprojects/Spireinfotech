@@ -1,13 +1,21 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       {/* Left - Branding panel */}
-      <div className="hidden lg:flex flex-col justify-between bg-[#0E6B6B] p-12 text-white">
-        <Link href="/" className="font-serif text-3xl font-bold">
-          Spire
+      <div className="hidden lg:flex flex-col justify-between bg-[#00A3A8] p-12 text-white">
+        <Link href="/" className="inline-flex items-center gap-3 font-serif text-3xl font-bold w-fit">
+          <Image
+            src="/logo.png"
+            alt="Spire"
+            width={44}
+            height={44}
+            className="h-11 w-11 object-contain"
+          />
+          <span>Spire</span>
         </Link>
 
         <div>
@@ -15,37 +23,19 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             Master skills.<br />Transform careers.
           </h2>
           <p className="text-white/70 text-lg leading-relaxed max-w-md">
-            Join thousands of learners mastering in-demand skills with expert-led courses,
-            progress tracking, and certificates.
+            Self-paced courses in tech, design, and data science — every one comes with a
+            dedicated mentor who guides you 1:1.
           </p>
         </div>
 
-        <div className="flex items-center gap-10 text-sm text-white/60">
-          <div>
-            <span className="text-2xl font-bold text-white block">10K+</span>
-            Students
-          </div>
-          <div>
-            <span className="text-2xl font-bold text-white block">200+</span>
-            Courses
-          </div>
-          <div>
-            <span className="text-2xl font-bold text-white block">95%</span>
-            Completion
-          </div>
-        </div>
+        <p className="text-sm text-white/60">
+          Built for one-on-one mentorship from day one.
+        </p>
       </div>
 
-      {/* Right - Form area */}
+      {/* Right - Form area (logo is shown above the form by login/signup pages directly) */}
       <div className="flex items-center justify-center bg-[#F0EDE8] px-6 py-12">
         <div className="w-full max-w-[420px]">
-          {/* Mobile logo */}
-          <Link
-            href="/"
-            className="lg:hidden block text-center font-serif text-3xl font-bold text-[#0E6B6B] mb-10"
-          >
-            Spire
-          </Link>
           {children}
         </div>
       </div>

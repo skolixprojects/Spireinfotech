@@ -6,18 +6,22 @@
 
 @layer base {
   :root {
-    --color-primary: #0E6B6B;
-    --color-primary-light: #5FA3A3;
-    --color-primary-dark: #094D4D;
-    --color-accent: #95C8CB;
-    --color-accent-light: #B8DDE0;
-    --color-accent-dark: #5FA3A3;
+    /* Primary palette derived from the logo. The bright cyan
+       (#00CED1) is reserved for accents/highlights/icons; primary
+       backgrounds use a slightly darkened variant to keep white
+       text accessible (WCAG AA on solid fills). */
+    --color-primary: #00A3A8;        /* button bg, solid fills (was #00A3A8) */
+    --color-primary-light: #00CED1;  /* bright accent, headlines (was #00B4B8) */
+    --color-primary-dark: #007E82;   /* hover/active (was #007E82) */
+    --color-accent: #5FE0E3;         /* light teal for tints (was #5FE0E3) */
+    --color-accent-light: #C7F4F5;   /* very light tint backgrounds (was #B8DDE0) */
+    --color-accent-dark: #00B4B8;    /* hover variant (was #00B4B8) */
     --color-bg: #F0EDE8;
     --color-bg-secondary: #E3DED7;
     --color-text: #1A2332;
     --color-text-secondary: #3D4F5F;
     --color-text-muted: #6B7E8D;
-    --color-border: #95C8CB;
+    --color-border: #5FE0E3;
   }
 
   html {
@@ -44,16 +48,16 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #5FA3A3;
+    background: #00B4B8;
     border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #0E6B6B;
+    background: #00A3A8;
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: #5FA3A3 #E3DED7;
+    scrollbar-color: #00B4B8 #E3DED7;
   }
 }

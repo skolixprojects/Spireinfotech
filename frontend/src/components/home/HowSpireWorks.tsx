@@ -72,10 +72,10 @@ export default function HowSpireWorks() {
                 className="rounded-2xl border border-[#E3DED7] bg-white p-7 shadow-sm hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center justify-between mb-5">
-                  <div className="w-12 h-12 rounded-xl bg-[#0E6B6B]/10 flex items-center justify-center">
-                    <Icon className="h-6 w-6 text-[#0E6B6B]" />
+                  <div className="w-12 h-12 rounded-xl bg-[#00A3A8]/10 flex items-center justify-center">
+                    <Icon className="h-6 w-6 text-[#00A3A8]" />
                   </div>
-                  <span className="text-sm font-semibold text-[#95C8CB]">
+                  <span className="text-sm font-semibold text-[#5FE0E3]">
                     {step.label}
                   </span>
                 </div>

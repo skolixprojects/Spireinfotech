@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
@@ -55,7 +56,17 @@ export default function SignupPage() {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
     >
-      <h1 className="font-serif text-3xl font-bold text-gray-900 mb-2">
+      <div className="flex justify-center mb-6">
+        <Image
+          src="/logo.png"
+          alt="Spire"
+          width={64}
+          height={64}
+          priority
+          className="h-16 w-16 object-contain"
+        />
+      </div>
+      <h1 className="font-serif text-3xl font-bold text-gray-900 mb-2 text-center">
         Create your account
       </h1>
       <p className="text-gray-500 mb-8">
@@ -74,7 +85,7 @@ export default function SignupPage() {
           <input
             type="text"
             {...register("name")}
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#95C8CB] focus:border-transparent transition"
+            className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
             placeholder="Arjun Mehta"
           />
           {errors.name && <p className="text-xs text-red-500 mt-1.5">{errors.name.message}</p>}
@@ -85,7 +96,7 @@ export default function SignupPage() {
           <input
             type="email"
             {...register("email")}
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#95C8CB] focus:border-transparent transition"
+            className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
             placeholder="you@example.com"
           />
           {errors.email && <p className="text-xs text-red-500 mt-1.5">{errors.email.message}</p>}
@@ -97,7 +108,7 @@ export default function SignupPage() {
             <input
               type={showPassword ? "text" : "password"}
               {...register("password")}
-              className="w-full px-4 py-3 pr-11 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#95C8CB] focus:border-transparent transition"
+              className="w-full px-4 py-3 pr-11 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
               placeholder="At least 6 characters"
             />
             <button
@@ -116,7 +127,7 @@ export default function SignupPage() {
           <input
             type="password"
             {...register("confirmPassword")}
-            className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#95C8CB] focus:border-transparent transition"
+            className="w-full px-4 py-3 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:border-transparent transition"
             placeholder="Repeat your password"
           />
           {errors.confirmPassword && <p className="text-xs text-red-500 mt-1.5">{errors.confirmPassword.message}</p>}
@@ -126,12 +137,12 @@ export default function SignupPage() {
           <input
             type="checkbox"
             {...register("terms")}
-            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#0E6B6B] focus:ring-[#95C8CB]"
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-[#00A3A8] focus:ring-[#5FE0E3]"
           />
           <span className="text-xs text-gray-500">
             I agree to the{" "}
-            <Link href="#" className="text-[#0E6B6B] hover:underline">Terms of Service</Link>{" "}and{" "}
-            <Link href="#" className="text-[#0E6B6B] hover:underline">Privacy Policy</Link>
+            <Link href="#" className="text-[#00A3A8] hover:underline">Terms of Service</Link>{" "}and{" "}
+            <Link href="#" className="text-[#00A3A8] hover:underline">Privacy Policy</Link>
           </span>
         </label>
         {errors.terms && <p className="text-xs text-red-500 -mt-3">{errors.terms.message}</p>}
@@ -139,7 +150,7 @@ export default function SignupPage() {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full py-3 rounded-lg bg-[#0E6B6B] text-white text-sm font-semibold hover:bg-[#0E6B6B]/90 focus:outline-none focus:ring-2 focus:ring-[#95C8CB] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="w-full py-3 rounded-lg bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00A3A8]/90 focus:outline-none focus:ring-2 focus:ring-[#5FE0E3] focus:ring-offset-2 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {isSubmitting && <Loader2 size={16} className="animate-spin" />}
           {isSubmitting ? "Creating account..." : "Create Account"}
@@ -148,7 +159,7 @@ export default function SignupPage() {
 
       <p className="text-sm text-center text-gray-500 mt-8">
         Already have an account?{" "}
-        <Link href="/login" className="text-[#0E6B6B] font-semibold hover:underline">Sign in</Link>
+        <Link href="/login" className="text-[#00A3A8] font-semibold hover:underline">Sign in</Link>
       </p>
     </motion.div>
   );

@@ -128,10 +128,10 @@ export default function WhatYouCanLearn() {
               >
                 <Link
                   href={href}
-                  className="group block rounded-2xl border border-[#E3DED7] bg-white p-6 hover:shadow-md hover:border-[#95C8CB] transition-all"
+                  className="group block rounded-2xl border border-[#E3DED7] bg-white p-6 hover:shadow-md hover:border-[#5FE0E3] transition-all"
                 >
-                  <div className="w-11 h-11 rounded-xl bg-[#0E6B6B]/10 flex items-center justify-center mb-4 group-hover:bg-[#0E6B6B]/15 transition-colors">
-                    <Icon className="h-5 w-5 text-[#0E6B6B]" />
+                  <div className="w-11 h-11 rounded-xl bg-[#00A3A8]/10 flex items-center justify-center mb-4 group-hover:bg-[#00A3A8]/15 transition-colors">
+                    <Icon className="h-5 w-5 text-[#00A3A8]" />
                   </div>
                   <h3 className="font-semibold text-gray-900 text-base">
                     {tile.label}

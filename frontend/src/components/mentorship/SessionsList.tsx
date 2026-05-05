@@ -73,7 +73,7 @@ export function SessionsList() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 size={24} className="animate-spin text-[#95C8CB]" />
+        <Loader2 size={24} className="animate-spin text-[#5FE0E3]" />
       </div>
     );
   }
@@ -131,7 +131,7 @@ export function SessionsList() {
                     href={s.meetingUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0E6B6B] text-white text-xs font-semibold hover:bg-[#5FA3A3] transition"
+                    className="ml-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#00A3A8] text-white text-xs font-semibold hover:bg-[#00B4B8] transition"
                   >
                     <ExternalLink size={12} /> Join Meeting
                   </a>

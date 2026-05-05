@@ -71,8 +71,8 @@ export default function WhySpire() {
                 animate={inView ? "visible" : "hidden"}
                 className="rounded-2xl border border-[#E3DED7] bg-[#F0EDE8] p-7 hover:shadow-md transition-shadow"
               >
-                <div className="w-11 h-11 rounded-xl bg-[#0E6B6B]/10 flex items-center justify-center mb-4">
-                  <Icon className="h-5 w-5 text-[#0E6B6B]" />
+                <div className="w-11 h-11 rounded-xl bg-[#00A3A8]/10 flex items-center justify-center mb-4">
+                  <Icon className="h-5 w-5 text-[#00A3A8]" />
                 </div>
                 <h3 className="font-semibold text-gray-900 text-lg leading-snug">
                   {p.title}

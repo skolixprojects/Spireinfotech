@@ -341,7 +341,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
     <section className="pt-28 pb-20 px-6">
       <div className="mx-auto max-w-5xl">
         {/* Back link */}
-        <Link href="/courses" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#0E6B6B] mb-6">
+        <Link href="/courses" className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#00A3A8] mb-6">
           <ChevronLeft size={16} /> Back to courses
         </Link>
 
@@ -367,7 +367,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
 
             {course.instructor && (
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#0E6B6B] text-white flex items-center justify-center text-sm font-bold">
+                <div className="w-10 h-10 rounded-full bg-[#00A3A8] text-white flex items-center justify-center text-sm font-bold">
                   {course.instructor.fullName.charAt(0)}
                 </div>
                 <div>
@@ -393,7 +393,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                 </button>
               ) : (
                 <button onClick={handleEnroll} disabled={enrolling}
-                  className="w-full py-3 rounded-xl bg-[#0E6B6B] text-white text-sm font-semibold hover:bg-[#5FA3A3] transition disabled:opacity-50 flex items-center justify-center gap-2">
+                  className="w-full py-3 rounded-xl bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00B4B8] transition disabled:opacity-50 flex items-center justify-center gap-2">
                   {enrolling ? <><Loader2 size={16} className="animate-spin" /> Enrolling...</> : "Enroll Now"}
                 </button>
               )}
@@ -461,7 +461,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                 className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
               <div className="flex gap-3">
                 <button type="submit" disabled={addingModule}
-                  className="px-6 py-2.5 rounded-lg bg-[#0E6B6B] text-white text-sm font-semibold hover:bg-[#5FA3A3] disabled:opacity-50">
+                  className="px-6 py-2.5 rounded-lg bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00B4B8] disabled:opacity-50">
                   {addingModule ? "Adding..." : "Add Module"}
                 </button>
                 <button type="button" onClick={() => setShowAddModule(false)}
@@ -498,7 +498,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
               </label>
               <div className="flex gap-3">
                 <button type="submit" disabled={addingLesson}
-                  className="px-6 py-2.5 rounded-lg bg-[#0E6B6B] text-white text-sm font-semibold hover:bg-[#5FA3A3] disabled:opacity-50">
+                  className="px-6 py-2.5 rounded-lg bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00B4B8] disabled:opacity-50">
                   {addingLesson ? "Adding..." : "Add Lesson"}
                 </button>
                 <button type="button" onClick={() => setShowAddLesson(false)}
@@ -555,11 +555,11 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                             <div className="flex-1 max-w-[200px] flex items-center gap-2">
                               <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-gradient-to-r from-[#0E6B6B] to-[#5FA3A3] rounded-full transition-all"
+                                  className="h-full bg-gradient-to-r from-[#00A3A8] to-[#00B4B8] rounded-full transition-all"
                                   style={{ width: `${modProgress.progressPercent}%` }}
                                 />
                               </div>
-                              <span className="text-[10px] font-semibold text-[#0E6B6B] tabular-nums">
+                              <span className="text-[10px] font-semibold text-[#00A3A8] tabular-nums">
                                 {modProgress.progressPercent}%
                               </span>
                             </div>
@@ -637,7 +637,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                     href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${certificate.certificateUrl}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0E6B6B] text-white text-sm font-semibold hover:bg-[#5FA3A3] transition"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00B4B8] transition"
                   >
                     <Download size={16} /> Download Certificate (PDF)
                   </a>

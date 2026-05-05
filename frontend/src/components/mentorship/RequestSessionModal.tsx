@@ -119,7 +119,7 @@ export function RequestSessionModal({
                   <button
                     type="submit"
                     disabled={submitting || !topic.trim()}
-                    className="px-5 py-2.5 rounded-lg bg-[#0E6B6B] text-white text-sm font-semibold hover:bg-[#5FA3A3] disabled:opacity-50 flex items-center gap-2"
+                    className="px-5 py-2.5 rounded-lg bg-[#00A3A8] text-white text-sm font-semibold hover:bg-[#00B4B8] disabled:opacity-50 flex items-center gap-2"
                   >
                     {submitting ? (
                       <>

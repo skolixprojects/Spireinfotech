@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { APP_NAME } from "@/lib/constants";
 import { Mail, Phone } from "lucide-react";
@@ -27,13 +28,20 @@ const columns = [
 
 export function Footer() {
   return (
-    <footer className="bg-[#0E6B6B] text-white">
+    <footer className="bg-[#00A3A8] text-white">
       <div className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
           {/* Company info */}
           <div>
-            <Link href="/" className="font-serif text-2xl font-bold">
-              {APP_NAME}
+            <Link href="/" className="inline-flex items-center gap-2 font-serif text-2xl font-bold">
+              <Image
+                src="/logo.png"
+                alt="Spire"
+                width={32}
+                height={32}
+                className="h-8 w-8 object-contain"
+              />
+              <span>{APP_NAME}</span>
             </Link>
             <p className="mt-3 text-sm text-white/70 leading-relaxed max-w-xs">
               Self-paced courses with real human mentorship.

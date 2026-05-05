@@ -29,12 +29,12 @@ export default function CTASection() {
         >
           <path
             d="M0 100V60C240 0 480 80 720 60C960 40 1200 80 1440 40V100H0Z"
-            fill="#0E6B6B"
+            fill="#00A3A8"
           />
         </svg>
       </div>
 
-      <div ref={ref} className="relative bg-[#0E6B6B] py-24 overflow-hidden">
+      <div ref={ref} className="relative bg-[#00A3A8] py-24 overflow-hidden">
         {/* Subtle pattern decoration */}
         <div className="absolute inset-0 pointer-events-none opacity-10">
           <svg width="100%" height="100%">
@@ -70,7 +70,7 @@ export default function CTASection() {
             variants={fadeUp}
             initial="hidden"
             animate={inView ? "visible" : "hidden"}
-            className="mt-5 text-[#95C8CB] text-lg sm:text-xl"
+            className="mt-5 text-[#5FE0E3] text-lg sm:text-xl"
           >
             Create your free account and browse courses with real mentorship.
           </motion.p>
@@ -83,7 +83,7 @@ export default function CTASection() {
           >
             <Link
               href="/signup"
-              className="mt-8 inline-flex items-center justify-center rounded-full bg-white px-10 py-4 text-base font-semibold text-[#0E6B6B] shadow-lg hover:bg-[#F0EDE8] transition-colors"
+              className="mt-8 inline-flex items-center justify-center rounded-full bg-white px-10 py-4 text-base font-semibold text-[#00A3A8] shadow-lg hover:bg-[#F0EDE8] transition-colors"
             >
               Get Started
             </Link>

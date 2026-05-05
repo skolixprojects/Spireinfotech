@@ -82,7 +82,7 @@ export function AcceptSessionForm({ sessionId, onAccepted, onCancel }: AcceptSes
         <button
           type="submit"
           disabled={submitting || !scheduledAt || !meetingUrl.trim()}
-          className="px-3 py-1.5 rounded-lg bg-[#0E6B6B] text-white text-xs font-semibold hover:bg-[#5FA3A3] disabled:opacity-50 inline-flex items-center gap-1"
+          className="px-3 py-1.5 rounded-lg bg-[#00A3A8] text-white text-xs font-semibold hover:bg-[#00B4B8] disabled:opacity-50 inline-flex items-center gap-1"
         >
           {submitting ? (
             <><Loader2 size={12} className="animate-spin" /> Confirming…</>

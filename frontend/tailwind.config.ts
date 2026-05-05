@@ -10,17 +10,17 @@ const config: Config = {
     extend: {
       colors: {
         primary: {
-          DEFAULT: "#0E6B6B",   // deep teal (bottom stripe)
-          light: "#5FA3A3",     // medium teal (3rd stripe)
-          dark: "#094D4D",      // darker shade
+          DEFAULT: "#00A3A8",   // logo teal at AA contrast on white
+          light: "#00CED1",     // bright cyan from logo (highlights / icons)
+          dark: "#007E82",      // hover / active fill
         },
         accent: {
-          DEFAULT: "#95C8CB",   // light teal/aqua (2nd stripe)
-          light: "#B8DDE0",     // lighter tint
-          dark: "#5FA3A3",      // medium teal
+          DEFAULT: "#5FE0E3",   // light cyan tint
+          light: "#C7F4F5",     // very pale background tint
+          dark: "#00B4B8",      // mid cyan
         },
         cream: {
-          DEFAULT: "#F0EDE8",   // off-white (top stripe)
+          DEFAULT: "#F0EDE8",   // off-white background
           dark: "#E3DED7",      // slightly darker cream
         },
       },

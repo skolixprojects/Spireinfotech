@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 
@@ -16,12 +17,28 @@ export default function Hero() {
   return (
     <section className="relative overflow-hidden bg-[#F0EDE8] pt-32">
       {/* Decorative blobs */}
-      <div className="absolute top-10 -left-40 w-[500px] h-[500px] rounded-full bg-[#95C8CB]/20 blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-[#5FA3A3]/10 blur-3xl pointer-events-none" />
+      <div className="absolute top-10 -left-40 w-[500px] h-[500px] rounded-full bg-[#5FE0E3]/20 blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full bg-[#00B4B8]/10 blur-3xl pointer-events-none" />
 
       <div className="relative mx-auto max-w-7xl px-6 py-20 lg:py-28 flex flex-col lg:flex-row items-center gap-16">
         {/* Text content */}
         <div className="flex-1 text-center lg:text-left">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="flex justify-center lg:justify-start mb-6"
+          >
+            <Image
+              src="/logo.png"
+              alt="Spire"
+              width={88}
+              height={88}
+              priority
+              className="h-22 w-22 object-contain"
+            />
+          </motion.div>
+
           <motion.h1
             custom={0}
             variants={fadeUp}
@@ -31,7 +48,7 @@ export default function Hero() {
           >
             Courses with
             <br />
-            <span className="text-[#0E6B6B]">real human mentorship</span>
+            <span className="text-[#00A3A8]">real human mentorship</span>
           </motion.h1>
 
           <motion.p
@@ -55,13 +72,13 @@ export default function Hero() {
           >
             <Link
               href="/signup"
-              className="inline-flex items-center justify-center rounded-full bg-[#0E6B6B] px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#0E6B6B]/25 hover:bg-[#0a5555] transition-colors"
+              className="inline-flex items-center justify-center rounded-full bg-[#00A3A8] px-8 py-3.5 text-base font-semibold text-white shadow-lg shadow-[#00A3A8]/25 hover:bg-[#00858A] transition-colors"
             >
               Create Your Account
             </Link>
             <Link
               href="/login"
-              className="text-sm font-medium text-[#0E6B6B] hover:underline underline-offset-4"
+              className="text-sm font-medium text-[#00A3A8] hover:underline underline-offset-4"
             >
               Already have an account? Sign In
             </Link>
