@@ -91,13 +91,13 @@ export default function Hero() {
               className="h-1.5 w-1.5 rounded-full bg-[#0D9488] [animation:pulse-dot_2s_ease-in-out_infinite]"
               aria-hidden="true"
             />
-            <span className="text-xs font-medium text-[#115E59]">
+            <span className="text-sm font-medium text-[#115E59]">
               Your path starts here
             </span>
           </motion.div>
 
           {/* Heading — two lines, line 2 in gradient teal */}
-          <h1 className="mt-5 font-bold text-4xl md:text-5xl lg:text-6xl text-[#1a1a2e] leading-[1.1]">
+          <h1 className="mt-5 font-bold text-5xl md:text-6xl lg:text-7xl text-[#1a1a2e] leading-[1.1]">
             <motion.span
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
@@ -121,7 +121,7 @@ export default function Hero() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.6, ease: easeOut }}
-            className="mt-4 mx-auto md:mx-0 max-w-lg text-base md:text-lg leading-relaxed text-gray-500"
+            className="mt-4 mx-auto md:mx-0 max-w-lg text-lg md:text-xl leading-relaxed text-gray-500"
           >
             Structured courses with personal mentorship, career services, and
             verified certificates — designed for India&apos;s next generation
@@ -137,14 +137,14 @@ export default function Hero() {
           >
             <Link
               href="/signup"
-              className="inline-flex items-center justify-center rounded-xl bg-[#0F766E] px-7 py-3 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.03] hover:shadow-[0_6px_20px_rgba(15,118,110,0.3)] active:scale-[0.98]"
+              className="inline-flex items-center justify-center rounded-xl bg-[#0F766E] px-8 py-3.5 text-base font-medium text-white transition-all duration-200 hover:scale-[1.03] hover:shadow-[0_6px_20px_rgba(15,118,110,0.3)] active:scale-[0.98]"
             >
               Get Started
             </Link>
             <button
               type="button"
               onClick={handleExplore}
-              className="inline-flex items-center justify-center rounded-xl border-[0.5px] border-gray-300 bg-white px-7 py-3 text-sm font-medium text-[#1a1a2e] transition-all duration-200 hover:bg-gray-50 hover:border-[#0F766E]/30 active:scale-[0.98]"
+              className="inline-flex items-center justify-center rounded-xl border-[0.5px] border-gray-300 bg-white px-8 py-3.5 text-base font-medium text-[#1a1a2e] transition-all duration-200 hover:bg-gray-50 hover:border-[#0F766E]/30 active:scale-[0.98]"
             >
               Learn More
             </button>
@@ -155,7 +155,7 @@ export default function Hero() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5, delay: 1.0, ease: easeOut }}
-            className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-400 justify-center md:justify-start"
+            className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-400 justify-center md:justify-start"
           >
             {["Self-paced", "Mentor included", "Verified certificates"].map(
               (t) => (
