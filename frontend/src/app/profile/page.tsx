@@ -77,11 +77,16 @@ export default function ProfilePage() {
     setSaving(true);
     setSaveError("");
     try {
+      // Send the actual form values (including empty strings) so the
+      // backend can distinguish "user cleared this field" from "user
+      // didn't touch this field". Stripping with `|| undefined` was
+      // previously dropping cleared values and, more importantly,
+      // could omit fresh entries depending on JSON.stringify behavior.
       const updated = await updateProfile({
         fullName: form.fullName.trim(),
-        phone: form.phone || undefined,
-        location: form.location || undefined,
-        bio: form.bio || undefined,
+        phone: form.phone,
+        location: form.location,
+        bio: form.bio,
       });
       setProfile(updated);
       setEditing(false);

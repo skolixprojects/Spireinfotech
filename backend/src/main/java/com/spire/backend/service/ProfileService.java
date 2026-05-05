@@ -58,15 +58,24 @@ public class ProfileService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
+        // fullName: required, never overwritten with blank
         if (dto.getFullName() != null && !dto.getFullName().isBlank()) {
             user.setFullName(dto.getFullName().trim());
         }
-        if (dto.getAvatarUrl() != null) user.setAvatarUrl(dto.getAvatarUrl());
-        if (dto.getBio() != null) user.setBio(dto.getBio());
-        if (dto.getPhone() != null) user.setPhone(dto.getPhone());
-        if (dto.getLocation() != null) user.setLocation(dto.getLocation());
+        // avatarUrl: optional. Treat empty string as "clear" → null.
+        if (dto.getAvatarUrl() != null) {
+            user.setAvatarUrl(emptyToNull(dto.getAvatarUrl()));
+        }
+        // Optional fields — empty string clears them, null leaves alone.
+        if (dto.getBio() != null) user.setBio(emptyToNull(dto.getBio()));
+        if (dto.getPhone() != null) user.setPhone(emptyToNull(dto.getPhone().trim()));
+        if (dto.getLocation() != null) user.setLocation(emptyToNull(dto.getLocation().trim()));
 
         userRepository.save(user);
         return getProfile(userId); // refetch with counts
+    }
+
+    private static String emptyToNull(String s) {
+        return (s == null || s.isBlank()) ? null : s;
     }
 }

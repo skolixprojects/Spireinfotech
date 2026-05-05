@@ -3,6 +3,7 @@ package com.spire.backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.DynamicUpdate;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
@@ -10,9 +11,16 @@ import java.time.LocalDateTime;
 /**
  * Maps to the 'users' table in MySQL.
  * Uses role_id FK to 'roles' table instead of embedded enum.
+ *
+ * @DynamicUpdate so Hibernate emits UPDATE statements that only touch
+ * the columns that actually changed. Without it, every save rewrites
+ * all columns, which is brittle when running against multiple
+ * environments (MySQL dev vs Postgres prod) where naming strategies
+ * can differ subtly.
  */
 @Entity
 @Table(name = "users")
+@DynamicUpdate
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -42,11 +50,12 @@ public class User {
     @Column(columnDefinition = "TEXT")
     private String bio;
 
-    // Profile-page extras
-    @Column(length = 20)
+    // Profile-page extras — explicit @Column(name=...) so the mapping
+    // can't get tripped up by per-environment naming strategies.
+    @Column(name = "phone", length = 20)
     private String phone;
 
-    @Column(length = 255)
+    @Column(name = "location", length = 255)
     private String location;
 
     @Column(name = "instructor_approved", nullable = false)
