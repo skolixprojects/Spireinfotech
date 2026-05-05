@@ -3,6 +3,7 @@ package com.spire.backend.service;
 import com.spire.backend.dto.ProfileDTO;
 import com.spire.backend.dto.UpdateProfileRequest;
 import com.spire.backend.entity.Enrollment;
+import com.spire.backend.entity.Progress;
 import com.spire.backend.entity.User;
 import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.repository.CertificateRepository;
@@ -14,7 +15,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Profile read + write. Reuses existing repositories for the learning-
@@ -50,7 +54,31 @@ public class ProfileService {
 
         int certificates = certificateRepository.findByUserId(userId).size();
 
-        return ProfileDTO.from(user, enrolled, completed, certificates);
+        // Activity analytics — derived from the user's per-lesson Progress rows.
+        List<Progress> rows = progressRepository.findByUserId(userId);
+        int streakDays = rows.stream()
+                .map(Progress::getStreakDays)
+                .filter(Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .max()
+                .orElse(0);
+        int totalLessonsCompleted = (int) rows.stream()
+                .filter(p -> Boolean.TRUE.equals(p.getCompleted()))
+                .count();
+        int totalLearningMinutes = rows.stream()
+                .filter(p -> Boolean.TRUE.equals(p.getCompleted()))
+                .filter(p -> p.getLesson() != null && p.getLesson().getDurationMinutes() != null)
+                .mapToInt(p -> p.getLesson().getDurationMinutes())
+                .sum();
+        LocalDateTime lastActiveAt = rows.stream()
+                .map(Progress::getLastAccessed)
+                .filter(Objects::nonNull)
+                .max(Comparator.naturalOrder())
+                .orElse(null);
+
+        return ProfileDTO.from(
+                user, enrolled, completed, certificates,
+                streakDays, totalLessonsCompleted, totalLearningMinutes, lastActiveAt);
     }
 
     @Transactional

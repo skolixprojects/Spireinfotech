@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   User as UserIcon, Mail, Phone, MapPin, Calendar, Lock,
   Edit2, Save, X, Loader2, AlertCircle, BookOpen, GraduationCap, Award,
+  Flame, CheckCircle2, Clock,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getProfile, updateProfile, type ProfileData } from "@/lib/api";
@@ -23,6 +24,28 @@ function initialsOf(name: string | null | undefined): string {
 function formatJoined(iso: string | null): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+function formatRelativeDay(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  if (diffDays <= 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function formatLearningTime(minutes: number): string {
+  if (minutes <= 0) return "0m";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
 }
 
 export default function ProfilePage() {
@@ -221,6 +244,39 @@ export default function ProfilePage() {
                 />
               </div>
             </div>
+
+            <hr className="my-6 border-gray-100" />
+
+            {/* Activity analytics */}
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 mb-3">Activity</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <AnalyticsCard
+                  icon={Flame}
+                  iconClass="text-amber-500 bg-amber-50"
+                  value={String(profile.streakDays ?? 0)}
+                  label={profile.streakDays === 1 ? "Day streak" : "Day streak"}
+                />
+                <AnalyticsCard
+                  icon={CheckCircle2}
+                  iconClass="text-[#0F766E] bg-[#0F766E]/10"
+                  value={String(profile.totalLessonsCompleted ?? 0)}
+                  label="Lessons done"
+                />
+                <AnalyticsCard
+                  icon={Clock}
+                  iconClass="text-[#0D9488] bg-[#0D9488]/10"
+                  value={formatLearningTime(profile.totalLearningMinutes ?? 0)}
+                  label="Time studied"
+                />
+                <AnalyticsCard
+                  icon={Calendar}
+                  iconClass="text-violet-600 bg-violet-50"
+                  value={formatRelativeDay(profile.lastActiveAt)}
+                  label="Last active"
+                />
+              </div>
+            </div>
           </motion.div>
         ) : (
           <motion.form
@@ -400,6 +456,32 @@ function StatCard({
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-4 text-center">
       {inner}
+    </div>
+  );
+}
+
+function AnalyticsCard({
+  icon: Icon,
+  iconClass,
+  value,
+  label,
+}: {
+  icon: typeof BookOpen;
+  iconClass: string;
+  value: string;
+  label: string;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-100 bg-white p-3.5">
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${iconClass}`}>
+          <Icon size={14} />
+        </div>
+        <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide truncate">
+          {label}
+        </span>
+      </div>
+      <p className="text-xl font-bold text-gray-900 tabular-nums truncate">{value}</p>
     </div>
   );
 }

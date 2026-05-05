@@ -132,6 +132,10 @@ export interface ProfileData extends UserDTO {
   enrolledCoursesCount: number;
   completedCoursesCount: number;
   certificatesCount: number;
+  streakDays: number;
+  totalLessonsCompleted: number;
+  totalLearningMinutes: number;
+  lastActiveAt: string | null;
 }
 
 export async function getProfile(): Promise<ProfileData> {

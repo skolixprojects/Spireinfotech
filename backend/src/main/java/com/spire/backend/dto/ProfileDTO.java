@@ -36,11 +36,21 @@ public class ProfileDTO {
     private Integer completedCoursesCount;
     private Integer certificatesCount;
 
+    // Activity analytics — surfaced beside the profile card on /profile.
+    private Integer streakDays;
+    private Integer totalLessonsCompleted;
+    private Integer totalLearningMinutes;
+    private LocalDateTime lastActiveAt;
+
     public static ProfileDTO from(
             User user,
             int enrolledCoursesCount,
             int completedCoursesCount,
-            int certificatesCount) {
+            int certificatesCount,
+            int streakDays,
+            int totalLessonsCompleted,
+            int totalLearningMinutes,
+            LocalDateTime lastActiveAt) {
         return ProfileDTO.builder()
                 .id(user.getId())
                 .email(user.getEmail())
@@ -55,6 +65,10 @@ public class ProfileDTO {
                 .enrolledCoursesCount(enrolledCoursesCount)
                 .completedCoursesCount(completedCoursesCount)
                 .certificatesCount(certificatesCount)
+                .streakDays(streakDays)
+                .totalLessonsCompleted(totalLessonsCompleted)
+                .totalLearningMinutes(totalLearningMinutes)
+                .lastActiveAt(lastActiveAt)
                 .build();
     }
 }
