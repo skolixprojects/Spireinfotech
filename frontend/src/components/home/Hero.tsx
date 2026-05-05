@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { BookOpen, Play, Users, Award, Rocket, type LucideIcon } from "lucide-react";
+import {
+  BookOpen, Play, Users, Award, Rocket,
+  Code, Database, Globe, Cpu, Terminal, Layers, GitBranch, Monitor,
+  ChevronDown,
+  type LucideIcon,
+} from "lucide-react";
 
 const easeOut = "easeOut" as const;
 
@@ -32,6 +37,24 @@ const LINES = [
 const NODE_DELAYS = [0.5, 1.1, 1.7, 2.3, 2.9];
 const FULL_PATH = "M 70 60 L 280 60 L 280 180 L 70 180 L 175 300";
 
+// Floating background icons. Hidden on mobile to avoid clutter.
+// Two keyframes (float1/float2) + varied durations + delays so they
+// drift independently. Color and alpha are baked into the className
+// so each icon stays at the watermark-faint #0D9488/[0.08].
+const FLOAT_ICONS: Array<{
+  Icon: LucideIcon;
+  className: string;
+}> = [
+  { Icon: Code,      className: "top-[15%] left-[5%]   [animation:float1_5s_ease-in-out_infinite]" },
+  { Icon: Database,  className: "top-[25%] right-[8%]  [animation:float2_6s_ease-in-out_infinite_0.5s]" },
+  { Icon: Globe,     className: "bottom-[30%] left-[10%] [animation:float1_7s_ease-in-out_infinite_1.2s]" },
+  { Icon: Cpu,       className: "top-[10%] right-[25%] [animation:float2_5.5s_ease-in-out_infinite_0.8s]" },
+  { Icon: Terminal,  className: "bottom-[20%] right-[5%] [animation:float1_6.5s_ease-in-out_infinite_0.3s]" },
+  { Icon: Layers,    className: "top-[60%] left-[3%]   [animation:float2_4.5s_ease-in-out_infinite_1.5s]" },
+  { Icon: GitBranch, className: "bottom-[15%] left-[30%] [animation:float1_5s_ease-in-out_infinite_0.6s]" },
+  { Icon: Monitor,   className: "top-[40%] right-[15%] [animation:float2_7s_ease-in-out_infinite_1s]" },
+];
+
 export default function Hero() {
   const handleExplore = () => {
     document.getElementById("how-spire-works")?.scrollIntoView({ behavior: "smooth" });
@@ -39,13 +62,23 @@ export default function Hero() {
 
   return (
     <section
-      className="relative py-16 md:py-20 px-6 md:px-12 lg:px-20"
+      className="relative flex items-center min-h-[calc(100vh-64px)] py-12 md:py-16 px-6 md:px-12 lg:px-20 overflow-hidden"
       style={{
         background: "linear-gradient(180deg, #F0FDFA 0%, #ffffff 100%)",
       }}
     >
-      <div className="mx-auto max-w-6xl grid grid-cols-1 md:grid-cols-[1.1fr_0.9fr] gap-8 items-center">
-        {/* ── LEFT — Text content (centered on mobile, left on desktop) ── */}
+      {/* ── Floating tech icons (background watermarks, desktop only) ── */}
+      {FLOAT_ICONS.map(({ Icon, className }, i) => (
+        <Icon
+          key={i}
+          size={24}
+          aria-hidden="true"
+          className={`pointer-events-none absolute hidden md:block text-[#0D9488]/[0.08] ${className}`}
+        />
+      ))}
+
+      <div className="relative mx-auto w-full max-w-6xl grid grid-cols-1 md:grid-cols-[1.1fr_0.9fr] gap-8 items-center">
+        {/* ── LEFT — Text content ── */}
         <div className="text-center md:text-left">
           {/* Pill badge */}
           <motion.div
@@ -106,14 +139,14 @@ export default function Hero() {
               href="/signup"
               className="inline-flex items-center justify-center rounded-xl bg-[#0F766E] px-7 py-3 text-sm font-medium text-white transition-all duration-200 hover:scale-[1.03] hover:shadow-[0_6px_20px_rgba(15,118,110,0.3)] active:scale-[0.98]"
             >
-              Start for free
+              Get Started
             </Link>
             <button
               type="button"
               onClick={handleExplore}
               className="inline-flex items-center justify-center rounded-xl border-[0.5px] border-gray-300 bg-white px-7 py-3 text-sm font-medium text-[#1a1a2e] transition-all duration-200 hover:bg-gray-50 hover:border-[#0F766E]/30 active:scale-[0.98]"
             >
-              Explore courses
+              Learn More
             </button>
           </motion.div>
 
@@ -138,7 +171,7 @@ export default function Hero() {
           </motion.div>
         </div>
 
-        {/* ── RIGHT — Animated journey node map (centered in column) ── */}
+        {/* ── RIGHT — Animated journey node map ── */}
         <div className="flex items-center justify-center">
           <div className="relative w-full max-w-[280px] md:max-w-[400px] aspect-square">
             <svg
@@ -219,6 +252,17 @@ export default function Hero() {
               );
             })}
           </div>
+        </div>
+      </div>
+
+      {/* ── Scroll-down indicator ── */}
+      <div className="pointer-events-none absolute bottom-8 inset-x-0 flex justify-center">
+        <div className="flex flex-col items-center gap-1 text-gray-400">
+          <ChevronDown
+            size={20}
+            className="[animation:scroll-bounce_2s_ease-in-out_infinite]"
+          />
+          <span className="text-xs">Scroll to explore</span>
         </div>
       </div>
     </section>

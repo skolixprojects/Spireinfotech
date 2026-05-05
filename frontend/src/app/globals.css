@@ -74,4 +74,19 @@
     0%, 100% { transform: translateY(0); }
     50%      { transform: translateY(-12px); }
   }
+  /* Floating tech icons in the hero — two keyframes so adjacent icons
+     don't move in lockstep. Combined translateY + rotate keeps them
+     feeling alive without burning frames. */
+  @keyframes float1 {
+    0%, 100% { transform: translateY(0)     rotate(0deg); }
+    50%      { transform: translateY(-12px) rotate(8deg); }
+  }
+  @keyframes float2 {
+    0%, 100% { transform: translateY(0)    rotate(0deg); }
+    50%      { transform: translateY(10px) rotate(-6deg); }
+  }
+  @keyframes scroll-bounce {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(8px); }
+  }
 }
