@@ -1,16 +1,16 @@
 "use client";
 
-import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
 import { UserPlus, Users, Award } from "lucide-react";
 
-const fadeUp = {
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12 } },
+};
+
+const itemVariants = {
   hidden: { opacity: 0, y: 24 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.12, duration: 0.5, ease: "easeOut" as const },
-  }),
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
 };
 
 const steps = [
@@ -38,38 +38,39 @@ const steps = [
 ];
 
 export default function HowSpireWorks() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
-
   return (
-    <section id="how-spire-works" ref={ref} className="py-20 bg-[#F0EDE8]">
+    <motion.section
+      id="how-spire-works"
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.7, ease: "easeOut" }}
+      className="py-20 bg-[#F0EDE8]"
+    >
       <div className="mx-auto max-w-6xl px-6">
-        <motion.div
-          custom={0}
-          variants={fadeUp}
-          initial="hidden"
-          animate={inView ? "visible" : "hidden"}
-          className="text-center mb-12"
-        >
+        <div className="text-center mb-12">
           <h2 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900">
             How Spire Info Tech works
           </h2>
           <p className="mt-3 text-gray-600 max-w-2xl mx-auto">
             Three steps from &ldquo;I want to learn X&rdquo; to certified.
           </p>
-        </motion.div>
+        </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          {steps.map((step, i) => {
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-50px" }}
+          variants={containerVariants}
+          className="grid gap-6 md:grid-cols-3"
+        >
+          {steps.map((step) => {
             const Icon = step.icon;
             return (
               <motion.div
                 key={step.label}
-                custom={i + 1}
-                variants={fadeUp}
-                initial="hidden"
-                animate={inView ? "visible" : "hidden"}
-                className="rounded-2xl border border-[#E3DED7] bg-white p-7 shadow-sm hover:shadow-md transition-shadow"
+                variants={itemVariants}
+                className="rounded-2xl border border-[#E3DED7] bg-white p-7 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[#00A3A8]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
               >
                 <div className="flex items-center justify-between mb-5">
                   <div className="w-12 h-12 rounded-xl bg-[#00A3A8]/10 flex items-center justify-center">
@@ -88,8 +89,8 @@ export default function HowSpireWorks() {
               </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       </div>
-    </section>
+    </motion.section>
   );
 }

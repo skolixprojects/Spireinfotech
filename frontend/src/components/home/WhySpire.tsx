@@ -1,16 +1,16 @@
 "use client";
 
-import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
 import { MessageCircle, BookOpen, Briefcase, Award } from "lucide-react";
 
-const fadeUp = {
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.12 } },
+};
+
+const itemVariants = {
   hidden: { opacity: 0, y: 24 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.1, duration: 0.5, ease: "easeOut" as const },
-  }),
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
 };
 
 const props = [
@@ -41,35 +41,35 @@ const props = [
 ];
 
 export default function WhySpire() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
-
   return (
-    <section ref={ref} className="py-20 bg-white">
+    <motion.section
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.7, ease: "easeOut" }}
+      className="py-20 bg-white"
+    >
       <div className="mx-auto max-w-6xl px-6">
-        <motion.div
-          custom={0}
-          variants={fadeUp}
-          initial="hidden"
-          animate={inView ? "visible" : "hidden"}
-          className="text-center mb-12"
-        >
+        <div className="text-center mb-12">
           <h2 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900">
             Why learners choose Spire Info Tech
           </h2>
-        </motion.div>
+        </div>
 
-        <div className="grid gap-6 sm:grid-cols-2">
-          {props.map((p, i) => {
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-50px" }}
+          variants={containerVariants}
+          className="grid gap-6 sm:grid-cols-2"
+        >
+          {props.map((p) => {
             const Icon = p.icon;
             return (
               <motion.div
                 key={p.title}
-                custom={i + 1}
-                variants={fadeUp}
-                initial="hidden"
-                animate={inView ? "visible" : "hidden"}
-                className="rounded-2xl border border-[#E3DED7] bg-[#F0EDE8] p-7 hover:shadow-md transition-shadow"
+                variants={itemVariants}
+                className="rounded-2xl border border-[#E3DED7] bg-[#F0EDE8] p-7 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#00A3A8]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
               >
                 <div className="w-11 h-11 rounded-xl bg-[#00A3A8]/10 flex items-center justify-center mb-4">
                   <Icon className="h-5 w-5 text-[#00A3A8]" />
@@ -83,8 +83,8 @@ export default function WhySpire() {
               </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       </div>
-    </section>
+    </motion.section>
   );
 }

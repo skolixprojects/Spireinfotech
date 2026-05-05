@@ -1,22 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRef } from "react";
-import { motion, useInView } from "framer-motion";
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.12, duration: 0.5, ease: "easeOut" as const },
-  }),
-};
+import { motion } from "framer-motion";
 
 export default function CTASection() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
-
   return (
     <section className="relative">
       {/* Wave decoration at top */}
@@ -34,7 +21,13 @@ export default function CTASection() {
         </svg>
       </div>
 
-      <div ref={ref} className="relative bg-[#00A3A8] py-24 overflow-hidden">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        whileInView={{ opacity: 1, scale: 1 }}
+        viewport={{ once: true, margin: "-100px" }}
+        transition={{ duration: 0.6, ease: "easeOut" }}
+        className="relative bg-[#00A3A8] py-24 overflow-hidden"
+      >
         {/* Subtle pattern decoration */}
         <div className="absolute inset-0 pointer-events-none opacity-10">
           <svg width="100%" height="100%">
@@ -55,41 +48,22 @@ export default function CTASection() {
         </div>
 
         <div className="relative mx-auto max-w-3xl px-6 text-center">
-          <motion.h2
-            custom={0}
-            variants={fadeUp}
-            initial="hidden"
-            animate={inView ? "visible" : "hidden"}
-            className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-white"
-          >
+          <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-white">
             Ready to start learning?
-          </motion.h2>
+          </h2>
 
-          <motion.p
-            custom={1}
-            variants={fadeUp}
-            initial="hidden"
-            animate={inView ? "visible" : "hidden"}
-            className="mt-5 text-[#5FE0E3] text-lg sm:text-xl"
-          >
+          <p className="mt-5 text-[#5FE0E3] text-lg sm:text-xl">
             Create your free account and browse courses with real mentorship.
-          </motion.p>
+          </p>
 
-          <motion.div
-            custom={2}
-            variants={fadeUp}
-            initial="hidden"
-            animate={inView ? "visible" : "hidden"}
+          <Link
+            href="/signup"
+            className="mt-8 inline-flex items-center justify-center rounded-full bg-white px-10 py-4 text-base font-semibold text-[#00A3A8] shadow-lg transition-all duration-200 hover:bg-[#F0EDE8] hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
           >
-            <Link
-              href="/signup"
-              className="mt-8 inline-flex items-center justify-center rounded-full bg-white px-10 py-4 text-base font-semibold text-[#00A3A8] shadow-lg hover:bg-[#F0EDE8] transition-colors"
-            >
-              Get Started
-            </Link>
-          </motion.div>
+            Get Started
+          </Link>
         </div>
-      </div>
+      </motion.div>
     </section>
   );
 }

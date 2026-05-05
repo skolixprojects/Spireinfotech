@@ -1,20 +1,21 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion, useInView } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Code2, BarChart3, Palette, Cloud, Smartphone, Briefcase,
 } from "lucide-react";
 import { getCourses, getServices } from "@/lib/api";
 
-const fadeUp = {
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.08 } },
+};
+
+const itemVariants = {
   hidden: { opacity: 0, y: 24 },
-  visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { delay: i * 0.08, duration: 0.5, ease: "easeOut" as const },
-  }),
+  visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" as const } },
 };
 
 interface CourseRow {
@@ -22,9 +23,6 @@ interface CourseRow {
   type?: string;
 }
 
-// Each tile maps to one or more backend `category` values. The label is
-// the user-facing name; the matchers list the seed-data categories that
-// belong under it. "Career Services" pulls from getServices() instead.
 const TILES = [
   {
     icon: Code2,
@@ -59,15 +57,13 @@ const TILES = [
   {
     icon: Briefcase,
     label: "Career Services",
-    matchers: [], // populated from /api/courses?type=SERVICE
+    matchers: [],
     redirect: "/services",
     isServices: true,
   },
 ];
 
 export default function WhatYouCanLearn() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-80px" });
   const [courseCounts, setCourseCounts] = useState<Record<string, number>>({});
   const [serviceCount, setServiceCount] = useState<number | null>(null);
 
@@ -94,41 +90,39 @@ export default function WhatYouCanLearn() {
   };
 
   return (
-    <section ref={ref} className="py-20 bg-[#F0EDE8]">
+    <motion.section
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-100px" }}
+      transition={{ duration: 0.7, ease: "easeOut" }}
+      className="py-20 bg-[#F0EDE8]"
+    >
       <div className="mx-auto max-w-6xl px-6">
-        <motion.div
-          custom={0}
-          variants={fadeUp}
-          initial="hidden"
-          animate={inView ? "visible" : "hidden"}
-          className="text-center mb-12"
-        >
+        <div className="text-center mb-12">
           <h2 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900">
             What you can learn on Spire Info Tech
           </h2>
           <p className="mt-3 text-gray-600 max-w-2xl mx-auto">
             Pick a path. Sign up to browse courses inside each one.
           </p>
-        </motion.div>
+        </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {TILES.map((tile, i) => {
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-50px" }}
+          variants={containerVariants}
+          className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+        >
+          {TILES.map((tile) => {
             const Icon = tile.icon;
             const count = countFor(tile);
-            // Click → signup, with redirect param so the user lands on the
-            // right page after creating an account.
             const href = `/signup?redirect=${encodeURIComponent(tile.redirect)}`;
             return (
-              <motion.div
-                key={tile.label}
-                custom={i + 1}
-                variants={fadeUp}
-                initial="hidden"
-                animate={inView ? "visible" : "hidden"}
-              >
+              <motion.div key={tile.label} variants={itemVariants}>
                 <Link
                   href={href}
-                  className="group block rounded-2xl border border-[#E3DED7] bg-white p-6 hover:shadow-md hover:border-[#5FE0E3] transition-all"
+                  className="group block rounded-2xl border border-[#E3DED7] bg-white p-6 transition-all duration-200 hover:bg-[#e0f7f7] hover:border-[#00A3A8]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
                 >
                   <div className="w-11 h-11 rounded-xl bg-[#00A3A8]/10 flex items-center justify-center mb-4 group-hover:bg-[#00A3A8]/15 transition-colors">
                     <Icon className="h-5 w-5 text-[#00A3A8]" />
@@ -149,18 +143,18 @@ export default function WhatYouCanLearn() {
               </motion.div>
             );
           })}
-        </div>
+        </motion.div>
 
         <motion.p
-          custom={TILES.length + 1}
-          variants={fadeUp}
-          initial="hidden"
-          animate={inView ? "visible" : "hidden"}
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-50px" }}
+          transition={{ duration: 0.5, ease: "easeOut", delay: 0.4 }}
           className="mt-10 text-center text-sm text-gray-500"
         >
           Click any path above to sign up and start learning.
         </motion.p>
       </div>
-    </section>
+    </motion.section>
   );
 }
