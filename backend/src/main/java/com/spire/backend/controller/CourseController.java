@@ -13,6 +13,7 @@ import com.spire.backend.repository.UserRepository;
 import com.spire.backend.service.CourseService;
 import com.spire.backend.service.EnrollmentService;
 import com.spire.backend.service.ProgressService;
+import com.spire.backend.service.ThumbnailUploadService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,8 +22,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -35,6 +38,7 @@ public class CourseController {
     private final EnrollmentService enrollmentService;
     private final UserRepository userRepository;
     private final ProgressService progressService;
+    private final ThumbnailUploadService thumbnailUploadService;
 
     // ─── Instructor's own courses ─────────────────────────────────
 
@@ -205,5 +209,38 @@ public class CourseController {
 
         CourseDTO unpublished = courseService.unpublishCourse(courseId, userId, isAdmin);
         return ResponseEntity.ok(ApiResponse.success("Course unpublished", unpublished));
+    }
+
+    // ─── Publish readiness check ────────────────────────────────────
+    // Used by the instructor dashboard to show "Missing: …" hints on
+    // draft cards without forcing the user to click Publish first.
+
+    @GetMapping("/{courseId}/publish-readiness")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('INSTRUCTOR') and @courseSecurity.isOwner(#courseId, authentication))")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> publishReadiness(
+            @PathVariable Long courseId,
+            Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        boolean isAdmin = authentication.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        List<String> missing = courseService.checkPublishReadiness(courseId, userId, isAdmin);
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "ready", missing.isEmpty(),
+                "missing", missing
+        )));
+    }
+
+    // ─── Thumbnail upload ───────────────────────────────────────────
+
+    @PostMapping("/{courseId}/thumbnail")
+    @PreAuthorize("hasRole('ADMIN') or (hasRole('INSTRUCTOR') and @courseSecurity.isOwner(#courseId, authentication))")
+    public ResponseEntity<ApiResponse<Map<String, String>>> uploadThumbnail(
+            @PathVariable Long courseId,
+            @RequestParam("file") MultipartFile file,
+            Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        boolean isAdmin = authentication.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        String url = thumbnailUploadService.uploadThumbnail(courseId, file, userId, isAdmin);
+        return ResponseEntity.ok(ApiResponse.success("Thumbnail uploaded",
+                Map.of("thumbnailUrl", url)));
     }
 }

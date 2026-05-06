@@ -38,6 +38,12 @@ public class CourseDTO {
     private Boolean isPublished;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    /**
+     * Number of modules attached to the course. Optional — only set
+     * when the caller (e.g., instructor dashboard) needs a quick
+     * count without a separate fetch.
+     */
+    private Integer modulesCount;
 
     public static CourseDTO from(Course course) {
         return CourseDTO.builder()

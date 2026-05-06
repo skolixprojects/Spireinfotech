@@ -877,6 +877,41 @@ export async function deleteCourse(id: number) {
   return apiFetch<ApiResponse<unknown>>(`/api/courses/${id}`, { method: "DELETE" });
 }
 
+// Returns the list of items still missing before the course can be
+// published — empty array means the course is ready.
+export interface PublishReadiness {
+  ready: boolean;
+  missing: string[];
+}
+
+export async function getPublishReadiness(id: number) {
+  const wrapper = await apiFetch<ApiResponse<PublishReadiness>>(
+    `/api/courses/${id}/publish-readiness`
+  );
+  return wrapper.data;
+}
+
+// Multipart upload — bypass apiFetch (which sets Content-Type: JSON)
+// and let the browser set the multipart boundary itself.
+export async function uploadCourseThumbnail(courseId: number, file: File) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${BASE_URL}/api/courses/${courseId}/thumbnail`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || "Thumbnail upload failed");
+  }
+  const wrapper = await res.json();
+  return wrapper.data as { thumbnailUrl: string };
+}
+
 // ─── Lessons ────────────────────────────────────────────────────
 
 export async function getCourseLessons(courseId: number | string) {

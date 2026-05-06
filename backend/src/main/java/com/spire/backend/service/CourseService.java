@@ -8,11 +8,15 @@ import com.spire.backend.entity.User;
 import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.exception.UnauthorizedException;
 import com.spire.backend.repository.CourseRepository;
+import com.spire.backend.repository.EnrollmentRepository;
+import com.spire.backend.repository.LessonRepository;
+import com.spire.backend.repository.ModuleRepository;
 import com.spire.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,6 +26,9 @@ public class CourseService {
 
     private final CourseRepository courseRepository;
     private final UserRepository userRepository;
+    private final ModuleRepository moduleRepository;
+    private final LessonRepository lessonRepository;
+    private final EnrollmentRepository enrollmentRepository;
 
     public List<CourseDTO> getAllCourses() {
         return getAllCourses("COURSE");
@@ -60,7 +67,16 @@ public class CourseService {
 
     public List<CourseDTO> getCoursesByInstructor(Long instructorId) {
         return courseRepository.findByInstructorId(instructorId).stream()
-                .map(CourseDTO::from)
+                .map(c -> {
+                    CourseDTO dto = CourseDTO.from(c);
+                    // Cheap count fetch — instructor dashboards need this
+                    // to render the "X modules · Y lessons" hint, and
+                    // adding it here saves an N+1 round trip from the
+                    // frontend.
+                    dto.setModulesCount(
+                            moduleRepository.findByCourseIdOrderByOrderIndexAsc(c.getId()).size());
+                    return dto;
+                })
                 .collect(Collectors.toList());
     }
 
@@ -151,6 +167,10 @@ public class CourseService {
 
     /**
      * Delete course — service-layer ownership check (defense-in-depth).
+     *
+     * Refuses to delete a course that has any enrollments — students
+     * who paid for it would lose access without warning. Admin bypasses
+     * this guard since they sometimes need to clean up bad data.
      */
     @Transactional
     public void deleteCourse(Long courseId, Long userId, boolean isAdmin) {
@@ -161,11 +181,22 @@ public class CourseService {
             throw new UnauthorizedException("You can only delete your own courses");
         }
 
+        if (!isAdmin) {
+            long enrollments = enrollmentRepository.countByCourseId(courseId);
+            if (enrollments > 0) {
+                throw new IllegalArgumentException(
+                        "Cannot delete a course with active enrollments. Unpublish it instead.");
+            }
+        }
+
         courseRepository.delete(course);
     }
 
     /**
-     * Publish course — sets isPublished = true.
+     * Publish course — sets isPublished = true after a content
+     * readiness check. The frontend uses {@link #checkPublishReadiness}
+     * to surface what's missing without trying the publish call, so the
+     * card on /instructor can show a "Missing: …" hint inline.
      */
     @Transactional
     public CourseDTO publishCourse(Long courseId, Long userId, boolean isAdmin) {
@@ -176,8 +207,62 @@ public class CourseService {
             throw new UnauthorizedException("You can only publish your own courses");
         }
 
+        List<String> missing = collectMissingForPublish(course);
+        if (!missing.isEmpty()) {
+            throw new IllegalArgumentException(
+                    "Course isn't ready to publish — " + String.join("; ", missing));
+        }
+
         course.setIsPublished(true);
         return CourseDTO.from(courseRepository.save(course));
+    }
+
+    /**
+     * Returns the list of human-readable items the course is still
+     * missing before it can be published. Empty list means it's
+     * ready. Used by the instructor dashboard's draft cards.
+     */
+    @Transactional(readOnly = true)
+    public List<String> checkPublishReadiness(Long courseId, Long userId, boolean isAdmin) {
+        Course course = courseRepository.findById(courseId)
+                .orElseThrow(() -> new ResourceNotFoundException("Course", "id", courseId));
+        if (!isAdmin && !course.getInstructor().getId().equals(userId)) {
+            throw new UnauthorizedException("You can only view publish readiness for your own courses");
+        }
+        return collectMissingForPublish(course);
+    }
+
+    private List<String> collectMissingForPublish(Course course) {
+        List<String> missing = new ArrayList<>();
+        if (course.getTitle() == null || course.getTitle().isBlank()) {
+            missing.add("title is empty");
+        }
+        if (course.getDescription() == null || course.getDescription().isBlank()) {
+            missing.add("description is empty");
+        }
+        if (course.getPrice() == null
+                || course.getPrice().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            missing.add("price must be greater than zero");
+        }
+        var modules = moduleRepository.findByCourseIdOrderByOrderIndexAsc(course.getId());
+        if (modules.isEmpty()) {
+            missing.add("needs at least 1 module");
+        } else {
+            // Identify modules that have zero lessons attached. Each is
+            // a publish blocker — a module without lessons would render
+            // as an empty section to students.
+            var courseLessons = lessonRepository.findByCourseIdOrderByOrderIndex(course.getId());
+            for (var m : modules) {
+                long lessonsInModule = courseLessons.stream()
+                        .filter(l -> l.getModule() != null
+                                && m.getId().equals(l.getModule().getId()))
+                        .count();
+                if (lessonsInModule == 0) {
+                    missing.add("module \"" + m.getTitle() + "\" has no lessons");
+                }
+            }
+        }
+        return missing;
     }
 
     /**
