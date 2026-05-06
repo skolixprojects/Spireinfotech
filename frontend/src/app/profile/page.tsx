@@ -468,17 +468,21 @@ function AnalyticsCard({
   value: string;
   label: string;
 }) {
+  // Stacked layout — icon as a small badge above, then value, then
+  // the label on its own line. Earlier the icon + label shared one
+  // horizontal row and at narrow card widths the label was forced to
+  // truncate ("DAY STRE…"). With the label on a dedicated line we
+  // can drop `truncate` and let it wrap naturally; the tighter
+  // tracking keeps the typography readable without overflow.
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-3.5">
-      <div className="flex items-center gap-2 mb-2">
-        <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${iconClass}`}>
-          <Icon size={14} />
-        </div>
-        <span className="text-[11px] font-medium text-gray-500 uppercase tracking-wide truncate">
-          {label}
-        </span>
+      <div className={`w-7 h-7 rounded-lg flex items-center justify-center mb-2 ${iconClass}`}>
+        <Icon size={14} />
       </div>
-      <p className="text-xl font-bold text-gray-900 tabular-nums truncate">{value}</p>
+      <p className="text-xl font-bold text-gray-900 tabular-nums leading-tight">{value}</p>
+      <span className="block mt-0.5 text-[10px] font-medium text-gray-500 uppercase tracking-wide">
+        {label}
+      </span>
     </div>
   );
 }
@@ -566,72 +570,75 @@ function ContributionGraph({ contributions }: { contributions: Record<string, nu
         </h2>
       </div>
 
-      <div className="overflow-x-auto -mx-2 px-2 pb-1">
-        <div className="inline-block">
-          {/* Month labels row (offset by day-of-week label column) */}
-          <div className="flex pl-7 mb-1">
-            {labels.map((label, i) => (
+      {/* Responsive grid: each week column flex-grows to share the
+          available width equally, and individual cells use
+          aspect-square so they stay square regardless of how wide
+          the container ends up. The previous fixed-10px-cell layout
+          forced ~530px of horizontal space and overflowed the panel
+          on common viewport sizes; the wrapper had to scroll. */}
+      <div>
+        {/* Month labels row (offset by day-of-week label column) */}
+        <div className="flex gap-[2px] pl-7 mb-1">
+          {labels.map((label, i) => (
+            <div
+              key={i}
+              className="flex-1 min-w-0 text-[10px] text-gray-400"
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex">
+          {/* Day-of-week labels (Mon, Wed, Fri visible) */}
+          <div className="flex flex-col justify-between mr-1.5 py-[1px] shrink-0">
+            {dayLabels.map((d, i) => (
               <div
                 key={i}
-                className="text-[10px] text-gray-400"
-                style={{ width: 12, minWidth: 12 }}
+                className="text-[9px] leading-none text-gray-400"
+                style={{ width: 20 }}
               >
-                {label}
+                {d}
               </div>
             ))}
           </div>
 
-          <div className="flex">
-            {/* Day-of-week labels (Mon, Wed, Fri visible) */}
-            <div className="flex flex-col gap-[2px] mr-1.5 pt-[1px]">
-              {dayLabels.map((d, i) => (
-                <div
-                  key={i}
-                  className="h-[10px] text-[9px] leading-[10px] text-gray-400"
-                  style={{ width: 20 }}
-                >
-                  {d}
-                </div>
-              ))}
-            </div>
-
-            {/* Week columns */}
-            <div className="flex gap-[2px]">
-              {weeks.map((week, i) => (
-                <div key={i} className="flex flex-col gap-[2px]">
-                  {Array.from({ length: 7 }).map((_, dayIdx) => {
-                    const cell = week[dayIdx];
-                    if (!cell) {
-                      return (
-                        <div
-                          key={dayIdx}
-                          className="w-[10px] h-[10px] rounded-sm bg-transparent"
-                        />
-                      );
-                    }
+          {/* Week columns — flex-grow so all 53 columns share the row */}
+          <div className="flex gap-[2px] flex-1 min-w-0">
+            {weeks.map((week, i) => (
+              <div key={i} className="flex flex-col gap-[2px] flex-1 min-w-0">
+                {Array.from({ length: 7 }).map((_, dayIdx) => {
+                  const cell = week[dayIdx];
+                  if (!cell) {
                     return (
                       <div
-                        key={cell.date}
-                        title={`${cell.count} ${cell.count === 1 ? "lesson" : "lessons"} · ${cell.date}`}
-                        className={`w-[10px] h-[10px] rounded-sm ${colorClassFor(cell.count, cell.inWindow)}`}
+                        key={dayIdx}
+                        className="aspect-square rounded-sm bg-transparent"
                       />
                     );
-                  })}
-                </div>
-              ))}
-            </div>
+                  }
+                  return (
+                    <div
+                      key={cell.date}
+                      title={`${cell.count} ${cell.count === 1 ? "lesson" : "lessons"} · ${cell.date}`}
+                      className={`aspect-square rounded-sm ${colorClassFor(cell.count, cell.inWindow)}`}
+                    />
+                  );
+                })}
+              </div>
+            ))}
           </div>
+        </div>
 
-          {/* Legend */}
-          <div className="flex items-center justify-end gap-1.5 mt-3 text-[10px] text-gray-400">
-            <span>Less</span>
-            <div className="w-[10px] h-[10px] rounded-sm bg-gray-100" />
-            <div className="w-[10px] h-[10px] rounded-sm bg-[#14B8A6]/40" />
-            <div className="w-[10px] h-[10px] rounded-sm bg-[#14B8A6]/70" />
-            <div className="w-[10px] h-[10px] rounded-sm bg-[#0D9488]" />
-            <div className="w-[10px] h-[10px] rounded-sm bg-[#0F766E]" />
-            <span>More</span>
-          </div>
+        {/* Legend */}
+        <div className="flex items-center justify-end gap-1.5 mt-3 text-[10px] text-gray-400">
+          <span>Less</span>
+          <div className="w-[10px] h-[10px] rounded-sm bg-gray-100" />
+          <div className="w-[10px] h-[10px] rounded-sm bg-[#14B8A6]/40" />
+          <div className="w-[10px] h-[10px] rounded-sm bg-[#14B8A6]/70" />
+          <div className="w-[10px] h-[10px] rounded-sm bg-[#0D9488]" />
+          <div className="w-[10px] h-[10px] rounded-sm bg-[#0F766E]" />
+          <span>More</span>
         </div>
       </div>
     </div>
