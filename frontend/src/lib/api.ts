@@ -17,6 +17,9 @@ export interface UserDTO {
   avatarUrl: string | null;
   bio: string | null;
   onboardingCompleted?: boolean;
+  isActive?: boolean;
+  instructorApproved?: boolean;
+  createdAt?: string | null;
 }
 
 export interface AuthResponse {
@@ -473,6 +476,80 @@ export async function getAnalytics() {
 export async function getUsers() {
   const wrapper = await apiFetch<ApiResponse<unknown[]>>("/api/admin/users");
   return wrapper.data;
+}
+
+// ─── Admin: Revenue ─────────────────────────────────────────────────
+
+export interface RevenueSummary {
+  totalRevenue: number;
+  revenueThisMonth: number;
+  revenueLastMonth: number;
+  totalTransactions: number;
+  avgOrderValue: number;
+  topCoursesByRevenue: Array<{
+    courseId: number;
+    courseTitle: string;
+    type: string;
+    enrollments: number;
+    revenue: number;
+  }>;
+}
+
+export interface RevenueTransaction {
+  id: number;
+  studentName: string | null;
+  studentEmail: string | null;
+  amount: number;
+  currency: string;
+  status: string | null;
+  razorpayPaymentId: string | null;
+  razorpayOrderId: string | null;
+  createdAt: string | null;
+}
+
+export async function getRevenueSummary() {
+  const wrapper = await apiFetch<ApiResponse<RevenueSummary>>("/api/admin/revenue/summary");
+  return wrapper.data;
+}
+
+export async function getRevenueTransactions(params?: {
+  from?: string;
+  to?: string;
+  status?: string;
+}) {
+  const qs = params
+    ? "?" + new URLSearchParams(
+        Object.entries(params).filter(([, v]) => v) as [string, string][]
+      ).toString()
+    : "";
+  const wrapper = await apiFetch<ApiResponse<RevenueTransaction[]>>(
+    `/api/admin/revenue/transactions${qs}`
+  );
+  return wrapper.data;
+}
+
+// ─── Admin: CSV Exports ─────────────────────────────────────────────
+// CSV endpoints stream a text/csv body — bypass apiFetch (which expects
+// JSON) and trigger a browser download via blob URL.
+
+export async function downloadAdminCsv(kind: "users" | "enrollments" | "sessions" | "revenue") {
+  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  const res = await fetch(`${BASE_URL}/api/admin/export/${kind}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    throw new Error(`Export failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  const today = new Date().toISOString().slice(0, 10);
+  a.download = `spire-${kind}-${today}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ─── Instructor Requests ────────────────────────────────────────

@@ -7,16 +7,24 @@ import com.spire.backend.dto.CourseDTO;
 import com.spire.backend.dto.InstructorRequestDTO;
 import com.spire.backend.dto.ProfileDTO;
 import com.spire.backend.dto.UserDTO;
+import com.spire.backend.entity.Payment;
+import com.spire.backend.service.AdminRevenueService;
 import com.spire.backend.service.AdminService;
 import com.spire.backend.service.CourseService;
 import com.spire.backend.service.InstructorRequestService;
 import com.spire.backend.service.ProfileService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -30,6 +38,9 @@ public class AdminController {
     private final CourseService courseService;
     private final InstructorRequestService instructorRequestService;
     private final ProfileService profileService;
+    private final AdminRevenueService adminRevenueService;
+
+    private static final DateTimeFormatter CSV_TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @GetMapping("/analytics")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getAnalytics() {
@@ -112,5 +123,122 @@ public class AdminController {
     public ResponseEntity<ApiResponse<String>> rejectInstructor(@PathVariable Long requestId) {
         instructorRequestService.rejectInstructor(requestId);
         return ResponseEntity.ok(ApiResponse.success("Instructor request rejected"));
+    }
+
+    // ─── Revenue Dashboard ───────────────────────────────────────────
+
+    @GetMapping("/revenue/summary")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getRevenueSummary() {
+        return ResponseEntity.ok(ApiResponse.success(adminRevenueService.getSummary()));
+    }
+
+    @GetMapping("/revenue/transactions")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getRevenueTransactions(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.success(
+                adminRevenueService.getTransactions(from, to, status)));
+    }
+
+    // ─── CSV Exports ─────────────────────────────────────────────────
+
+    @GetMapping("/export/users")
+    public void exportUsers(HttpServletResponse response) throws IOException {
+        prepareCsv(response, "users");
+        PrintWriter w = response.getWriter();
+        w.println("ID,FullName,Email,Role,Active,InstructorApproved,CreatedAt");
+        for (UserDTO u : adminService.getAllUsers()) {
+            w.println(String.join(",",
+                    csv(u.getId()),
+                    csv(u.getFullName()),
+                    csv(u.getEmail()),
+                    csv(u.getRole()),
+                    csv(u.getIsActive()),
+                    csv(u.getInstructorApproved()),
+                    csv(u.getCreatedAt())));
+        }
+        w.flush();
+    }
+
+    @GetMapping("/export/enrollments")
+    public void exportEnrollments(HttpServletResponse response) throws IOException {
+        prepareCsv(response, "enrollments");
+        PrintWriter w = response.getWriter();
+        w.println("EnrollmentID,StudentName,StudentEmail,CourseTitle,Type,EnrolledAt,Progress%,Completed,Mentor,MentorStatus");
+        for (AdminEnrollmentRow r : adminService.getAllEnrollments()) {
+            w.println(String.join(",",
+                    csv(r.getEnrollmentId()),
+                    csv(r.getStudentName()),
+                    csv(r.getStudentEmail()),
+                    csv(r.getCourseTitle()),
+                    csv(r.getCourseType()),
+                    csv(r.getEnrolledAt()),
+                    csv(r.getProgressPercent()),
+                    csv(r.getCompleted()),
+                    csv(r.getMentorName()),
+                    csv(r.getMentorAssignmentStatus())));
+        }
+        w.flush();
+    }
+
+    @GetMapping("/export/sessions")
+    public void exportSessions(HttpServletResponse response) throws IOException {
+        prepareCsv(response, "sessions");
+        PrintWriter w = response.getWriter();
+        w.println("SessionID,StudentName,StudentEmail,Mentor,CourseTitle,Status,Topic,RequestedAt,ScheduledAt,CompletedAt,MeetingURL");
+        for (AdminSessionRow r : adminService.getAllSessions()) {
+            w.println(String.join(",",
+                    csv(r.getSessionId()),
+                    csv(r.getStudentName()),
+                    csv(r.getStudentEmail()),
+                    csv(r.getMentorName()),
+                    csv(r.getCourseTitle()),
+                    csv(r.getStatus()),
+                    csv(r.getTopic()),
+                    csv(r.getRequestedAt()),
+                    csv(r.getScheduledAt()),
+                    csv(r.getCompletedAt()),
+                    csv(r.getMeetingUrl())));
+        }
+        w.flush();
+    }
+
+    @GetMapping("/export/revenue")
+    public void exportRevenue(HttpServletResponse response) throws IOException {
+        prepareCsv(response, "revenue");
+        PrintWriter w = response.getWriter();
+        w.println("PaymentID,StudentName,StudentEmail,Amount,Currency,Status,RazorpayPaymentID,RazorpayOrderID,CreatedAt");
+        for (Payment p : adminRevenueService.getAllPaymentsRaw()) {
+            w.println(String.join(",",
+                    csv(p.getId()),
+                    csv(p.getUser() != null ? p.getUser().getFullName() : null),
+                    csv(p.getUser() != null ? p.getUser().getEmail() : null),
+                    csv(p.getAmount()),
+                    csv("INR"),
+                    csv(p.getStatus()),
+                    csv(p.getRazorpayPaymentId()),
+                    csv(p.getRazorpayOrderId()),
+                    csv(p.getCreatedAt())));
+        }
+        w.flush();
+    }
+
+    private void prepareCsv(HttpServletResponse response, String name) {
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader("Content-Disposition",
+                "attachment; filename=spire-" + name + "-" + LocalDate.now() + ".csv");
+    }
+
+    private String csv(Object value) {
+        if (value == null) return "";
+        String s = value instanceof java.time.LocalDateTime
+                ? ((java.time.LocalDateTime) value).format(CSV_TS)
+                : value.toString();
+        boolean needsQuote = s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r");
+        if (needsQuote) {
+            s = "\"" + s.replace("\"", "\"\"") + "\"";
+        }
+        return s;
     }
 }

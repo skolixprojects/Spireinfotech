@@ -6,6 +6,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 
 
 @Data
@@ -21,6 +22,9 @@ public class UserDTO {
     private String avatarUrl;
     private String bio;
     private Boolean onboardingCompleted;
+    private Boolean isActive;
+    private Boolean instructorApproved;
+    private LocalDateTime createdAt;
 
     public static UserDTO from(User user) {
         return UserDTO.builder()
@@ -31,6 +35,9 @@ public class UserDTO {
                 .avatarUrl(user.getAvatarUrl())
                 .bio(user.getBio())
                 .onboardingCompleted(Boolean.TRUE.equals(user.getOnboardingCompleted()))
+                .isActive(Boolean.TRUE.equals(user.getIsActive()))
+                .instructorApproved(Boolean.TRUE.equals(user.getInstructorApproved()))
+                .createdAt(user.getCreatedAt())
                 .build();
     }
 }

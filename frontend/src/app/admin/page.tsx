@@ -19,6 +19,9 @@ import {
   UserPlus,
   UserMinus,
   GraduationCap,
+  IndianRupee,
+  Download,
+  TrendingUp,
 } from "lucide-react";
 import {
   getAnalytics,
@@ -38,6 +41,11 @@ import {
   getAdminSessions,
   type AdminEnrollmentRow,
   type AdminSessionRow,
+  getRevenueSummary,
+  getRevenueTransactions,
+  downloadAdminCsv,
+  type RevenueSummary,
+  type RevenueTransaction,
 } from "@/lib/api";
 import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink } from "lucide-react";
 import Link from "next/link";
@@ -50,6 +58,7 @@ const sidebarLinks = [
   { label: "Courses", icon: BookOpen },
   { label: "Enrollments", icon: ClipboardList },
   { label: "Sessions", icon: Calendar },
+  { label: "Revenue", icon: IndianRupee },
   { label: "Mentor Pools", icon: GraduationCap },
   { label: "Instructor Requests", icon: UserCheck },
 ];
@@ -157,6 +166,27 @@ function AdminContent() {
   const [selectedMentorId, setSelectedMentorId] = useState<string>("");
   const [poolBusy, setPoolBusy] = useState(false);
 
+  // Revenue tab — lazy loaded on first open
+  const [revenue, setRevenue] = useState<RevenueSummary | null>(null);
+  const [revenueLoading, setRevenueLoading] = useState(false);
+  const [transactions, setTransactions] = useState<RevenueTransaction[] | null>(null);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [revenueStatusFilter, setRevenueStatusFilter] = useState<string>("All");
+
+  // CSV export — track which export is in flight to disable its button.
+  const [exportingKind, setExportingKind] = useState<string | null>(null);
+  const handleExport = async (kind: "users" | "enrollments" | "sessions" | "revenue") => {
+    setExportingKind(kind);
+    try {
+      await downloadAdminCsv(kind);
+      setActionMsg({ type: "success", text: `${kind[0].toUpperCase()}${kind.slice(1)} CSV downloaded.` });
+    } catch (err) {
+      setActionMsg({ type: "error", text: err instanceof Error ? err.message : "Export failed" });
+    } finally {
+      setExportingKind(null);
+    }
+  };
+
   // Fetch analytics
   useEffect(() => {
     setLoadingAnalytics(true);
@@ -217,7 +247,21 @@ function AdminContent() {
         .catch((err) => setError(err instanceof Error ? err.message : "Failed to load sessions"))
         .finally(() => setSessionsLoading(false));
     }
-  }, [activeTab, enrollmentsRows, enrollmentsLoading, sessionsRows, sessionsLoading]);
+    if (activeTab === "Revenue" && revenue === null && !revenueLoading) {
+      setRevenueLoading(true);
+      getRevenueSummary()
+        .then((data) => setRevenue(data))
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load revenue"))
+        .finally(() => setRevenueLoading(false));
+    }
+    if (activeTab === "Revenue" && transactions === null && !transactionsLoading) {
+      setTransactionsLoading(true);
+      getRevenueTransactions()
+        .then((rows) => setTransactions(rows ?? []))
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load transactions"))
+        .finally(() => setTransactionsLoading(false));
+    }
+  }, [activeTab, enrollmentsRows, enrollmentsLoading, sessionsRows, sessionsLoading, revenue, revenueLoading, transactions, transactionsLoading]);
 
   // Handle course actions
   const handleDeleteCourse = async (courseId: number) => {
@@ -460,9 +504,19 @@ function AdminContent() {
           {/* ──────────── Users Tab ──────────── */}
           {activeTab === "Users" && (
             <>
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6 gap-4">
                 <h1 className="text-2xl font-bold text-[#0F766E]">All Users</h1>
-                <p className="text-xs text-gray-400">Click any row to view full profile + activity</p>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-gray-400 hidden sm:block">Click any row to view full profile + activity</p>
+                  <button
+                    onClick={() => handleExport("users")}
+                    disabled={exportingKind === "users"}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+                  >
+                    {exportingKind === "users" ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                    Export CSV
+                  </button>
+                </div>
               </div>
               {loadingUsers ? (
                 <Spinner />
@@ -606,11 +660,21 @@ function AdminContent() {
           {/* ──────────── Enrollments Tab ──────────── */}
           {activeTab === "Enrollments" && (
             <>
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6 gap-4">
                 <h1 className="text-2xl font-bold text-[#0F766E]">All Enrollments</h1>
-                <p className="text-xs text-gray-400">
-                  {enrollmentsRows ? `${enrollmentsRows.length} total` : ""}
-                </p>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-gray-400">
+                    {enrollmentsRows ? `${enrollmentsRows.length} total` : ""}
+                  </p>
+                  <button
+                    onClick={() => handleExport("enrollments")}
+                    disabled={exportingKind === "enrollments"}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+                  >
+                    {exportingKind === "enrollments" ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                    Export CSV
+                  </button>
+                </div>
               </div>
 
               {/* Filters */}
@@ -731,11 +795,21 @@ function AdminContent() {
           {/* ──────────── Sessions Tab ──────────── */}
           {activeTab === "Sessions" && (
             <>
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6 gap-4">
                 <h1 className="text-2xl font-bold text-[#0F766E]">All Mentor Sessions</h1>
-                <p className="text-xs text-gray-400">
-                  {sessionsRows ? `${sessionsRows.length} total` : ""}
-                </p>
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-gray-400">
+                    {sessionsRows ? `${sessionsRows.length} total` : ""}
+                  </p>
+                  <button
+                    onClick={() => handleExport("sessions")}
+                    disabled={exportingKind === "sessions"}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+                  >
+                    {exportingKind === "sessions" ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                    Export CSV
+                  </button>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-3 mb-4 text-sm">
@@ -825,6 +899,209 @@ function AdminContent() {
                     </tbody>
                   </table>
                 </GlassCard>
+              )}
+            </>
+          )}
+
+          {/* ──────────── Revenue Tab ──────────── */}
+          {activeTab === "Revenue" && (
+            <>
+              <div className="flex items-center justify-between mb-6 gap-4">
+                <h1 className="text-2xl font-bold text-[#0F766E]">Revenue & Payments</h1>
+                <button
+                  onClick={() => handleExport("revenue")}
+                  disabled={exportingKind === "revenue"}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+                >
+                  {exportingKind === "revenue" ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                  Export CSV
+                </button>
+              </div>
+
+              {/* Action feedback (shared with mentor pools — appears here for export confirmations) */}
+              {actionMsg && (
+                <div
+                  className={`mb-6 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${
+                    actionMsg.type === "success"
+                      ? "bg-teal-50 border-teal-200 text-teal-700"
+                      : "bg-red-50 border-red-200 text-red-700"
+                  }`}
+                >
+                  {actionMsg.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  {actionMsg.text}
+                  <button onClick={() => setActionMsg(null)} className="ml-auto opacity-60 hover:opacity-100 cursor-pointer">
+                    <XCircle size={16} />
+                  </button>
+                </div>
+              )}
+
+              {revenueLoading ? (
+                <Spinner />
+              ) : !revenue ? (
+                <GlassCard>
+                  <p className="text-center text-gray-400 py-8">No revenue data yet.</p>
+                </GlassCard>
+              ) : (
+                <>
+                  {/* Summary cards */}
+                  <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                    <GlassCard>
+                      <div className="w-10 h-10 rounded-full bg-[#0F766E]/10 flex items-center justify-center mb-3">
+                        <IndianRupee size={18} className="text-[#0F766E]" />
+                      </div>
+                      <p className="text-2xl font-bold text-[#1a1a1a]">
+                        ₹{Number(revenue.totalRevenue ?? 0).toLocaleString("en-IN")}
+                      </p>
+                      <p className="text-xs text-gray-500">Total revenue (lifetime)</p>
+                    </GlassCard>
+                    <GlassCard>
+                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
+                        <TrendingUp size={18} className="text-emerald-600" />
+                      </div>
+                      <p className="text-2xl font-bold text-[#1a1a1a]">
+                        ₹{Number(revenue.revenueThisMonth ?? 0).toLocaleString("en-IN")}
+                      </p>
+                      <p className="text-xs text-gray-500">This month</p>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        Last month: ₹{Number(revenue.revenueLastMonth ?? 0).toLocaleString("en-IN")}
+                      </p>
+                    </GlassCard>
+                    <GlassCard>
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-3">
+                        <CreditCard size={18} className="text-blue-600" />
+                      </div>
+                      <p className="text-2xl font-bold text-[#1a1a1a]">
+                        {Number(revenue.totalTransactions ?? 0).toLocaleString()}
+                      </p>
+                      <p className="text-xs text-gray-500">Completed transactions</p>
+                    </GlassCard>
+                    <GlassCard>
+                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mb-3">
+                        <IndianRupee size={18} className="text-amber-600" />
+                      </div>
+                      <p className="text-2xl font-bold text-[#1a1a1a]">
+                        ₹{Number(revenue.avgOrderValue ?? 0).toLocaleString("en-IN")}
+                      </p>
+                      <p className="text-xs text-gray-500">Avg order value</p>
+                    </GlassCard>
+                  </div>
+
+                  {/* Top courses by revenue */}
+                  <h2 className="text-lg font-bold text-[#0F766E] mb-4">Top earners</h2>
+                  {!revenue.topCoursesByRevenue || revenue.topCoursesByRevenue.length === 0 ? (
+                    <GlassCard className="mb-10">
+                      <p className="text-center text-gray-400 py-6">No paid enrollments yet.</p>
+                    </GlassCard>
+                  ) : (
+                    <GlassCard className="mb-10 overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-100">
+                            <th className="pb-3 font-medium">Course / Service</th>
+                            <th className="pb-3 font-medium">Type</th>
+                            <th className="pb-3 font-medium">Enrollments</th>
+                            <th className="pb-3 font-medium text-right">Revenue (approx)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {revenue.topCoursesByRevenue.map((c) => (
+                            <tr key={c.courseId} className="border-b border-gray-50 last:border-0">
+                              <td className="py-3 font-medium text-[#1a1a1a]">{c.courseTitle}</td>
+                              <td className="py-3">
+                                <span className={cn(
+                                  "inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full",
+                                  c.type === "SERVICE" ? "bg-violet-100 text-violet-700" : "bg-teal-100 text-teal-700"
+                                )}>
+                                  {c.type === "SERVICE" ? "Service" : "Course"}
+                                </span>
+                              </td>
+                              <td className="py-3 text-gray-700">{c.enrollments}</td>
+                              <td className="py-3 text-right font-semibold text-[#0F766E] tabular-nums">
+                                ₹{Number(c.revenue ?? 0).toLocaleString("en-IN")}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="text-[10px] text-gray-400 mt-3 px-1">
+                        Per-course revenue is derived from enrollments × course price (payments don&apos;t link directly to courses yet).
+                      </p>
+                    </GlassCard>
+                  )}
+
+                  {/* Transactions */}
+                  <div className="flex items-center justify-between mb-4 gap-4">
+                    <h2 className="text-lg font-bold text-[#0F766E]">Transactions</h2>
+                    <select
+                      value={revenueStatusFilter}
+                      onChange={(e) => setRevenueStatusFilter(e.target.value)}
+                      className="px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+                    >
+                      <option value="All">All statuses</option>
+                      <option value="COMPLETED">Completed</option>
+                      <option value="PENDING">Pending</option>
+                      <option value="FAILED">Failed</option>
+                    </select>
+                  </div>
+
+                  {transactionsLoading ? (
+                    <Spinner />
+                  ) : !transactions || transactions.length === 0 ? (
+                    <GlassCard>
+                      <p className="text-center text-gray-400 py-8">No transactions yet.</p>
+                    </GlassCard>
+                  ) : (
+                    <GlassCard className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-100">
+                            <th className="pb-3 font-medium">ID</th>
+                            <th className="pb-3 font-medium">Student</th>
+                            <th className="pb-3 font-medium">Amount</th>
+                            <th className="pb-3 font-medium">Status</th>
+                            <th className="pb-3 font-medium">Razorpay ID</th>
+                            <th className="pb-3 font-medium">When</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {transactions
+                            .filter((t) => revenueStatusFilter === "All" || t.status === revenueStatusFilter)
+                            .map((t) => (
+                              <tr key={t.id} className="border-b border-gray-50 last:border-0">
+                                <td className="py-3 text-gray-400">#{t.id}</td>
+                                <td className="py-3">
+                                  <p className="font-medium text-[#1a1a1a]">{t.studentName ?? "—"}</p>
+                                  {t.studentEmail && <p className="text-xs text-gray-400">{t.studentEmail}</p>}
+                                </td>
+                                <td className="py-3 font-semibold text-[#1a1a1a] tabular-nums">
+                                  ₹{Number(t.amount ?? 0).toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-3">
+                                  <span className={cn(
+                                    "inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full",
+                                    t.status === "COMPLETED" && "bg-emerald-100 text-emerald-700",
+                                    t.status === "PENDING" && "bg-amber-100 text-amber-700",
+                                    t.status === "FAILED" && "bg-red-100 text-red-700",
+                                  )}>
+                                    {t.status ?? "—"}
+                                  </span>
+                                </td>
+                                <td className="py-3 text-xs font-mono text-gray-500 max-w-[180px] truncate">
+                                  {t.razorpayPaymentId ?? t.razorpayOrderId ?? "—"}
+                                </td>
+                                <td className="py-3 text-xs text-gray-500">
+                                  {t.createdAt ? new Date(t.createdAt).toLocaleString(undefined, {
+                                    month: "short", day: "numeric", year: "numeric",
+                                    hour: "numeric", minute: "2-digit",
+                                  }) : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </GlassCard>
+                  )}
+                </>
               )}
             </>
           )}
