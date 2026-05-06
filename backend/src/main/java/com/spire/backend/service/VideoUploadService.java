@@ -24,7 +24,7 @@ public class VideoUploadService {
     private final LessonRepository lessonRepository;
 
     @Transactional
-    public String uploadVideo(Long lessonId, MultipartFile file, Long userId, boolean isAdmin) {
+    public Map<String, Object> uploadVideo(Long lessonId, MultipartFile file, Long userId, boolean isAdmin) {
         Lesson lesson = lessonRepository.findById(lessonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Lesson", "id", lessonId));
 
@@ -54,12 +54,29 @@ public class VideoUploadService {
 
             String videoUrl = (String) result.get("secure_url");
 
-            // Save URL to lesson
+            // Cloudinary returns "duration" as seconds (Number). We
+            // store durationMinutes on the lesson, so round up to keep
+            // a non-zero duration for clips under a minute.
+            Integer durationMinutes = null;
+            Object rawDuration = result.get("duration");
+            if (rawDuration instanceof Number) {
+                double seconds = ((Number) rawDuration).doubleValue();
+                durationMinutes = (int) Math.max(1, Math.ceil(seconds / 60.0));
+            }
+
             lesson.setVideoUrl(videoUrl);
+            if (durationMinutes != null) {
+                lesson.setDurationMinutes(durationMinutes);
+            }
             lessonRepository.save(lesson);
 
-            log.info("Video uploaded for lesson {}: {}", lessonId, videoUrl);
-            return videoUrl;
+            log.info("Video uploaded for lesson {}: {} ({} min)", lessonId, videoUrl, durationMinutes);
+
+            Map<String, Object> response = new java.util.HashMap<>();
+            response.put("lessonId", lessonId);
+            response.put("videoUrl", videoUrl);
+            response.put("durationMinutes", durationMinutes);
+            return response;
 
         } catch (IOException e) {
             log.error("Failed to upload video: {}", e.getMessage(), e);

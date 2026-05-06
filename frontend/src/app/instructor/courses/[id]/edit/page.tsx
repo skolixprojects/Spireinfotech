@@ -182,7 +182,7 @@ export default function EditInstructorCoursePage({ params }: { params: { id: str
           {course.isPublished ? "Unpublish" : "Publish"}
         </button>
         <Link
-          href={`/courses/${course.id}`}
+          href={`/instructor/courses/${course.id}/content`}
           className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition"
         >
           <Settings size={12} /> Manage Content

@@ -919,11 +919,38 @@ export async function getCourseLessons(courseId: number | string) {
   return wrapper.data;
 }
 
-export async function createLesson(courseId: number | string, data: { title: string; description?: string; videoUrl?: string; orderIndex?: number; durationMinutes?: number; isFree?: boolean }) {
+export async function createLesson(
+  courseId: number | string,
+  data: {
+    title: string;
+    description?: string;
+    videoUrl?: string;
+    orderIndex?: number;
+    durationMinutes?: number;
+    isFree?: boolean;
+    /** Optional — attaches the lesson to a module on creation. */
+    moduleId?: number;
+  }
+) {
   const wrapper = await apiFetch<ApiResponse<unknown>>(`/api/courses/${courseId}/lessons`, {
     method: "POST",
     body: JSON.stringify(data),
   });
+  return wrapper.data;
+}
+
+export async function reorderLessons(lessonIds: number[]) {
+  return apiFetch<ApiResponse<unknown>>("/api/lessons/reorder", {
+    method: "PUT",
+    body: JSON.stringify({ lessonIds }),
+  });
+}
+
+export async function clearLessonVideo(lessonId: number) {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/lessons/${lessonId}/video`,
+    { method: "DELETE" }
+  );
   return wrapper.data;
 }
 
@@ -1063,7 +1090,70 @@ export async function uploadLessonVideo(lessonId: number, file: File) {
   }
 
   const wrapper = await res.json();
-  return wrapper.data as { lessonId: number; videoUrl: string };
+  return wrapper.data as { lessonId: number; videoUrl: string; durationMinutes: number | null };
+}
+
+/**
+ * Same upload as {@link uploadLessonVideo} but uses XMLHttpRequest so
+ * the caller can render a real percent-complete progress bar and
+ * cancel mid-upload. fetch() can't track upload progress in the
+ * browser today.
+ */
+export interface VideoUploadHandle {
+  /** Resolves with { videoUrl, durationMinutes } on success. */
+  promise: Promise<{ lessonId: number; videoUrl: string; durationMinutes: number | null }>;
+  /** Aborts the in-flight upload. */
+  cancel: () => void;
+}
+
+export function uploadLessonVideoWithProgress(
+  lessonId: number,
+  file: File,
+  onProgress?: (percent: number) => void,
+): VideoUploadHandle {
+  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  const xhr = new XMLHttpRequest();
+
+  const promise = new Promise<{ lessonId: number; videoUrl: string; durationMinutes: number | null }>(
+    (resolve, reject) => {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      xhr.open("POST", `${BASE_URL}/api/lessons/${lessonId}/upload-video`);
+      if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable && onProgress) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      });
+
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const wrapper = JSON.parse(xhr.responseText);
+            resolve(wrapper.data);
+          } catch {
+            reject(new Error("Malformed upload response"));
+          }
+        } else {
+          let message = `Upload failed (${xhr.status})`;
+          try {
+            const body = JSON.parse(xhr.responseText);
+            if (body.message) message = body.message;
+          } catch { /* keep default */ }
+          reject(new Error(message));
+        }
+      });
+
+      xhr.addEventListener("error", () => reject(new Error("Network error during upload")));
+      xhr.addEventListener("abort", () => reject(new Error("Upload cancelled")));
+
+      xhr.send(formData);
+    }
+  );
+
+  return { promise, cancel: () => xhr.abort() };
 }
 
 // ─── Tasks ──────────────────────────────────────────────────────

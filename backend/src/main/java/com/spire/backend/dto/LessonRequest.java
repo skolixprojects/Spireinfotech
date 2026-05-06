@@ -20,4 +20,10 @@ public class LessonRequest {
     private Integer orderIndex;
     private Integer durationMinutes;
     private Boolean isFree;
+    /**
+     * Optional. When set, attaches the lesson to this module. The
+     * content manager always sends it; the older flat-list editor
+     * may not, in which case the lesson stays as an "Other Lesson".
+     */
+    private Long moduleId;
 }

@@ -15,8 +15,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
 @RequiredArgsConstructor
 public class LessonController {
@@ -79,10 +77,43 @@ public class LessonController {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
         boolean isAdmin = authentication.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
 
-        String videoUrl = videoUploadService.uploadVideo(lessonId, file, userId, isAdmin);
-        return ResponseEntity.ok(ApiResponse.success("Video uploaded", java.util.Map.of(
-                "lessonId", lessonId,
-                "videoUrl", videoUrl
-        )));
+        java.util.Map<String, Object> result = videoUploadService.uploadVideo(lessonId, file, userId, isAdmin);
+        return ResponseEntity.ok(ApiResponse.success("Video uploaded", result));
+    }
+
+    // ─── Clear video from lesson ────────────────────────────────────
+
+    @DeleteMapping("/api/lessons/{lessonId}/video")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<LessonDTO>> clearVideo(
+            @PathVariable Long lessonId,
+            Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        boolean isAdmin = authentication.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+
+        LessonDTO updated = lessonService.clearVideo(lessonId, userId, isAdmin);
+        return ResponseEntity.ok(ApiResponse.success("Video removed", updated));
+    }
+
+    // ─── Reorder lessons ────────────────────────────────────────────
+
+    @PutMapping("/api/lessons/reorder")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('INSTRUCTOR')")
+    public ResponseEntity<ApiResponse<Void>> reorderLessons(
+            @RequestBody java.util.Map<String, Object> body,
+            Authentication authentication) {
+        Long userId = Long.parseLong(authentication.getPrincipal().toString());
+        boolean isAdmin = authentication.getAuthorities().contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+
+        @SuppressWarnings("unchecked")
+        java.util.List<Object> raw = body.get("lessonIds") instanceof java.util.List
+                ? (java.util.List<Object>) body.get("lessonIds")
+                : java.util.List.of();
+        java.util.List<Long> ids = raw.stream()
+                .map(o -> Long.parseLong(o.toString()))
+                .toList();
+
+        lessonService.reorderLessons(ids, userId, isAdmin);
+        return ResponseEntity.ok(ApiResponse.success("Lessons reordered", null));
     }
 }

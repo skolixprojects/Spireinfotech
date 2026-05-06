@@ -17,6 +17,7 @@ public class LessonDTO {
 
     private Long id;
     private Long courseId;
+    private Long moduleId;
     private String title;
     private String description;
     private String videoUrl;
@@ -30,6 +31,7 @@ public class LessonDTO {
         return LessonDTO.builder()
                 .id(lesson.getId())
                 .courseId(lesson.getCourse().getId())
+                .moduleId(lesson.getModule() != null ? lesson.getModule().getId() : null)
                 .title(lesson.getTitle())
                 .description(lesson.getDescription())
                 .videoUrl(includeVideoUrl ? lesson.getVideoUrl() : null)
