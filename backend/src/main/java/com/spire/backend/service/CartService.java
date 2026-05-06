@@ -30,6 +30,7 @@ public class CartService {
     private final EnrollmentRepository enrollmentRepository;
     private final EnrollmentService enrollmentService;
     private final CouponService couponService;
+    private final RecordService recordService;
 
     @Transactional
     public void addToCart(Long userId, Long courseId) {
@@ -105,6 +106,18 @@ public class CartService {
 
         if (coupon != null) {
             couponService.redeem(coupon, userId, discount, total);
+
+            Map<String, Object> couponDetails = new java.util.HashMap<>();
+            couponDetails.put("couponCode", coupon.getCode());
+            couponDetails.put("discountType", coupon.getDiscountType().name());
+            couponDetails.put("discountValue", coupon.getDiscountValue());
+            couponDetails.put("subtotal", subtotal);
+            couponDetails.put("discountAmount", discount);
+            couponDetails.put("finalTotal", total);
+            recordService.record(userId, "COUPON_APPLIED", RecordService.Category.PAYMENT,
+                    "Coupon applied: " + coupon.getCode(),
+                    "Applied coupon " + coupon.getCode() + " — saved ₹" + discount + " on cart total of ₹" + subtotal,
+                    couponDetails);
         }
 
         cartRepository.deleteByUserId(userId);

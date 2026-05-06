@@ -35,6 +35,7 @@ public class AdminService {
     private final CertificateRepository certificateRepository;
     private final SessionRequestRepository sessionRequestRepository;
     private final MentorAssignmentRepository mentorAssignmentRepository;
+    private final RecordService recordService;
 
     /**
      * Platform-wide statistics powering the admin Overview tab.
@@ -216,12 +217,20 @@ public class AdminService {
         Role role = roleRepository.findByName(normalizedRole)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid role: " + roleName));
 
-        if ("INSTRUCTOR".equals(user.getRole().getName()) && !"INSTRUCTOR".equals(normalizedRole)) {
+        String oldRole = user.getRole().getName();
+        if ("INSTRUCTOR".equals(oldRole) && !"INSTRUCTOR".equals(normalizedRole)) {
             user.setInstructorApproved(false);
         }
 
         user.setRole(role);
-        return UserDTO.from(userRepository.save(user));
+        UserDTO saved = UserDTO.from(userRepository.save(user));
+
+        recordService.record(userId, "ACCOUNT_ROLE_CHANGED", RecordService.Category.ACCOUNT,
+                "Role changed by admin",
+                "Role changed from " + oldRole + " to " + normalizedRole,
+                java.util.Map.of("oldRole", oldRole, "newRole", normalizedRole));
+
+        return saved;
     }
 
     /**
@@ -236,6 +245,20 @@ public class AdminService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         user.setIsActive(active);
-        return UserDTO.from(userRepository.save(user));
+        UserDTO saved = UserDTO.from(userRepository.save(user));
+
+        if (active) {
+            recordService.record(userId, "ACCOUNT_REACTIVATED", RecordService.Category.ACCOUNT,
+                    "Account reactivated by admin",
+                    "Admin reactivated this account",
+                    java.util.Map.of("reactivatedBy", currentAdminId));
+        } else {
+            recordService.record(userId, "ACCOUNT_DEACTIVATED", RecordService.Category.ACCOUNT,
+                    "Account deactivated by admin",
+                    "Admin deactivated this account",
+                    java.util.Map.of("deactivatedBy", currentAdminId));
+        }
+
+        return saved;
     }
 }

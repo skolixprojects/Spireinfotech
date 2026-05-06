@@ -7,13 +7,15 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Phone, MapPin, Calendar, Loader2, AlertCircle,
   BookOpen, GraduationCap, Award, Flame, CheckCircle2, Clock,
-  ShieldCheck, ExternalLink, Briefcase,
+  ShieldCheck, ExternalLink, Briefcase, Activity, FileText,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
   getUserProfileAsAdmin, updateUserRoleAsAdmin, type ProfileData,
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { UserRecordsPanel } from "@/components/admin/UserRecordsPanel";
+import { cn } from "@/lib/utils";
 
 const ROLES = ["STUDENT", "INSTRUCTOR", "TRAINER", "ADMIN"] as const;
 
@@ -63,6 +65,7 @@ export default function AdminUserDetailPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [roleSaving, setRoleSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<"activity" | "records">("activity");
 
   useEffect(() => {
     if (authLoading) return;
@@ -239,8 +242,36 @@ export default function AdminUserDetailPage({
           </div>
         </div>
 
-        {/* ─── RIGHT: Activity panel ─── */}
+        {/* ─── RIGHT: Activity / Records tabs ─── */}
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 sm:p-8">
+          {/* Tabs */}
+          <div className="flex items-center gap-1 mb-6 border-b border-gray-100 -mt-2">
+            {([
+              { id: "activity", label: "Activity", Icon: Activity },
+              { id: "records", label: "Records", Icon: FileText },
+            ] as const).map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition cursor-pointer",
+                  activeTab === t.id
+                    ? "border-[#0F766E] text-[#0F766E]"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                )}
+              >
+                <t.Icon size={14} /> {t.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === "records" ? (
+            <UserRecordsPanel
+              userId={params.userId}
+              fileBaseName={(profile.email || `user-${profile.id}`).replace(/[^a-zA-Z0-9._-]/g, "_")}
+            />
+          ) : (
+          <>
           {/* Learning Stats */}
           <div>
             <h2 className="text-sm font-semibold text-gray-900 mb-3">Learning Stats</h2>
@@ -432,6 +463,8 @@ export default function AdminUserDetailPage({
               </ul>
             )}
           </div>
+          </>
+          )}
         </div>
       </motion.div>
     </section>

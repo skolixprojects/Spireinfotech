@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -24,6 +25,10 @@ public class QuizService {
     private final LessonRepository lessonRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final UserRepository userRepository;
+    private final RecordService recordService;
+
+    /** A score at or above this fraction is treated as a "pass". */
+    private static final int PASS_PERCENT = 60;
 
     @Transactional
     public Quiz createQuiz(Long lessonId, QuizRequest dto, Long userId, boolean isAdmin) {
@@ -119,6 +124,29 @@ public class QuizService {
                 .percentage(percentage)
                 .build();
 
-        return attemptRepository.save(attempt);
+        QuizAttempt saved = attemptRepository.save(attempt);
+
+        boolean passed = percentage >= PASS_PERCENT;
+        Map<String, Object> details = new HashMap<>();
+        details.put("quizId", quiz.getId());
+        details.put("quizTitle", quiz.getTitle());
+        details.put("courseTitle", quiz.getLesson().getCourse().getTitle());
+        details.put("score", percentage);
+        details.put("passed", passed);
+        details.put("totalQuestions", total);
+        details.put("correctAnswers", correct);
+        details.put("wrongAnswers", total - correct);
+        recordService.record(userId, "QUIZ_ATTEMPTED", RecordService.Category.ASSESSMENT,
+                "Attempted quiz: " + quiz.getTitle(),
+                "Scored " + percentage + "% (" + (passed ? "passed" : "failed") + ") on '" + quiz.getTitle() + "'",
+                details);
+        if (passed) {
+            recordService.record(userId, "QUIZ_PASSED", RecordService.Category.ASSESSMENT,
+                    "Passed quiz: " + quiz.getTitle(),
+                    "Passed '" + quiz.getTitle() + "' with " + percentage + "%",
+                    details);
+        }
+
+        return saved;
     }
 }

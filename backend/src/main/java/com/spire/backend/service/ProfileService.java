@@ -37,6 +37,7 @@ public class ProfileService {
     private final LessonRepository lessonRepository;
     private final ProgressRepository progressRepository;
     private final CertificateRepository certificateRepository;
+    private final RecordService recordService;
 
     @Transactional(readOnly = true)
     public ProfileDTO getProfile(Long userId) {
@@ -128,20 +129,73 @@ public class ProfileService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
+        // Snapshot the old values BEFORE applying the patch so we have
+        // a complete before/after pair for the audit record.
+        java.util.Map<String, Object> oldValues = new java.util.LinkedHashMap<>();
+        java.util.Map<String, Object> newValues = new java.util.LinkedHashMap<>();
+        java.util.List<String> changed = new java.util.ArrayList<>();
+
         // fullName: required, never overwritten with blank
         if (dto.getFullName() != null && !dto.getFullName().isBlank()) {
-            user.setFullName(dto.getFullName().trim());
+            String fresh = dto.getFullName().trim();
+            if (!java.util.Objects.equals(user.getFullName(), fresh)) {
+                oldValues.put("fullName", user.getFullName());
+                newValues.put("fullName", fresh);
+                changed.add("fullName");
+                user.setFullName(fresh);
+            }
         }
         // avatarUrl: optional. Treat empty string as "clear" → null.
         if (dto.getAvatarUrl() != null) {
-            user.setAvatarUrl(emptyToNull(dto.getAvatarUrl()));
+            String fresh = emptyToNull(dto.getAvatarUrl());
+            if (!java.util.Objects.equals(user.getAvatarUrl(), fresh)) {
+                oldValues.put("avatarUrl", user.getAvatarUrl());
+                newValues.put("avatarUrl", fresh);
+                changed.add("avatarUrl");
+                user.setAvatarUrl(fresh);
+            }
         }
-        // Optional fields — empty string clears them, null leaves alone.
-        if (dto.getBio() != null) user.setBio(emptyToNull(dto.getBio()));
-        if (dto.getPhone() != null) user.setPhone(emptyToNull(dto.getPhone().trim()));
-        if (dto.getLocation() != null) user.setLocation(emptyToNull(dto.getLocation().trim()));
+        if (dto.getBio() != null) {
+            String fresh = emptyToNull(dto.getBio());
+            if (!java.util.Objects.equals(user.getBio(), fresh)) {
+                oldValues.put("bio", user.getBio());
+                newValues.put("bio", fresh);
+                changed.add("bio");
+                user.setBio(fresh);
+            }
+        }
+        if (dto.getPhone() != null) {
+            String fresh = emptyToNull(dto.getPhone().trim());
+            if (!java.util.Objects.equals(user.getPhone(), fresh)) {
+                oldValues.put("phone", user.getPhone());
+                newValues.put("phone", fresh);
+                changed.add("phone");
+                user.setPhone(fresh);
+            }
+        }
+        if (dto.getLocation() != null) {
+            String fresh = emptyToNull(dto.getLocation().trim());
+            if (!java.util.Objects.equals(user.getLocation(), fresh)) {
+                oldValues.put("location", user.getLocation());
+                newValues.put("location", fresh);
+                changed.add("location");
+                user.setLocation(fresh);
+            }
+        }
 
         userRepository.save(user);
+
+        if (!changed.isEmpty()) {
+            recordService.record(userId, "ACCOUNT_PROFILE_UPDATED", RecordService.Category.ACCOUNT,
+                    "Profile updated",
+                    "Changed: " + String.join(", ", changed),
+                    java.util.Map.of(
+                            "changedFields", changed,
+                            "oldValues", oldValues,
+                            "newValues", newValues
+                    ));
+        }
+
         return getProfile(userId); // refetch with counts
     }
 

@@ -13,8 +13,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
-
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,6 +26,7 @@ public class EnrollmentService {
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
     private final MentorAssignmentService mentorAssignmentService;
+    private final RecordService recordService;
 
     @Transactional
     public void enrollUser(Long userId, Long courseId) {
@@ -65,6 +67,17 @@ public class EnrollmentService {
             // and status=PENDING_ASSIGNMENT — so admin can fix the pool later.
             mentorAssignmentService.assignMentor(savedEnrollment);
         }
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("courseId", course.getId());
+        details.put("courseTitle", course.getTitle());
+        details.put("courseType", course.getType());
+        details.put("amountPaid", course.getPrice());
+        details.put("isFree", Boolean.TRUE.equals(course.getIsFree()));
+        recordService.record(userId, "COURSE_ENROLLED", RecordService.Category.LEARNING,
+                "Enrolled in " + course.getTitle(),
+                "Enrolled in course '" + course.getTitle() + "' (ID: " + course.getId() + ")",
+                details);
     }
 
     public List<CourseDTO> getUserEnrollments(Long userId) {

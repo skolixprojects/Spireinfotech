@@ -42,6 +42,7 @@ public class SessionRequestService {
     private final SessionRequestRepository sessionRequestRepository;
     private final MentorAssignmentRepository mentorAssignmentRepository;
     private final UserRepository userRepository;
+    private final RecordService recordService;
 
     @Transactional
     public SessionRequestDTO createRequest(Long userId, Long enrollmentId, String topic) {
@@ -71,7 +72,22 @@ public class SessionRequestService {
                 .topic(topic)
                 .build();
 
-        return toDTO(sessionRequestRepository.save(request));
+        SessionRequest saved = sessionRequestRepository.save(request);
+
+        String mentorName = assignment.getMentor() != null ? assignment.getMentor().getFullName() : "mentor";
+        String courseTitle = assignment.getEnrollment() != null && assignment.getEnrollment().getCourse() != null
+                ? assignment.getEnrollment().getCourse().getTitle() : "course";
+        recordService.record(userId, "SESSION_REQUESTED", RecordService.Category.MENTORSHIP,
+                "Session requested",
+                "Requested session with " + mentorName + " for '" + courseTitle + "'. Topic: " + topic,
+                Map.of(
+                        "sessionId", saved.getId(),
+                        "mentorName", mentorName,
+                        "courseTitle", courseTitle,
+                        "topic", topic != null ? topic : ""
+                ));
+
+        return toDTO(saved);
     }
 
     @Transactional
@@ -106,7 +122,25 @@ public class SessionRequestService {
         request.setScheduledAt(parsed);
         request.setMeetingUrl(meetingUrl);
 
-        return toDTO(sessionRequestRepository.save(request));
+        SessionRequest saved = sessionRequestRepository.save(request);
+
+        Long studentId = request.getRequestedBy() != null ? request.getRequestedBy().getId() : null;
+        if (studentId != null) {
+            String mentorName = request.getMentorAssignment() != null
+                    && request.getMentorAssignment().getMentor() != null
+                    ? request.getMentorAssignment().getMentor().getFullName() : "mentor";
+            recordService.record(studentId, "SESSION_SCHEDULED", RecordService.Category.MENTORSHIP,
+                    "Session scheduled",
+                    "Session scheduled with " + mentorName + " on " + parsed,
+                    Map.of(
+                            "sessionId", saved.getId(),
+                            "mentorName", mentorName,
+                            "scheduledAt", parsed.toString(),
+                            "meetingUrl", meetingUrl != null ? meetingUrl : ""
+                    ));
+        }
+
+        return toDTO(saved);
     }
 
     @Transactional
@@ -120,7 +154,25 @@ public class SessionRequestService {
         request.setStatus(STATUS_COMPLETED);
         request.setCompletedAt(LocalDateTime.now());
 
-        return toDTO(sessionRequestRepository.save(request));
+        SessionRequest saved = sessionRequestRepository.save(request);
+
+        Long studentId = request.getRequestedBy() != null ? request.getRequestedBy().getId() : null;
+        if (studentId != null) {
+            String mentorName = request.getMentorAssignment() != null
+                    && request.getMentorAssignment().getMentor() != null
+                    ? request.getMentorAssignment().getMentor().getFullName() : "mentor";
+            recordService.record(studentId, "SESSION_ATTENDED", RecordService.Category.MENTORSHIP,
+                    "Session attended",
+                    "Attended session with " + mentorName,
+                    Map.of(
+                            "sessionId", saved.getId(),
+                            "mentorName", mentorName,
+                            "topic", request.getTopic() != null ? request.getTopic() : "",
+                            "completedAt", request.getCompletedAt().toString()
+                    ));
+        }
+
+        return toDTO(saved);
     }
 
     @Transactional
@@ -132,7 +184,19 @@ public class SessionRequestService {
                 "Only the student or the mentor can cancel this session");
 
         request.setStatus(STATUS_CANCELLED);
-        return toDTO(sessionRequestRepository.save(request));
+        SessionRequest saved = sessionRequestRepository.save(request);
+
+        Long studentId = request.getRequestedBy() != null ? request.getRequestedBy().getId() : null;
+        if (studentId != null) {
+            Long mentorId = mentorIdOf(request);
+            String cancelledBy = userId.equals(studentId) ? "student" : userId.equals(mentorId) ? "mentor" : "other";
+            recordService.record(studentId, "SESSION_CANCELLED", RecordService.Category.MENTORSHIP,
+                    "Session cancelled",
+                    "Session #" + saved.getId() + " cancelled by " + cancelledBy,
+                    Map.of("sessionId", saved.getId(), "cancelledBy", cancelledBy));
+        }
+
+        return toDTO(saved);
     }
 
     @Transactional(readOnly = true)

@@ -29,6 +29,7 @@ public class AssignmentService {
     private final UserRepository userRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final ProgressRepository progressRepository;
+    private final RecordService recordService;
 
     // ─── Create Assignment ──────────────────────────────────────────
 
@@ -163,8 +164,39 @@ public class AssignmentService {
         progress.setCompletionPercent(100.0);
         progress.setLastAccessed(LocalDateTime.now());
 
+        Progress saved = progressRepository.save(progress);
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("lessonId", lesson.getId());
+        details.put("lessonTitle", lesson.getTitle());
+        details.put("courseId", lesson.getCourse().getId());
+        details.put("courseTitle", lesson.getCourse().getTitle());
+        if (lesson.getModule() != null) {
+            details.put("moduleId", lesson.getModule().getId());
+            details.put("moduleTitle", lesson.getModule().getTitle());
+        }
+        recordService.record(userId, "LESSON_COMPLETED", RecordService.Category.LEARNING,
+                "Completed lesson: " + lesson.getTitle(),
+                "Completed lesson '" + lesson.getTitle() + "' in " + lesson.getCourse().getTitle(),
+                details);
+
+        // Course completion milestone — emit a record once the final
+        // lesson clicks over so the audit trail captures graduation.
+        long totalLessons = lessonRepository.findByCourseIdOrderByOrderIndex(courseId).size();
+        long completedLessons = progressRepository.countCompletedLessons(userId, courseId);
+        if (totalLessons > 0 && completedLessons >= totalLessons) {
+            Map<String, Object> done = new HashMap<>();
+            done.put("courseId", courseId);
+            done.put("courseTitle", lesson.getCourse().getTitle());
+            done.put("totalLessons", totalLessons);
+            recordService.record(userId, "COURSE_COMPLETED", RecordService.Category.LEARNING,
+                    "Completed course: " + lesson.getCourse().getTitle(),
+                    "Completed all " + totalLessons + " lessons in '" + lesson.getCourse().getTitle() + "'",
+                    done);
+        }
+
         log.info("Lesson {} completed by user {}", lessonId, userId);
-        return progressRepository.save(progress);
+        return saved;
     }
 
     // ─── Submit Assignment ──────────────────────────────────────────
@@ -207,7 +239,19 @@ public class AssignmentService {
                 .content(dto.getContent())
                 .build();
 
-        return submissionRepository.save(submission);
+        Submission saved = submissionRepository.save(submission);
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("assignmentId", assignment.getId());
+        details.put("assignmentTitle", assignment.getTitle());
+        details.put("courseId", assignment.getCourse().getId());
+        details.put("courseTitle", assignment.getCourse().getTitle());
+        recordService.record(studentId, "ASSIGNMENT_SUBMITTED", RecordService.Category.ASSESSMENT,
+                "Submitted assignment: " + assignment.getTitle(),
+                "Submitted '" + assignment.getTitle() + "' for course '" + assignment.getCourse().getTitle() + "'",
+                details);
+
+        return saved;
     }
 
     // ─── Get Submissions (instructor/admin) ─────────────────────────
@@ -236,6 +280,20 @@ public class AssignmentService {
 
         submission.setGrade(dto.getGrade());
         submission.setFeedback(dto.getFeedback());
-        return submissionRepository.save(submission);
+        Submission graded = submissionRepository.save(submission);
+
+        Map<String, Object> details = new HashMap<>();
+        details.put("assignmentId", submission.getAssignment().getId());
+        details.put("assignmentTitle", submission.getAssignment().getTitle());
+        details.put("grade", dto.getGrade());
+        details.put("feedback", dto.getFeedback());
+        details.put("gradedBy", userId);
+        recordService.record(submission.getStudent().getId(), "ASSIGNMENT_GRADED",
+                RecordService.Category.ASSESSMENT,
+                "Assignment graded: " + submission.getAssignment().getTitle(),
+                "Grade: " + dto.getGrade() + " for assignment '" + submission.getAssignment().getTitle() + "'",
+                details);
+
+        return graded;
     }
 }

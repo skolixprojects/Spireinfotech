@@ -33,6 +33,7 @@ public class CertificateService {
     private final QuizRepository quizRepository;
     private final SubmissionRepository submissionRepository;
     private final AssignmentRepository assignmentRepository;
+    private final RecordService recordService;
 
     @Transactional
     public Certificate generateCertificate(Long courseId, Long userId) {
@@ -109,8 +110,20 @@ public class CertificateService {
         // 8. Update URL
         certificate.setCertificateUrl("/api/certificates/download/" + courseId + "/" + fileName);
 
+        Certificate saved = certificateRepository.save(certificate);
+
+        recordService.record(userId, "CERTIFICATE_GENERATED", RecordService.Category.CERTIFICATE,
+                "Certificate earned: " + course.getTitle(),
+                "Certificate " + saved.getCertificateId() + " issued for '" + course.getTitle() + "'",
+                java.util.Map.of(
+                        "certificateId", saved.getCertificateId(),
+                        "courseId", course.getId(),
+                        "courseTitle", course.getTitle(),
+                        "verificationUrl", "spire-infotech.com/certificate/" + saved.getCertificateId()
+                ));
+
         log.info("Certificate generated for user {} course {}", userId, courseId);
-        return certificateRepository.save(certificate);
+        return saved;
     }
 
     public Certificate getCertificate(Long courseId, Long userId) {
