@@ -5,7 +5,8 @@ import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Clock, BookOpen, Loader2, AlertCircle, Plus, ChevronLeft, Star, Trash2, ChevronDown, ShieldCheck } from "lucide-react";
+import { Clock, BookOpen, Loader2, AlertCircle, Plus, ChevronLeft, Star, Trash2, ChevronDown, ShieldCheck, MessageSquare } from "lucide-react";
+import { ContactSalesModal } from "@/components/sales/ContactSalesModal";
 import { useAuth } from "@/lib/auth-context";
 import { getCourse, getCourseLessons, getCourseAssignments, enroll, createLesson, deleteLesson, checkCertificate, generateCertificate, getCourseModules, createModule, deleteModule, getMyMentorForCourse, getCourseProgress, type CourseProgress } from "@/lib/api";
 import type { MentorInfo } from "@/lib/types";
@@ -80,6 +81,9 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   const [certificate, setCertificate] = useState<{ exists: boolean; certificateUrl?: string } | null>(null);
   const [generatingCert, setGeneratingCert] = useState(false);
   const [certError, setCertError] = useState("");
+
+  // Contact Sales modal — only shown for non-admin, non-enrolled, paid courses.
+  const [showContactSales, setShowContactSales] = useState(false);
 
   const isOwner = user && course?.instructor?.id === user.id;
   const isAdmin = user?.role?.toUpperCase() === "ADMIN";
@@ -382,7 +386,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
           <div className="space-y-6">
             <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6">
               <div className="text-3xl font-bold text-gray-900 mb-1">
-                {course.isFree ? "Free" : `₹${course.price}`}
+                {course.isFree ? "Free" : `₹${Number(course.price).toLocaleString("en-IN")}`}
               </div>
               <p className="text-sm text-gray-500 mb-6">{course.isFree ? "No payment required" : "One-time payment"}</p>
 
@@ -397,10 +401,28 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                   <BookOpen size={16} /> Continue Learning
                 </button>
               ) : (
-                <button onClick={handleEnroll} disabled={enrolling}
-                  className="w-full py-3 rounded-xl bg-[#0F766E] text-white text-sm font-semibold hover:bg-[#0D9488] transition disabled:opacity-50 flex items-center justify-center gap-2">
-                  {enrolling ? <><Loader2 size={16} className="animate-spin" /> Enrolling...</> : "Enroll Now"}
-                </button>
+                <>
+                  <button onClick={handleEnroll} disabled={enrolling}
+                    className="w-full py-3 rounded-xl bg-[#0F766E] text-white text-sm font-semibold hover:bg-[#0D9488] transition disabled:opacity-50 flex items-center justify-center gap-2">
+                    {enrolling ? <><Loader2 size={16} className="animate-spin" /> Enrolling...</> : (course.isFree ? "Enroll Free" : "Add to Cart")}
+                  </button>
+                  {!course.isFree && (
+                    <>
+                      <button
+                        onClick={() => {
+                          if (!isAuthenticated) { router.push(`/login?redirect=/courses/${id}`); return; }
+                          setShowContactSales(true);
+                        }}
+                        className="w-full mt-2 py-3 rounded-xl border-2 border-[#0F766E] text-[#0F766E] text-sm font-semibold hover:bg-[#0F766E]/5 transition flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <MessageSquare size={16} /> Contact Sales
+                      </button>
+                      <p className="text-[11px] text-gray-500 mt-2 text-center">
+                        or contact our team for custom pricing and bundle offers
+                      </p>
+                    </>
+                  )}
+                </>
               )}
 
               {!isAdmin && enrollMsg && <p className={cn(
@@ -434,6 +456,14 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
             onClose={() => setShowMentorModal(false)}
           />
         )}
+
+        <ContactSalesModal
+          isOpen={showContactSales}
+          onClose={() => setShowContactSales(false)}
+          courseId={course.id}
+          courseTitle={course.title}
+          listedPrice={course.price}
+        />
 
         {/* Curriculum section (modules + lessons) */}
         <motion.div id="course-content" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>

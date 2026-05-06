@@ -27,6 +27,7 @@ import {
   Edit3,
   Save,
   Ticket,
+  MessageSquare,
 } from "lucide-react";
 import {
   getAnalytics,
@@ -61,7 +62,13 @@ import {
   updateCoupon,
   deleteCoupon,
   type Coupon,
+  getAdminSalesInquiries,
+  getAdminSalesStats,
+  getAdminSalesInquiry,
+  type SalesInquiry,
+  type SalesStats,
 } from "@/lib/api";
+import { ConversationThread } from "@/components/sales/ConversationThread";
 import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -76,6 +83,7 @@ const sidebarLinks = [
   { label: "Revenue", icon: IndianRupee },
   { label: "Announcements", icon: Megaphone },
   { label: "Coupons", icon: Ticket },
+  { label: "Sales", icon: MessageSquare },
   { label: "Mentor Pools", icon: GraduationCap },
   { label: "Instructor Requests", icon: UserCheck },
 ];
@@ -190,6 +198,15 @@ function AdminContent() {
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [revenueStatusFilter, setRevenueStatusFilter] = useState<string>("All");
 
+  // Sales tab
+  const [salesInquiries, setSalesInquiries] = useState<SalesInquiry[] | null>(null);
+  const [salesLoading, setSalesLoading] = useState(false);
+  const [salesStats, setSalesStats] = useState<SalesStats | null>(null);
+  const [salesStatusFilter, setSalesStatusFilter] = useState<string>("All");
+  const [activeSalesId, setActiveSalesId] = useState<number | null>(null);
+  const [activeSalesInquiry, setActiveSalesInquiry] = useState<SalesInquiry | null>(null);
+  const [activeSalesLoading, setActiveSalesLoading] = useState(false);
+
   // Coupons tab
   const [coupons, setCoupons] = useState<Coupon[] | null>(null);
   const [couponsLoading, setCouponsLoading] = useState(false);
@@ -288,6 +305,19 @@ function AdminContent() {
       setActionMsg({ type: "error", text: err instanceof Error ? err.message : "Delete failed" });
     } finally {
       setAnnBusy(false);
+    }
+  };
+
+  const openAdminSalesInquiry = async (id: number) => {
+    setActiveSalesId(id);
+    setActiveSalesLoading(true);
+    try {
+      const data = await getAdminSalesInquiry(id);
+      setActiveSalesInquiry(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load conversation");
+    } finally {
+      setActiveSalesLoading(false);
     }
   };
 
@@ -480,7 +510,17 @@ function AdminContent() {
         .catch((err) => setError(err instanceof Error ? err.message : "Failed to load coupons"))
         .finally(() => setCouponsLoading(false));
     }
-  }, [activeTab, enrollmentsRows, enrollmentsLoading, sessionsRows, sessionsLoading, revenue, revenueLoading, transactions, transactionsLoading, announcements, announcementsLoading, coupons, couponsLoading]);
+    if (activeTab === "Sales" && salesInquiries === null && !salesLoading) {
+      setSalesLoading(true);
+      Promise.all([getAdminSalesInquiries(), getAdminSalesStats()])
+        .then(([rows, stats]) => {
+          setSalesInquiries(rows ?? []);
+          setSalesStats(stats);
+        })
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load sales"))
+        .finally(() => setSalesLoading(false));
+    }
+  }, [activeTab, enrollmentsRows, enrollmentsLoading, sessionsRows, sessionsLoading, revenue, revenueLoading, transactions, transactionsLoading, announcements, announcementsLoading, coupons, couponsLoading, salesInquiries, salesLoading]);
 
   // Handle course actions
   const handleDeleteCourse = async (courseId: number) => {
@@ -1506,6 +1546,160 @@ function AdminContent() {
                     );
                   })}
                 </div>
+              )}
+            </>
+          )}
+
+          {/* ──────────── Sales Tab ──────────── */}
+          {activeTab === "Sales" && (
+            <>
+              <div className="flex items-center justify-between mb-6 gap-4">
+                <h1 className="text-2xl font-bold text-[#0F766E]">Sales Inquiries</h1>
+                <p className="text-xs text-gray-400">
+                  {salesInquiries ? `${salesInquiries.length} total` : ""}
+                </p>
+              </div>
+              <p className="text-sm text-gray-500 mb-6">
+                Read-only view of every Contact Sales conversation across the platform.
+              </p>
+
+              {salesLoading ? (
+                <Spinner />
+              ) : (
+                <>
+                  {/* Stats cards */}
+                  {salesStats && (
+                    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                      <GlassCard>
+                        <div className="w-10 h-10 rounded-full bg-[#0F766E]/10 flex items-center justify-center mb-3">
+                          <MessageSquare size={18} className="text-[#0F766E]" />
+                        </div>
+                        <p className="text-2xl font-bold text-[#1a1a1a]">{salesStats.totalInquiries}</p>
+                        <p className="text-xs text-gray-500">Total inquiries</p>
+                      </GlassCard>
+                      <GlassCard>
+                        <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mb-3">
+                          <MessageSquare size={18} className="text-amber-600" />
+                        </div>
+                        <p className="text-2xl font-bold text-[#1a1a1a]">{salesStats.newCount + salesStats.inProgressCount + salesStats.quotedCount}</p>
+                        <p className="text-xs text-gray-500">Open</p>
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {salesStats.newCount} new · {salesStats.quotedCount} quoted
+                        </p>
+                      </GlassCard>
+                      <GlassCard>
+                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-3">
+                          <CheckCircle2 size={18} className="text-emerald-600" />
+                        </div>
+                        <p className="text-2xl font-bold text-[#1a1a1a]">{salesStats.convertedCount}</p>
+                        <p className="text-xs text-gray-500">Converted</p>
+                      </GlassCard>
+                      <GlassCard>
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mb-3">
+                          <TrendingUp size={18} className="text-blue-600" />
+                        </div>
+                        <p className="text-2xl font-bold text-[#1a1a1a]">{salesStats.conversionRate}%</p>
+                        <p className="text-xs text-gray-500">Conversion rate</p>
+                      </GlassCard>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-3 mb-4 text-sm">
+                    <select
+                      value={salesStatusFilter}
+                      onChange={(e) => setSalesStatusFilter(e.target.value)}
+                      className="px-3 py-2 rounded-lg border border-gray-300 bg-white"
+                    >
+                      <option value="All">All statuses</option>
+                      <option value="NEW">New</option>
+                      <option value="IN_PROGRESS">In progress</option>
+                      <option value="QUOTED">Quoted</option>
+                      <option value="CONVERTED">Converted</option>
+                      <option value="CLOSED">Closed</option>
+                      <option value="LOST">Lost</option>
+                    </select>
+                  </div>
+
+                  {!salesInquiries || salesInquiries.length === 0 ? (
+                    <GlassCard>
+                      <p className="text-center text-gray-400 py-8">No sales inquiries yet.</p>
+                    </GlassCard>
+                  ) : (
+                    <GlassCard className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-gray-500 border-b border-gray-100">
+                            <th className="pb-3 font-medium">Student</th>
+                            <th className="pb-3 font-medium">Course</th>
+                            <th className="pb-3 font-medium">Instructor</th>
+                            <th className="pb-3 font-medium">Status</th>
+                            <th className="pb-3 font-medium">Budget</th>
+                            <th className="pb-3 font-medium">Last activity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {salesInquiries
+                            .filter((s) => salesStatusFilter === "All" || s.status === salesStatusFilter)
+                            .map((s) => (
+                              <tr
+                                key={s.id}
+                                onClick={() => openAdminSalesInquiry(s.id)}
+                                className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-[#0F766E]/5 transition-colors"
+                              >
+                                <td className="py-3">
+                                  <p className="font-medium text-[#1a1a1a]">{s.studentName ?? "—"}</p>
+                                  {s.studentEmail && <p className="text-xs text-gray-400">{s.studentEmail}</p>}
+                                </td>
+                                <td className="py-3 text-gray-700">{s.courseTitle ?? "—"}</td>
+                                <td className="py-3 text-gray-700">{s.instructorName ?? "—"}</td>
+                                <td className="py-3">
+                                  <span className={cn(
+                                    "inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full",
+                                    s.status === "NEW" && "bg-amber-100 text-amber-700",
+                                    s.status === "IN_PROGRESS" && "bg-blue-100 text-blue-700",
+                                    s.status === "QUOTED" && "bg-violet-100 text-violet-700",
+                                    s.status === "CONVERTED" && "bg-emerald-100 text-emerald-700",
+                                    s.status === "CLOSED" && "bg-gray-100 text-gray-600",
+                                    s.status === "LOST" && "bg-gray-100 text-gray-500",
+                                  )}>
+                                    {s.status}
+                                  </span>
+                                </td>
+                                <td className="py-3 text-xs text-gray-500">{s.budgetRange ?? "—"}</td>
+                                <td className="py-3 text-xs text-gray-500">
+                                  {s.lastMessageAt ? new Date(s.lastMessageAt).toLocaleString(undefined, {
+                                    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                                  }) : "—"}
+                                </td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </GlassCard>
+                  )}
+
+                  {/* Inline read-only conversation */}
+                  {activeSalesId !== null && (
+                    <div className="mt-6">
+                      {activeSalesLoading ? (
+                        <Spinner />
+                      ) : activeSalesInquiry ? (
+                        <ConversationThread
+                          inquiry={activeSalesInquiry}
+                          currentUserId={0}
+                          onUpdated={() => { /* read-only */ }}
+                          readOnly
+                        />
+                      ) : null}
+                      <button
+                        onClick={() => { setActiveSalesId(null); setActiveSalesInquiry(null); }}
+                        className="mt-3 text-xs text-gray-500 hover:text-gray-700 cursor-pointer"
+                      >
+                        Close conversation
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

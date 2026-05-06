@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LogOut, User, LayoutDashboard, BookOpen } from "lucide-react";
+import { Menu, X, LogOut, User, LayoutDashboard, BookOpen, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_NAME } from "@/lib/constants";
 import { useAuth } from "@/lib/auth-context";
@@ -24,6 +24,7 @@ const STUDENT_LINKS = [
   { label: "Courses", href: "/courses" },
   { label: "Services", href: "/services" },
   { label: "Dashboard", href: "/dashboard" },
+  { label: "Messages", href: "/messages" },
   { label: "Profile", href: "/profile" },
   { label: "Cart", href: "/cart" },
 ];
@@ -164,6 +165,10 @@ export function Navbar() {
                         <Link href="/courses" onClick={() => setDropdownOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
                           <BookOpen size={16} /> Courses
+                        </Link>
+                        <Link href="/messages" onClick={() => setDropdownOpen(false)}
+                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                          <MessageSquare size={16} /> Messages
                         </Link>
                         <Link href="/profile" onClick={() => setDropdownOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">

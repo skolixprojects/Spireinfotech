@@ -121,8 +121,8 @@ public class DataSeeder implements CommandLineRunner {
                 .description("Master modern web development from front to back. Learn HTML, CSS, JavaScript, React, Node.js, databases, and deployment in one comprehensive course.")
                 .shortDescription("Build complete web applications from scratch")
                 .level(Course.Level.INTERMEDIATE)
-                .price(BigDecimal.ZERO)
-                .isFree(true)
+                .price(new BigDecimal("4999.00"))
+                .isFree(false)
                 .durationHours(42.5)
                 .instructor(arjun)
                 .lessonsCount(5)
@@ -140,7 +140,7 @@ public class DataSeeder implements CommandLineRunner {
                 .description("Take your React skills to the next level. Advanced patterns, performance optimization, state management, and real-world project architecture.")
                 .shortDescription("Advanced React patterns and best practices")
                 .level(Course.Level.ADVANCED)
-                .price(new BigDecimal("499.00"))
+                .price(new BigDecimal("3499.00"))
                 .isFree(false)
                 .durationHours(28.0)
                 .instructor(arjun)
@@ -159,8 +159,8 @@ public class DataSeeder implements CommandLineRunner {
                 .description("Learn Python programming and data science from scratch. Covers NumPy, Pandas, Matplotlib, Scikit-learn, and real-world data analysis projects.")
                 .shortDescription("Data analysis and ML with Python")
                 .level(Course.Level.BEGINNER)
-                .price(BigDecimal.ZERO)
-                .isFree(true)
+                .price(new BigDecimal("3999.00"))
+                .isFree(false)
                 .durationHours(35.0)
                 .instructor(priya)
                 .lessonsCount(5)
@@ -178,7 +178,7 @@ public class DataSeeder implements CommandLineRunner {
                 .description("Design and deploy scalable cloud solutions on AWS. Covers EC2, S3, Lambda, DynamoDB, CloudFormation, and architecture best practices.")
                 .shortDescription("Build scalable cloud solutions on AWS")
                 .level(Course.Level.ADVANCED)
-                .price(new BigDecimal("499.00"))
+                .price(new BigDecimal("5499.00"))
                 .isFree(false)
                 .durationHours(32.0)
                 .instructor(rahul)
@@ -197,7 +197,7 @@ public class DataSeeder implements CommandLineRunner {
                 .description("Learn the principles of great user interface and user experience design. Covers Figma, design systems, wireframing, prototyping, and usability testing.")
                 .shortDescription("Design beautiful and usable interfaces")
                 .level(Course.Level.BEGINNER)
-                .price(new BigDecimal("499.00"))
+                .price(new BigDecimal("2999.00"))
                 .isFree(false)
                 .durationHours(20.0)
                 .instructor(priya)
@@ -216,7 +216,7 @@ public class DataSeeder implements CommandLineRunner {
                 .description("Build cross-platform mobile apps with React Native. Covers navigation, state management, native modules, animations, and app store deployment.")
                 .shortDescription("Cross-platform mobile apps with React Native")
                 .level(Course.Level.INTERMEDIATE)
-                .price(new BigDecimal("499.00"))
+                .price(new BigDecimal("3999.00"))
                 .isFree(false)
                 .durationHours(30.0)
                 .instructor(rahul)
@@ -487,7 +487,7 @@ public class DataSeeder implements CommandLineRunner {
                 "LinkedIn Profile Optimization",
                 "Transform your LinkedIn profile into a powerful career tool that attracts recruiters and opportunities.",
                 "Make your LinkedIn profile work for you. Headline, summary, experience, content, and a connection strategy that gets you noticed by the right people.",
-                999,
+                1499,
                 List.of(
                         new SvcModule("Profile Essentials",
                                 "Get the basics right — the parts recruiters scan first.",

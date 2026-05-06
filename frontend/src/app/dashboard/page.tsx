@@ -25,6 +25,7 @@ import { MentorSessionsList } from "@/components/mentorship/MentorSessionsList";
 import { NextActionHero } from "@/components/dashboard/NextActionHero";
 import { AnnouncementsBanner } from "@/components/dashboard/AnnouncementsBanner";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { InstructorSalesInbox } from "@/components/sales/InstructorSalesInbox";
 import type { SessionRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -448,6 +449,12 @@ export default function DashboardPage() {
         {/* ── INSTRUCTOR: Mentorship sections (top — most urgent first) ── */}
         {isInstructor && (
           <>
+            {/* Sales Inquiries — appears above mentorship since unread
+                quotes are time-sensitive and convert directly to revenue */}
+            <div className="mb-10">
+              <InstructorSalesInbox currentUserId={user.id} />
+            </div>
+
             {/* Pending Requests */}
             <div className="mb-10">
               <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">

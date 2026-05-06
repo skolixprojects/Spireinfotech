@@ -659,6 +659,163 @@ export async function downloadUserRecordsCsv(userId: number | string, fileBaseNa
   URL.revokeObjectURL(url);
 }
 
+// ─── Sales / Contact Sales ──────────────────────────────────────────
+
+export interface SalesQuoteItem {
+  item: string;
+  price: number;
+}
+
+export interface SalesMessage {
+  id: number;
+  senderId: number | null;
+  senderName: string | null;
+  senderRole: string | null;
+  message: string;
+  attachmentUrl: string | null;
+  isQuote: boolean;
+  quotedPrice: number | null;
+  /** Raw JSON string returned from the server; parse with parseQuoteItems(). */
+  quotedItems: string | null;
+  /** ACCEPTED / DECLINED / COUNTER_OFFERED, or null. */
+  quoteStatus: string | null;
+  createdAt: string;
+}
+
+export interface SalesInquiry {
+  id: number;
+  userId: number | null;
+  studentName: string | null;
+  studentEmail: string | null;
+  courseId: number | null;
+  courseTitle: string | null;
+  courseType: string | null;
+  instructorId: number | null;
+  instructorName: string | null;
+  status: "NEW" | "IN_PROGRESS" | "QUOTED" | "CONVERTED" | "CLOSED" | "LOST";
+  subject: string;
+  budgetRange: string | null;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  lastMessagePreview: string | null;
+  lastMessageSenderName: string | null;
+  lastMessageAt: string | null;
+  messages: SalesMessage[] | null;
+}
+
+export function parseQuoteItems(raw: string | null): SalesQuoteItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((p: { item?: unknown; price?: unknown }) => ({
+      item: typeof p.item === "string" ? p.item : "",
+      price: Number(p.price ?? 0),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function createSalesInquiry(data: {
+  courseId: number;
+  subject?: string;
+  budgetRange?: string;
+  message: string;
+}) {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>("/api/sales/inquiries", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return wrapper.data;
+}
+
+export async function getMySalesInquiries() {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry[]>>("/api/sales/inquiries/my");
+  return wrapper.data;
+}
+
+export async function getSalesInquiry(id: number) {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(`/api/sales/inquiries/${id}`);
+  return wrapper.data;
+}
+
+export async function postSalesMessage(id: number, message: string) {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
+    `/api/sales/inquiries/${id}/messages`,
+    { method: "POST", body: JSON.stringify({ message }) }
+  );
+  return wrapper.data;
+}
+
+export async function acceptSalesQuote(inquiryId: number, messageId: number) {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
+    `/api/sales/inquiries/${inquiryId}/accept-quote`,
+    { method: "POST", body: JSON.stringify({ messageId }) }
+  );
+  return wrapper.data;
+}
+
+export async function declineSalesQuote(inquiryId: number, messageId: number) {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
+    `/api/sales/inquiries/${inquiryId}/decline-quote`,
+    { method: "POST", body: JSON.stringify({ messageId }) }
+  );
+  return wrapper.data;
+}
+
+export async function closeSalesInquiry(id: number, reason?: string) {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
+    `/api/sales/inquiries/${id}/close`,
+    { method: "POST", body: JSON.stringify({ reason: reason ?? null }) }
+  );
+  return wrapper.data;
+}
+
+export async function getInstructorSalesInquiries() {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry[]>>("/api/sales/inquiries/instructor");
+  return wrapper.data;
+}
+
+export async function sendSalesQuote(id: number, data: {
+  message: string;
+  quotedPrice: number;
+  quotedItems: SalesQuoteItem[];
+}) {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
+    `/api/sales/inquiries/${id}/quote`,
+    { method: "POST", body: JSON.stringify(data) }
+  );
+  return wrapper.data;
+}
+
+export async function getAdminSalesInquiries() {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry[]>>("/api/admin/sales/inquiries");
+  return wrapper.data;
+}
+
+export async function getAdminSalesInquiry(id: number) {
+  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(`/api/admin/sales/inquiries/${id}`);
+  return wrapper.data;
+}
+
+export interface SalesStats {
+  totalInquiries: number;
+  newCount: number;
+  inProgressCount: number;
+  quotedCount: number;
+  convertedCount: number;
+  closedCount: number;
+  lostCount: number;
+  conversionRate: number;
+}
+
+export async function getAdminSalesStats() {
+  const wrapper = await apiFetch<ApiResponse<SalesStats>>("/api/admin/sales/stats");
+  return wrapper.data;
+}
+
 export async function downloadAdminCsv(kind: "users" | "enrollments" | "sessions" | "revenue") {
   const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
   const res = await fetch(`${BASE_URL}/api/admin/export/${kind}`, {
