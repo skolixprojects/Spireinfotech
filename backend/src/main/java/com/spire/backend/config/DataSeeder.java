@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,9 @@ public class DataSeeder implements CommandLineRunner {
     @Autowired
     private EnrollmentRepository enrollmentRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
@@ -56,6 +60,13 @@ public class DataSeeder implements CommandLineRunner {
                 .orElseGet(() -> roleRepository.save(Role.builder().name("TRAINER").build()));
         log.info("Roles ready: STUDENT({}), INSTRUCTOR({}), TRAINER({}), ADMIN({})",
                 studentRole.getId(), instructorRole.getId(), trainerRole.getId(), adminRole.getId());
+
+        // Drop the legacy unique constraint on quiz_attempts(quiz_id,
+        // user_id) before any other migration runs — without this,
+        // the new multi-attempt quiz flow would fail the second time
+        // a student retries a quiz. ddl-auto=update never drops
+        // constraints, so we have to do it ourselves.
+        dropLegacyQuizAttemptUniqueConstraint();
 
         if (userRepository.count() > 0) {
             log.info("Database already seeded. Skipping initial users/courses block.");
@@ -544,6 +555,50 @@ public class DataSeeder implements CommandLineRunner {
                                         new SvcLesson("First 90 Days at Your New Job", 18)
                                 ))
                 ));
+    }
+
+    /**
+     * Drops any unique constraint on quiz_attempts that locks the
+     * (quiz_id, user_id) pair. Pre-migration the entity declared
+     * `@UniqueConstraint(columnNames = {"quiz_id", "user_id"})`,
+     * which forbade retries — incompatible with the new multi-attempt
+     * quiz model. ddl-auto=update doesn't drop constraints
+     * automatically.
+     *
+     * Probes Postgres first (prod), falls back to MySQL (dev). Each
+     * branch is wrapped so a "wrong DB" / "no constraint" path is a
+     * silent no-op rather than crashing app startup.
+     */
+    private void dropLegacyQuizAttemptUniqueConstraint() {
+        // Postgres path — pg_constraint stores the auto-generated name.
+        try {
+            List<String> names = jdbcTemplate.queryForList(
+                    "SELECT conname FROM pg_constraint c " +
+                            "JOIN pg_class t ON c.conrelid = t.oid " +
+                            "WHERE t.relname = 'quiz_attempts' AND c.contype = 'u'",
+                    String.class);
+            for (String name : names) {
+                jdbcTemplate.execute("ALTER TABLE quiz_attempts DROP CONSTRAINT \"" + name + "\"");
+                log.info("Dropped legacy quiz_attempts unique constraint: {}", name);
+            }
+            return;
+        } catch (Exception ignoredPg) {
+            // Not Postgres or the catalog query is unavailable — try MySQL.
+        }
+        try {
+            List<String> names = jdbcTemplate.queryForList(
+                    "SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS " +
+                            "WHERE TABLE_NAME = 'quiz_attempts' AND NON_UNIQUE = 0 " +
+                            "AND INDEX_NAME != 'PRIMARY' " +
+                            "GROUP BY INDEX_NAME",
+                    String.class);
+            for (String name : names) {
+                jdbcTemplate.execute("ALTER TABLE quiz_attempts DROP INDEX `" + name + "`");
+                log.info("Dropped legacy quiz_attempts unique index: {}", name);
+            }
+        } catch (Exception ignoredMysql) {
+            log.debug("Couldn't probe quiz_attempts unique constraints — likely fresh DB or unsupported dialect.");
+        }
     }
 
     /**

@@ -7,15 +7,17 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft, ChevronDown, Loader2, Plus, Edit3, Trash2, AlertCircle,
   Globe, GlobeLock, CheckCircle2, AlertTriangle, Upload, Play, X, Save,
-  ArrowUp, ArrowDown,
+  ArrowUp, ArrowDown, Brain,
 } from "lucide-react";
 import {
   getCourse, getCourseModules, getCourseLessons,
   createModule, updateModule, deleteModule,
   createLesson, updateLesson, deleteLesson, reorderLessons,
   publishCourse, unpublishCourse, getPublishReadiness,
+  listInstructorQuizzes, deleteInstructorQuiz, type Quiz as QuizType,
 } from "@/lib/api";
 import { LessonVideoUploader } from "@/components/instructor/LessonVideoUploader";
+import { AddQuizModal } from "@/components/instructor/AddQuizModal";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
@@ -82,6 +84,11 @@ export default function ContentManagerPage({ params }: { params: { id: string } 
   // Video uploader modal
   const [videoUploaderFor, setVideoUploaderFor] = useState<LessonRow | null>(null);
 
+  // Quizzes for this course — loaded once and refreshed after each
+  // create/delete from the modal.
+  const [quizzes, setQuizzes] = useState<QuizType[]>([]);
+  const [showAddQuiz, setShowAddQuiz] = useState(false);
+
   // Publish-readiness panel
   const [publishMissing, setPublishMissing] = useState<string[] | null>(null);
   const [showPublishPanel, setShowPublishPanel] = useState(false);
@@ -108,6 +115,14 @@ export default function ContentManagerPage({ params }: { params: { id: string } 
       const sortedMods = [...(mods ?? [])].sort((a, b) => a.orderIndex - b.orderIndex);
       setModules(sortedMods);
       setLessons(less ?? []);
+      // Quizzes load alongside content but are independent — failures
+      // don't block the rest of the page.
+      try {
+        const qs = await listInstructorQuizzes(courseId);
+        setQuizzes(qs ?? []);
+      } catch {
+        setQuizzes([]);
+      }
       // Auto-expand the first module on first load only.
       setExpanded((prev) => {
         if (Object.keys(prev).length > 0) return prev;
@@ -619,6 +634,103 @@ export default function ContentManagerPage({ params }: { params: { id: string } 
           </div>
         )}
       </div>
+
+      {/* ── Quizzes section ─────────────────────────────────────── */}
+      <div className="mt-10">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-serif text-xl font-bold text-gray-900 flex items-center gap-2">
+              <Brain size={18} className="text-[#0F766E]" /> Quizzes
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Attach quizzes to lessons, modules, or the course as a final assessment.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddQuiz(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] transition cursor-pointer"
+          >
+            <Plus size={12} /> Add Quiz
+          </button>
+        </div>
+
+        {quizzes.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center">
+            <p className="text-sm text-gray-500">No quizzes yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {quizzes.map((q) => {
+              const attachLabel = q.lessonId
+                ? `Lesson · ${q.lessonTitle ?? "—"}`
+                : q.moduleId
+                  ? `Module · ${q.moduleTitle ?? "—"}`
+                  : "Course final";
+              return (
+                <div
+                  key={q.id}
+                  className="bg-white rounded-xl border border-gray-100 shadow-sm p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                        <p className="font-semibold text-gray-900 text-sm truncate">{q.title}</p>
+                        <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-[#0F766E]/10 text-[#0F766E]">
+                          {attachLabel}
+                        </span>
+                        {!q.isActive && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                            Inactive
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        {q.questionCount ?? 0} question{(q.questionCount ?? 0) === 1 ? "" : "s"}
+                        {" · "}Pass {q.passThreshold}%
+                        {q.maxAttempts != null && ` · ${q.maxAttempts} attempts`}
+                        {q.timeLimitMinutes != null && ` · ${q.timeLimitMinutes} min limit`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Link
+                        href={`/instructor/quizzes/${q.id}/questions`}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition"
+                      >
+                        <Edit3 size={12} /> Edit Questions
+                      </Link>
+                      <button
+                        onClick={async () => {
+                          if (!confirm("Delete this quiz and all its questions?")) return;
+                          try {
+                            await deleteInstructorQuiz(q.id);
+                            toast("success", "Quiz deleted.");
+                            setQuizzes((prev) => prev.filter((x) => x.id !== q.id));
+                          } catch (err) {
+                            toast("error", err instanceof Error ? err.message : "Couldn't delete");
+                          }
+                        }}
+                        className="p-2 text-gray-400 hover:text-red-500 transition cursor-pointer"
+                        aria-label="Delete quiz"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <AddQuizModal
+        isOpen={showAddQuiz}
+        onClose={() => setShowAddQuiz(false)}
+        courseId={courseId}
+        modules={modules.map((m) => ({ id: m.id, title: m.title }))}
+        lessons={lessons.map((l) => ({ id: l.id, title: l.title }))}
+        onCreated={fetchAll}
+      />
 
       {/* Edit lesson modal */}
       <AnimatePresence>

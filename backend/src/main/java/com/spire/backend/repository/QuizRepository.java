@@ -6,8 +6,14 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
 
+import java.util.List;
+
 @Repository
 public interface QuizRepository extends JpaRepository<Quiz, Long> {
     Optional<Quiz> findByLessonId(Long lessonId);
     boolean existsByLessonId(Long lessonId);
+
+    List<Quiz> findByCourseIdOrderByOrderIndexAsc(Long courseId);
+    List<Quiz> findByModuleIdOrderByOrderIndexAsc(Long moduleId);
+    List<Quiz> findByLessonIdOrderByOrderIndexAsc(Long lessonId);
 }

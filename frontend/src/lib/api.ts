@@ -1024,33 +1024,210 @@ export async function submitAssignment(assignmentId: number, content: string) {
 }
 
 // ─── Quiz ───────────────────────────────────────────────────────
+// NOTE: the old A/B/C/D fixed-option model was migrated to a
+// normalized QuizOption / QuizAnswer schema. The legacy helpers
+// (getLessonQuiz, addQuizQuestion with optionA/B/C/D) are removed
+// alongside the QuizSection / QuizBuilder components that called
+// them. New flow lives below.
 
-export async function getLessonQuiz(lessonId: number) {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(`/api/lessons/${lessonId}/quiz`);
-  return wrapper.data;
+export type QuizQuestionType = "MULTIPLE_CHOICE" | "TRUE_FALSE" | "MULTI_SELECT";
+
+export interface QuizOption {
+  id: number;
+  optionText: string;
+  /** Server omits this on the student-taking view. */
+  isCorrect?: boolean | null;
+  orderIndex: number;
 }
 
-export async function submitQuiz(quizId: number, answers: Record<number, string>) {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(`/api/quizzes/${quizId}/submit`, {
-    method: "POST",
-    body: JSON.stringify({ answers }),
-  });
-  return wrapper.data;
+export interface QuizQuestion {
+  id: number;
+  questionText: string;
+  questionType: QuizQuestionType;
+  points: number;
+  orderIndex: number;
+  /** Only present for instructor view or after a student submits. */
+  explanation?: string | null;
+  options: QuizOption[];
 }
 
-export async function createQuiz(lessonId: number, title: string) {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(`/api/lessons/${lessonId}/quiz`, {
-    method: "POST",
-    body: JSON.stringify({ title }),
-  });
-  return wrapper.data;
+export interface Quiz {
+  id: number;
+  courseId: number | null;
+  moduleId: number | null;
+  lessonId: number | null;
+  moduleTitle: string | null;
+  lessonTitle: string | null;
+  title: string;
+  description: string | null;
+  passThreshold: number;
+  timeLimitMinutes: number | null;
+  maxAttempts: number | null;
+  isActive: boolean;
+  orderIndex: number;
+  questions?: QuizQuestion[];
+  questionCount?: number;
+  attemptCount?: number;
+  bestScorePercent?: number | null;
 }
 
-export async function addQuizQuestion(quizId: number, data: { questionText: string; optionA: string; optionB: string; optionC?: string; optionD?: string; correctAnswer: string }) {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(`/api/quizzes/${quizId}/questions`, {
+export interface QuizQuestionResult {
+  questionId: number;
+  correct: boolean;
+  selectedOptionIds: number[];
+  correctOptionIds: number[];
+  explanation: string | null;
+}
+
+export interface QuizSubmitResult {
+  attemptId: number;
+  scorePercent: number;
+  passed: boolean;
+  passThreshold: number;
+  attemptNumber: number;
+  attemptsRemaining: number | null;
+  totalQuestions: number;
+  correctCount: number;
+  timeTakenSeconds: number | null;
+  results: QuizQuestionResult[];
+}
+
+export interface QuizAttemptSummary {
+  id: number;
+  quizId: number;
+  scorePercent: number | null;
+  passed: boolean | null;
+  attemptNumber: number | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  timeTakenSeconds: number | null;
+}
+
+// ─── Instructor: quiz CRUD ──────────────────────────────────────
+
+export async function createInstructorQuiz(data: {
+  courseId: number;
+  moduleId?: number | null;
+  lessonId?: number | null;
+  title: string;
+  description?: string;
+  passThreshold?: number;
+  timeLimitMinutes?: number | null;
+  maxAttempts?: number | null;
+  isActive?: boolean;
+}) {
+  const wrapper = await apiFetch<ApiResponse<Quiz>>("/api/instructor/quizzes", {
     method: "POST",
     body: JSON.stringify(data),
   });
+  return wrapper.data;
+}
+
+export async function listInstructorQuizzes(courseId: number) {
+  const wrapper = await apiFetch<ApiResponse<Quiz[]>>(
+    `/api/instructor/courses/${courseId}/quizzes`
+  );
+  return wrapper.data;
+}
+
+export async function getInstructorQuiz(quizId: number) {
+  const wrapper = await apiFetch<ApiResponse<Quiz>>(`/api/instructor/quizzes/${quizId}`);
+  return wrapper.data;
+}
+
+export async function updateInstructorQuiz(quizId: number, data: Partial<{
+  title: string;
+  description: string;
+  passThreshold: number;
+  timeLimitMinutes: number | null;
+  maxAttempts: number | null;
+  isActive: boolean;
+  orderIndex: number;
+}>) {
+  const wrapper = await apiFetch<ApiResponse<Quiz>>(`/api/instructor/quizzes/${quizId}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+  return wrapper.data;
+}
+
+export async function deleteInstructorQuiz(quizId: number) {
+  return apiFetch<ApiResponse<unknown>>(`/api/instructor/quizzes/${quizId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function addQuizQuestion(quizId: number, data: {
+  questionText: string;
+  questionType: QuizQuestionType;
+  points?: number;
+  explanation?: string;
+  options: { optionText: string; isCorrect: boolean }[];
+}) {
+  const wrapper = await apiFetch<ApiResponse<QuizQuestion>>(
+    `/api/instructor/quizzes/${quizId}/questions`,
+    { method: "POST", body: JSON.stringify(data) }
+  );
+  return wrapper.data;
+}
+
+export async function updateQuizQuestion(questionId: number, data: {
+  questionText: string;
+  questionType: QuizQuestionType;
+  points?: number;
+  explanation?: string;
+  options: { optionText: string; isCorrect: boolean }[];
+}) {
+  const wrapper = await apiFetch<ApiResponse<QuizQuestion>>(
+    `/api/instructor/questions/${questionId}`,
+    { method: "PUT", body: JSON.stringify(data) }
+  );
+  return wrapper.data;
+}
+
+export async function deleteQuizQuestion(questionId: number) {
+  return apiFetch<ApiResponse<unknown>>(`/api/instructor/questions/${questionId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function reorderQuizQuestions(quizId: number, questionIds: number[]) {
+  return apiFetch<ApiResponse<unknown>>(
+    `/api/instructor/quizzes/${quizId}/questions/reorder`,
+    { method: "PUT", body: JSON.stringify({ questionIds }) }
+  );
+}
+
+// ─── Student: take quiz ─────────────────────────────────────────
+
+export async function listCourseQuizzes(courseId: number) {
+  const wrapper = await apiFetch<ApiResponse<Quiz[]>>(`/api/courses/${courseId}/quizzes`);
+  return wrapper.data;
+}
+
+export async function getQuizForStudent(quizId: number) {
+  const wrapper = await apiFetch<ApiResponse<Quiz>>(`/api/quizzes/${quizId}`);
+  return wrapper.data;
+}
+
+export async function submitQuiz(
+  quizId: number,
+  data: {
+    answers: { questionId: number; selectedOptionIds: number[] }[];
+    timeTakenSeconds?: number;
+  }
+) {
+  const wrapper = await apiFetch<ApiResponse<QuizSubmitResult>>(
+    `/api/quizzes/${quizId}/submit`,
+    { method: "POST", body: JSON.stringify(data) }
+  );
+  return wrapper.data;
+}
+
+export async function getMyQuizAttempts(quizId: number) {
+  const wrapper = await apiFetch<ApiResponse<QuizAttemptSummary[]>>(
+    `/api/quizzes/${quizId}/attempts`
+  );
   return wrapper.data;
 }
 

@@ -8,7 +8,8 @@ import { motion } from "framer-motion";
 import { Clock, BookOpen, Loader2, AlertCircle, Plus, ChevronLeft, Star, Trash2, ChevronDown, ShieldCheck, MessageSquare } from "lucide-react";
 import { ContactSalesModal } from "@/components/sales/ContactSalesModal";
 import { useAuth } from "@/lib/auth-context";
-import { getCourse, getCourseLessons, getCourseAssignments, enroll, createLesson, deleteLesson, checkCertificate, generateCertificate, getCourseModules, createModule, deleteModule, getMyMentorForCourse, getCourseProgress, getEnrollments, type CourseProgress } from "@/lib/api";
+import { getCourse, getCourseLessons, getCourseAssignments, enroll, createLesson, deleteLesson, checkCertificate, generateCertificate, getCourseModules, createModule, deleteModule, getMyMentorForCourse, getCourseProgress, getEnrollments, listCourseQuizzes, type CourseProgress, type Quiz } from "@/lib/api";
+import { QuizCard } from "@/components/quiz/QuizCard";
 import type { MentorInfo } from "@/lib/types";
 import { MentorCard } from "@/components/mentorship/MentorCard";
 import { CourseProgressCard } from "@/components/courses/CourseProgressCard";
@@ -16,8 +17,6 @@ import { RequestSessionModal } from "@/components/mentorship/RequestSessionModal
 import { Award, Download, Loader2 as CertLoader } from "lucide-react";
 import { LessonItem } from "@/components/courses/LessonItem";
 import { AssignmentItem } from "@/components/courses/AssignmentItem";
-import { QuizSection } from "@/components/courses/QuizSection";
-import { QuizBuilder } from "@/components/courses/QuizBuilder";
 import { TaskSection } from "@/components/courses/TaskSection";
 import { VideoPlayer } from "@/components/courses/VideoPlayer";
 import { VideoUpload } from "@/components/courses/VideoUpload";
@@ -82,6 +81,10 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   const [generatingCert, setGeneratingCert] = useState(false);
   const [certError, setCertError] = useState("");
 
+  // Quizzes attached anywhere on this course (lesson, module, or
+  // course-final). Loaded lazily once we know the user is enrolled.
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+
   // Contact Sales modal — only shown for non-admin, non-enrolled, paid courses.
   const [showContactSales, setShowContactSales] = useState(false);
 
@@ -126,6 +129,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
           try { const m = await getMyMentorForCourse(id); setMentor(m); } catch {}
           try { const c = await checkCertificate(id); setCertificate(c); } catch {}
           try { const p = await getCourseProgress(id); setProgress(p); } catch {}
+          try { const qs = await listCourseQuizzes(Number(id)); setQuizzes(qs ?? []); } catch {}
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load course");
@@ -311,11 +315,10 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
               }}
             />
           )}
-          {canManage ? (
-            <QuizBuilder lessonId={lesson.id} lessonTitle={lesson.title} />
-          ) : (lesson.isFree || lesson.videoUrl) ? (
-            <QuizSection lessonId={lesson.id} isAuthenticated={isAuthenticated} lessonCompleted={completedLessons.has(lesson.id)} />
-          ) : null}
+          {/* Quizzes moved to /instructor/courses/{id}/content (instructor)
+              and /quiz/{id}/take (student). The lesson page no longer
+              embeds the quiz UI inline — students see a QuizCard at the
+              bottom of the curriculum once they're enrolled. */}
           <TaskSection lessonId={lesson.id} isAuthenticated={isAuthenticated} />
         </div>
       )}
@@ -662,6 +665,23 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
             </div>
           )}
         </motion.div>
+
+        {/* ─── Quizzes Section ─────────────────────────────────── */}
+        {enrolled && quizzes.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.35 }}
+            className="mt-12"
+          >
+            <h2 className="font-serif text-2xl font-bold text-gray-900 mb-6">Quizzes</h2>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {quizzes.map((q) => (
+                <QuizCard key={q.id} quiz={q} returnTo={`/courses/${id}`} />
+              ))}
+            </div>
+          </motion.div>
+        )}
 
         {/* ─── Assignments Section ─────────────────────────────── */}
         {assignments.length > 0 && (
