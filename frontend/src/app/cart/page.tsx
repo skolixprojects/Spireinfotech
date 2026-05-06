@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Trash2, ShoppingCart, ArrowRight, ShieldCheck } from "lucide-react";
-import { getCart, removeFromCart, clearCart, checkoutCart } from "@/lib/api";
+import { Loader2, Trash2, ShoppingCart, ArrowRight, ShieldCheck, Ticket, X, CheckCircle2 } from "lucide-react";
+import { getCart, removeFromCart, clearCart, checkoutCart, validateCoupon, type CouponValidation } from "@/lib/api";
 import { friendlyEnrollmentError } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 
@@ -28,6 +28,15 @@ export default function CartPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [checkingOut, setCheckingOut] = useState(false);
+
+  // Coupon state — only set once a code has been validated server-side.
+  // We hold the *applied* coupon (validation result) plus a draft input
+  // and validation error. couponInput is what the user is currently
+  // typing; appliedCoupon is what's locked in for checkout.
+  const [couponInput, setCouponInput] = useState("");
+  const [couponError, setCouponError] = useState("");
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+  const [appliedCoupon, setAppliedCoupon] = useState<CouponValidation | null>(null);
 
   const fetchCart = async () => {
     setLoading(true);
@@ -68,7 +77,7 @@ export default function CartPage() {
     setCheckingOut(true);
     setError("");
     try {
-      await checkoutCart();
+      await checkoutCart(appliedCoupon?.code ?? null);
       router.push("/dashboard");
     } catch (err) {
       setError(friendlyEnrollmentError(err));
@@ -76,7 +85,47 @@ export default function CartPage() {
     }
   };
 
-  const total = items.reduce((sum, c) => sum + (c.price || 0), 0);
+  const subtotal = items.reduce((sum, c) => sum + (c.price || 0), 0);
+  const discount = appliedCoupon ? appliedCoupon.discountAmount : 0;
+  const total = Math.max(0, subtotal - discount);
+
+  const handleApplyCoupon = async () => {
+    const code = couponInput.trim();
+    if (!code) {
+      setCouponError("Enter a code first.");
+      return;
+    }
+    setValidatingCoupon(true);
+    setCouponError("");
+    try {
+      const result = await validateCoupon(code, subtotal);
+      setAppliedCoupon(result);
+      setCouponInput("");
+    } catch (err) {
+      setCouponError(err instanceof Error ? err.message : "Invalid coupon");
+      setAppliedCoupon(null);
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  // Cart contents change → re-validate any applied coupon against the
+  // new subtotal so a min-order-amount rule is re-checked. We swallow
+  // failures by clearing the coupon — the user gets a fresh message
+  // when they try to re-apply.
+  useEffect(() => {
+    if (!appliedCoupon) return;
+    if (items.length === 0) {
+      setAppliedCoupon(null);
+      return;
+    }
+    let cancelled = false;
+    validateCoupon(appliedCoupon.code, subtotal)
+      .then((res) => { if (!cancelled) setAppliedCoupon(res); })
+      .catch(() => { if (!cancelled) setAppliedCoupon(null); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subtotal]);
 
   // Admin supervises — they don't shop. Show a message instead of the cart.
   if (!authLoading && isAdmin) {
@@ -198,9 +247,77 @@ export default function CartPage() {
 
           {/* Summary */}
           <div className="mt-8 bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-600">Total ({items.length} {items.length === 1 ? "item" : "items"})</span>
-              <span className="text-2xl font-bold text-[#0F766E]">₹{total}</span>
+            {/* Coupon panel */}
+            <div className="mb-5 pb-5 border-b border-gray-100">
+              {!appliedCoupon ? (
+                <>
+                  <label className="text-xs font-medium text-gray-600 flex items-center gap-1.5 mb-2">
+                    <Ticket size={12} /> Coupon code
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={couponInput}
+                      onChange={(e) => { setCouponInput(e.target.value); setCouponError(""); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") handleApplyCoupon(); }}
+                      placeholder="Enter code"
+                      className="flex-1 px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm uppercase tracking-wide focus:outline-none focus:ring-2 focus:ring-[#0F766E]/30"
+                    />
+                    <button
+                      onClick={handleApplyCoupon}
+                      disabled={validatingCoupon || !couponInput.trim()}
+                      className="px-4 py-2 rounded-lg text-sm font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+                    >
+                      {validatingCoupon ? <Loader2 className="animate-spin" size={14} /> : "Apply"}
+                    </button>
+                  </div>
+                  {couponError && (
+                    <p className="text-xs text-red-600 mt-2">{couponError}</p>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200">
+                  <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-emerald-800">
+                      <span className="font-mono">{appliedCoupon.code}</span> applied
+                    </p>
+                    <p className="text-xs text-emerald-700">
+                      {appliedCoupon.discountType === "PERCENT"
+                        ? `${appliedCoupon.discountValue}% off`
+                        : `₹${appliedCoupon.discountValue} off`}
+                      {" — saving ₹"}
+                      {Number(appliedCoupon.discountAmount).toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => { setAppliedCoupon(null); setCouponInput(""); setCouponError(""); }}
+                    className="opacity-60 hover:opacity-100 text-emerald-700 cursor-pointer"
+                    aria-label="Remove coupon"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5 mb-4 text-sm">
+              <div className="flex items-center justify-between text-gray-600">
+                <span>Subtotal ({items.length} {items.length === 1 ? "item" : "items"})</span>
+                <span className="tabular-nums">₹{subtotal.toLocaleString("en-IN")}</span>
+              </div>
+              {appliedCoupon && discount > 0 && (
+                <div className="flex items-center justify-between text-emerald-700">
+                  <span>Discount ({appliedCoupon.code})</span>
+                  <span className="tabular-nums">−₹{Number(discount).toLocaleString("en-IN")}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <span className="text-gray-700 font-medium">Total</span>
+                <span className="text-2xl font-bold text-[#0F766E] tabular-nums">
+                  ₹{total.toLocaleString("en-IN")}
+                </span>
+              </div>
             </div>
             <div className="flex gap-3">
               <button

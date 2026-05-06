@@ -2,6 +2,7 @@ package com.spire.backend.service;
 
 import com.spire.backend.dto.CourseDTO;
 import com.spire.backend.entity.CartItem;
+import com.spire.backend.entity.Coupon;
 import com.spire.backend.entity.Course;
 import com.spire.backend.entity.User;
 import com.spire.backend.exception.ResourceNotFoundException;
@@ -14,7 +15,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,6 +29,7 @@ public class CartService {
     private final CourseRepository courseRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final EnrollmentService enrollmentService;
+    private final CouponService couponService;
 
     @Transactional
     public void addToCart(Long userId, Long courseId) {
@@ -72,20 +76,44 @@ public class CartService {
     }
 
     @Transactional
-    public BigDecimal checkout(Long userId) {
+    public Map<String, Object> checkout(Long userId, String couponCode) {
         List<CartItem> items = cartRepository.findByUserId(userId);
         if (items.isEmpty()) {
             throw new IllegalArgumentException("Cart is empty");
         }
 
-        BigDecimal total = BigDecimal.ZERO;
+        BigDecimal subtotal = BigDecimal.ZERO;
         for (CartItem item : items) {
             Course course = item.getCourse();
-            total = total.add(course.getPrice() != null ? course.getPrice() : BigDecimal.ZERO);
-            enrollmentService.enrollUser(userId, course.getId());
+            subtotal = subtotal.add(course.getPrice() != null ? course.getPrice() : BigDecimal.ZERO);
+        }
+
+        BigDecimal discount = BigDecimal.ZERO;
+        Coupon coupon = null;
+        if (couponCode != null && !couponCode.isBlank()) {
+            // Re-validate at checkout — the cart may have changed since
+            // the student clicked Apply, and we want to fail fast if the
+            // coupon was deactivated or used up in the meantime.
+            coupon = couponService.resolveValidCoupon(couponCode, userId, subtotal);
+            discount = couponService.calculateDiscount(coupon, subtotal);
+        }
+        BigDecimal total = subtotal.subtract(discount).max(BigDecimal.ZERO);
+
+        for (CartItem item : items) {
+            enrollmentService.enrollUser(userId, item.getCourse().getId());
+        }
+
+        if (coupon != null) {
+            couponService.redeem(coupon, userId, discount, total);
         }
 
         cartRepository.deleteByUserId(userId);
-        return total;
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("subtotal", subtotal);
+        result.put("discount", discount);
+        result.put("total", total);
+        result.put("couponCode", coupon != null ? coupon.getCode() : null);
+        return result;
     }
 }

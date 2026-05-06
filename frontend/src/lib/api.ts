@@ -838,9 +838,91 @@ export async function clearCart() {
   return wrapper.data;
 }
 
-export async function checkoutCart() {
-  const wrapper = await apiFetch<ApiResponse<unknown>>("/api/cart/checkout", { method: "POST" });
+export interface CheckoutResult {
+  subtotal: number;
+  discount: number;
+  total: number;
+  couponCode: string | null;
+}
+
+export async function checkoutCart(couponCode?: string | null) {
+  const wrapper = await apiFetch<ApiResponse<CheckoutResult>>("/api/cart/checkout", {
+    method: "POST",
+    body: JSON.stringify({ couponCode: couponCode ?? null }),
+  });
   return wrapper.data;
+}
+
+// ─── Coupons ────────────────────────────────────────────────────────
+
+export interface Coupon {
+  id: number;
+  code: string;
+  discountType: "PERCENT" | "FLAT";
+  discountValue: number;
+  minOrderAmount: number | null;
+  maxUses: number | null;
+  usesCount: number;
+  expiresAt: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface CouponValidation {
+  code: string;
+  discountType: "PERCENT" | "FLAT";
+  discountValue: number;
+  cartTotal: number;
+  discountAmount: number;
+  finalTotal: number;
+}
+
+export async function validateCoupon(code: string, cartTotal: number) {
+  const wrapper = await apiFetch<ApiResponse<CouponValidation>>("/api/coupons/validate", {
+    method: "POST",
+    body: JSON.stringify({ code, cartTotal }),
+  });
+  return wrapper.data;
+}
+
+export async function getAllCoupons() {
+  const wrapper = await apiFetch<ApiResponse<Coupon[]>>("/api/admin/coupons");
+  return wrapper.data;
+}
+
+export async function createCoupon(data: {
+  code: string;
+  discountType: "PERCENT" | "FLAT";
+  discountValue: number;
+  minOrderAmount?: number | null;
+  maxUses?: number | null;
+  expiresAt?: string | null;
+  isActive?: boolean;
+}) {
+  const wrapper = await apiFetch<ApiResponse<Coupon>>("/api/admin/coupons", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return wrapper.data;
+}
+
+export async function updateCoupon(id: number, data: Partial<{
+  discountType: "PERCENT" | "FLAT";
+  discountValue: number;
+  minOrderAmount: number | null;
+  maxUses: number | null;
+  expiresAt: string | null;
+  isActive: boolean;
+}>) {
+  const wrapper = await apiFetch<ApiResponse<Coupon>>(`/api/admin/coupons/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+  return wrapper.data;
+}
+
+export async function deleteCoupon(id: number) {
+  return apiFetch<ApiResponse<unknown>>(`/api/admin/coupons/${id}`, { method: "DELETE" });
 }
 
 // ─── Mentorship ────────────────────────────────────────────────

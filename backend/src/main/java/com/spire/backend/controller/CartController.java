@@ -10,8 +10,8 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/cart")
@@ -56,9 +56,13 @@ public class CartController {
 
     @PostMapping("/checkout")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<BigDecimal>> checkout(Authentication authentication) {
+    public ResponseEntity<ApiResponse<Map<String, Object>>> checkout(
+            Authentication authentication,
+            @RequestBody(required = false) Map<String, Object> body) {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
-        BigDecimal total = cartService.checkout(userId);
-        return ResponseEntity.ok(ApiResponse.success("Checkout successful", total));
+        String couponCode = body != null && body.get("couponCode") != null
+                ? body.get("couponCode").toString() : null;
+        Map<String, Object> result = cartService.checkout(userId, couponCode);
+        return ResponseEntity.ok(ApiResponse.success("Checkout successful", result));
     }
 }
