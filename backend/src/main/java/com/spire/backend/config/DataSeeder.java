@@ -63,6 +63,10 @@ public class DataSeeder implements CommandLineRunner {
             // feature. Idempotent — does nothing if the trainer + 4 services
             // already exist.
             seedServicesAndTrainer(trainerRole);
+            // Bring legacy course/service prices up to the new realistic
+            // values. Only touches courses that still hold the OLD seed
+            // price so any admin-edited price is preserved.
+            backfillCoursePrices();
             return;
         }
 
@@ -534,6 +538,48 @@ public class DataSeeder implements CommandLineRunner {
                                         new SvcLesson("First 90 Days at Your New Job", 18)
                                 ))
                 ));
+    }
+
+    /**
+     * Bumps legacy course/service prices to the new realistic values on
+     * already-seeded DBs (dev MySQL re-runs, Railway Postgres deploys).
+     *
+     * Only updates a row if its current price is still the OLD seed
+     * value (₹0 for the formerly-free courses, ₹499 for the others,
+     * ₹999 for LinkedIn). That preserves any price an admin has set
+     * manually since the original seed.
+     *
+     * Map<slug, expectedOldPrice → newPrice>. Idempotent — a second run
+     * is a no-op because the price will already match the new value.
+     */
+    private void backfillCoursePrices() {
+        record PriceMigration(String slug, BigDecimal expectedOld, BigDecimal newPrice, boolean wasFree) {}
+        List<PriceMigration> migrations = List.of(
+                new PriceMigration("full-stack-web-development",         BigDecimal.ZERO,                new BigDecimal("4999.00"), true),
+                new PriceMigration("react-mastery",                      new BigDecimal("499.00"),       new BigDecimal("3499.00"), false),
+                new PriceMigration("python-for-data-science",            BigDecimal.ZERO,                new BigDecimal("3999.00"), true),
+                new PriceMigration("cloud-architecture-with-aws",        new BigDecimal("499.00"),       new BigDecimal("5499.00"), false),
+                new PriceMigration("ui-ux-design-fundamentals",          new BigDecimal("499.00"),       new BigDecimal("2999.00"), false),
+                new PriceMigration("mobile-app-development-with-react-native", new BigDecimal("499.00"), new BigDecimal("3999.00"), false),
+                new PriceMigration("linkedin-profile-optimization",      new BigDecimal("999.00"),       new BigDecimal("1499.00"), false)
+        );
+
+        int updated = 0;
+        for (PriceMigration m : migrations) {
+            var opt = courseRepository.findBySlug(m.slug());
+            if (opt.isEmpty()) continue;
+            Course c = opt.get();
+            BigDecimal current = c.getPrice() != null ? c.getPrice() : BigDecimal.ZERO;
+            // compareTo (not equals) — same numeric value, different scale.
+            if (current.compareTo(m.expectedOld()) == 0) {
+                c.setPrice(m.newPrice());
+                if (m.wasFree()) c.setIsFree(false);
+                courseRepository.save(c);
+                updated++;
+                log.info("Backfilled price for {}: ₹{} → ₹{}", m.slug(), current, m.newPrice());
+            }
+        }
+        if (updated > 0) log.info("Course price backfill complete — {} row(s) updated.", updated);
     }
 
     private void seedService(User trainer, String slug, String title, String shortDescription,
