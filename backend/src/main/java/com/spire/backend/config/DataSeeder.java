@@ -67,6 +67,12 @@ public class DataSeeder implements CommandLineRunner {
             // values. Only touches courses that still hold the OLD seed
             // price so any admin-edited price is preserved.
             backfillCoursePrices();
+            // Wipe the fabricated rating + enrolled-count seeds from
+            // already-deployed DBs. We never had a rating system, so the
+            // 4.7/4.8/4.9 stars and 1k+ ratingsCount values were always
+            // theatre. Real enrollment counts get rebuilt from the
+            // enrollments table by EnrollmentService on next save.
+            backfillFakeStats();
             return;
         }
 
@@ -130,9 +136,9 @@ public class DataSeeder implements CommandLineRunner {
                 .durationHours(42.5)
                 .instructor(arjun)
                 .lessonsCount(5)
-                .enrolledCount(12450)
-                .rating(4.8)
-                .ratingsCount(3241)
+                .enrolledCount(0)
+                .rating(0.0)
+                .ratingsCount(0)
                 .category("Web Development")
                 .tags("html,css,javascript,react,nodejs,mongodb")
                 .isPublished(true)
@@ -149,9 +155,9 @@ public class DataSeeder implements CommandLineRunner {
                 .durationHours(28.0)
                 .instructor(arjun)
                 .lessonsCount(5)
-                .enrolledCount(8320)
-                .rating(4.9)
-                .ratingsCount(2150)
+                .enrolledCount(0)
+                .rating(0.0)
+                .ratingsCount(0)
                 .category("Frontend")
                 .tags("react,hooks,redux,nextjs,typescript")
                 .isPublished(true)
@@ -168,9 +174,9 @@ public class DataSeeder implements CommandLineRunner {
                 .durationHours(35.0)
                 .instructor(priya)
                 .lessonsCount(5)
-                .enrolledCount(15600)
-                .rating(4.7)
-                .ratingsCount(4520)
+                .enrolledCount(0)
+                .rating(0.0)
+                .ratingsCount(0)
                 .category("Data Science")
                 .tags("python,numpy,pandas,matplotlib,scikit-learn,ml")
                 .isPublished(true)
@@ -187,9 +193,9 @@ public class DataSeeder implements CommandLineRunner {
                 .durationHours(32.0)
                 .instructor(rahul)
                 .lessonsCount(4)
-                .enrolledCount(6780)
-                .rating(4.6)
-                .ratingsCount(1890)
+                .enrolledCount(0)
+                .rating(0.0)
+                .ratingsCount(0)
                 .category("Cloud")
                 .tags("aws,ec2,s3,lambda,dynamodb,cloudformation")
                 .isPublished(true)
@@ -206,9 +212,9 @@ public class DataSeeder implements CommandLineRunner {
                 .durationHours(20.0)
                 .instructor(priya)
                 .lessonsCount(4)
-                .enrolledCount(9200)
-                .rating(4.8)
-                .ratingsCount(2680)
+                .enrolledCount(0)
+                .rating(0.0)
+                .ratingsCount(0)
                 .category("Design")
                 .tags("figma,ui,ux,wireframing,prototyping,design-systems")
                 .isPublished(true)
@@ -225,9 +231,9 @@ public class DataSeeder implements CommandLineRunner {
                 .durationHours(30.0)
                 .instructor(rahul)
                 .lessonsCount(5)
-                .enrolledCount(7450)
-                .rating(4.7)
-                .ratingsCount(1960)
+                .enrolledCount(0)
+                .rating(0.0)
+                .ratingsCount(0)
                 .category("Mobile")
                 .tags("react-native,mobile,ios,android,javascript")
                 .isPublished(true)
@@ -580,6 +586,53 @@ public class DataSeeder implements CommandLineRunner {
             }
         }
         if (updated > 0) log.info("Course price backfill complete — {} row(s) updated.", updated);
+    }
+
+    /**
+     * One-shot wipe of the fabricated rating + enrolled-count seed data.
+     *
+     * Strategy: for any course whose ratingsCount > 0 (we never created
+     * a real review system, so any value > 0 must be seed theatre), and
+     * for any course whose enrolledCount is bigger than the actual row
+     * count in the enrollments table, reset the display values to the
+     * truth. This preserves any *real* enrollment that has happened
+     * since deploy and fixes the 12,450-style fake numbers in one pass.
+     *
+     * Idempotent — a second run is a no-op because conditions no longer
+     * match once the row has been corrected.
+     */
+    private void backfillFakeStats() {
+        int updated = 0;
+        for (Course c : courseRepository.findAll()) {
+            boolean changed = false;
+
+            int actualEnrollments = (int) enrollmentRepository.countByCourseId(c.getId());
+            int displayed = c.getEnrolledCount() != null ? c.getEnrolledCount() : 0;
+            // If the displayed count is bigger than actual rows, it's
+            // padded — reset to the real count. (Equal or less is fine.)
+            if (displayed > actualEnrollments) {
+                c.setEnrolledCount(actualEnrollments);
+                changed = true;
+            }
+
+            // No real review system → any non-zero rating/ratingsCount
+            // is fake. Wipe both to zero.
+            if (c.getRatingsCount() != null && c.getRatingsCount() > 0) {
+                c.setRating(0.0);
+                c.setRatingsCount(0);
+                changed = true;
+            } else if (c.getRating() != null && c.getRating() > 0.0) {
+                c.setRating(0.0);
+                changed = true;
+            }
+
+            if (changed) {
+                courseRepository.save(c);
+                updated++;
+                log.info("Wiped fake stats on course {}", c.getSlug());
+            }
+        }
+        if (updated > 0) log.info("Fake-stats wipe complete — {} row(s) updated.", updated);
     }
 
     private void seedService(User trainer, String slug, String title, String shortDescription,

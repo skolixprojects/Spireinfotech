@@ -11,7 +11,7 @@ import { ContactSalesModal } from "@/components/sales/ContactSalesModal";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getService, getCourseLessons, getCourseModules, addToCart, enroll,
+  getService, getCourseLessons, getCourseModules, addToCart, enroll, getEnrollments,
 } from "@/lib/api";
 import { friendlyEnrollmentError } from "@/lib/utils";
 import { LessonItem } from "@/components/courses/LessonItem";
@@ -89,13 +89,18 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
         const moduleData = await getCourseModules(id);
         setModules((moduleData || []) as ModuleData[]);
 
-        // Detect enrollment via the lessons endpoint behavior — if the
-        // response includes any `videoUrl` for a non-free lesson, the
-        // user has access. Otherwise, leave as not-enrolled.
-        const hasAccess = (lessonData as LessonData[] | null)?.some(
-          (l) => !l.isFree && l.videoUrl
-        );
-        if (hasAccess) setEnrolled(true);
+        // Authoritative enrollment check — same approach as the courses
+        // page. The previous "any non-free lesson has a videoUrl" heuristic
+        // was unreliable since seed data sometimes carries videoUrls before
+        // the user has paid.
+        try {
+          const myEnrollments = await getEnrollments() as Array<{ id: number }>;
+          if ((myEnrollments ?? []).some((c) => c.id === Number(id))) {
+            setEnrolled(true);
+          }
+        } catch {
+          // Anonymous viewer — leave as not enrolled.
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load service");
       } finally {

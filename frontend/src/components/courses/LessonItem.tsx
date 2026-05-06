@@ -20,6 +20,13 @@ interface LessonItemProps {
   completed?: boolean;
   /** First uncompleted lesson — gets a play icon and accent border. */
   isCurrent?: boolean;
+  /**
+   * The viewer is browsing as a non-enrolled, non-admin visitor.
+   * In that case we hide all action affordances (FREE badge, play
+   * icon, Complete button) and show a lock — they need to enroll
+   * before any interaction.
+   */
+  lockedForVisitor?: boolean;
   index?: number;
   onDelete?: (id: number) => void;
   onComplete?: () => void;  // callback after completion
@@ -37,12 +44,15 @@ export function LessonItem({
   canComplete = false,
   completed: completedProp,
   isCurrent = false,
+  lockedForVisitor = false,
   index = 0,
   onDelete,
   onComplete,
   onClick,
 }: LessonItemProps) {
-  const hasAccess = isFree || !!videoUrl;
+  // For non-enrolled, non-admin visitors: every lesson is locked,
+  // regardless of free-preview flags. Enrollment is the gate.
+  const hasAccess = !lockedForVisitor && (isFree || !!videoUrl);
   const [completing, setCompleting] = useState(false);
   const [optimisticDone, setOptimisticDone] = useState(false);
   const completed = completedProp ?? optimisticDone;
@@ -100,7 +110,9 @@ export function LessonItem({
 
       {/* Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        {isFree && (
+        {/* FREE badge only when the viewer can actually access this preview —
+            hiding it for visitors avoids the "FREE" + "₹5,499 course" mismatch. */}
+        {isFree && !lockedForVisitor && (
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">FREE</span>
         )}
 
@@ -117,7 +129,8 @@ export function LessonItem({
           </button>
         )}
 
-        {!hasAccess && !isFree && !completed && (
+        {/* Visitor or genuinely-locked premium lesson — show the lock. */}
+        {(!hasAccess || lockedForVisitor) && !completed && (
           <Lock size={16} className="text-gray-300" />
         )}
 

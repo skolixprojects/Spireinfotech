@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import { Clock, BookOpen, Loader2, AlertCircle, Plus, ChevronLeft, Star, Trash2, ChevronDown, ShieldCheck, MessageSquare } from "lucide-react";
 import { ContactSalesModal } from "@/components/sales/ContactSalesModal";
 import { useAuth } from "@/lib/auth-context";
-import { getCourse, getCourseLessons, getCourseAssignments, enroll, createLesson, deleteLesson, checkCertificate, generateCertificate, getCourseModules, createModule, deleteModule, getMyMentorForCourse, getCourseProgress, type CourseProgress } from "@/lib/api";
+import { getCourse, getCourseLessons, getCourseAssignments, enroll, createLesson, deleteLesson, checkCertificate, generateCertificate, getCourseModules, createModule, deleteModule, getMyMentorForCourse, getCourseProgress, getEnrollments, type CourseProgress } from "@/lib/api";
 import type { MentorInfo } from "@/lib/types";
 import { MentorCard } from "@/components/mentorship/MentorCard";
 import { CourseProgressCard } from "@/components/courses/CourseProgressCard";
@@ -106,26 +106,24 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
         const moduleData = await getCourseModules(id);
         setModules((moduleData || []) as ModuleData[]);
 
-        // Detect enrollment via TWO independent signals so a failure in
-        // either endpoint doesn't hide the entire mentorship UI.
-        // Both endpoints require enrollment server-side, so a success
-        // from either is sufficient proof. Run them in parallel.
-        const [assignmentsRes, mentorRes] = await Promise.allSettled([
-          getCourseAssignments(id),
-          getMyMentorForCourse(id),
-        ]);
-
+        // Authoritative enrollment check — fetch the user's enrolled
+        // courses and look for this course's id. The previous detection
+        // (success of /assignments or /mentor) was too lenient because
+        // /assignments returns 200 + empty list for non-enrolled users.
         let isEnrolled = false;
-        if (assignmentsRes.status === "fulfilled") {
-          setAssignments((assignmentsRes.value || []) as typeof assignments);
-          isEnrolled = true;
+        try {
+          const myEnrollments = await getEnrollments() as Array<{ id: number }>;
+          isEnrolled = (myEnrollments ?? []).some((c) => c.id === Number(id));
+        } catch {
+          // Anonymous / 401 — leave isEnrolled false. The login redirect
+          // happens elsewhere when the user clicks a protected action.
         }
-        if (mentorRes.status === "fulfilled") {
-          setMentor(mentorRes.value);
-          isEnrolled = true;
-        }
+
         if (isEnrolled) {
           setEnrolled(true);
+          // These are gated server-side on enrollment — fire and forget.
+          try { const a = await getCourseAssignments(id); setAssignments((a || []) as typeof assignments); } catch {}
+          try { const m = await getMyMentorForCourse(id); setMentor(m); } catch {}
           try { const c = await checkCertificate(id); setCertificate(c); } catch {}
           try { const p = await getCourseProgress(id); setProgress(p); } catch {}
         }
@@ -287,6 +285,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
         canComplete={enrolled && !canManage}
         completed={completedSet.has(lesson.id) || undefined}
         isCurrent={enrolled && lesson.id === currentLessonId}
+        lockedForVisitor={!enrolled && !canManage}
         index={idx}
         onDelete={handleDeleteLesson}
         onClick={() => setSelectedLessonId(selectedLessonId === lesson.id ? null : lesson.id)}
@@ -365,8 +364,16 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mb-4">
               <span className="flex items-center gap-1"><Clock size={14} /> {course.durationHours}h</span>
               <span className="flex items-center gap-1"><BookOpen size={14} /> {course.lessonsCount} lessons</span>
-              <span className="flex items-center gap-1"><Star size={14} className="text-amber-500" /> {course.rating} ({course.ratingsCount})</span>
-              <span>{course.enrolledCount.toLocaleString()} enrolled</span>
+              {/* Only surface rating once at least one real review exists. */}
+              {course.ratingsCount > 0 && (
+                <span className="flex items-center gap-1"><Star size={14} className="text-amber-500" /> {course.rating} ({course.ratingsCount})</span>
+              )}
+              {/* Real enrollment count only — fall back to "Be the first to enroll!" instead of fake numbers. */}
+              {course.enrolledCount > 0 ? (
+                <span>{course.enrolledCount.toLocaleString()} enrolled</span>
+              ) : (
+                <span className="text-[#0F766E]">Be the first to enroll!</span>
+              )}
             </div>
 
             {course.instructor && (
@@ -396,10 +403,29 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                   <ShieldCheck size={16} /> Admin Access
                 </div>
               ) : enrolled ? (
-                <button onClick={handleContinueLearning}
-                  className="w-full py-3 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 transition flex items-center justify-center gap-2">
-                  <BookOpen size={16} /> Continue Learning
-                </button>
+                <>
+                  {progress && progress.totalLessons > 0 && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between mb-1.5 text-xs">
+                        <span className="font-medium text-gray-700">Your progress</span>
+                        <span className="font-semibold text-[#0F766E] tabular-nums">{progress.progressPercent}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-[#0F766E] to-[#0D9488] rounded-full transition-all"
+                          style={{ width: `${progress.progressPercent}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {progress.completedLessons}/{progress.totalLessons} lessons complete
+                      </p>
+                    </div>
+                  )}
+                  <button onClick={handleContinueLearning}
+                    className="w-full py-3 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 transition flex items-center justify-center gap-2">
+                    <BookOpen size={16} /> Continue Learning
+                  </button>
+                </>
               ) : (
                 <>
                   <button onClick={handleEnroll} disabled={enrolling}
