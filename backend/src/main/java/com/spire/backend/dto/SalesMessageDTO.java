@@ -22,7 +22,12 @@ public class SalesMessageDTO {
     private String senderRole;
     private String message;
     private String attachmentUrl;
-    private boolean isQuote;
+    // NOTE: must stay Boolean (not primitive boolean). Lombok generates
+    // isQuote() for primitive boolean, and Jackson then strips the "is"
+    // prefix and serializes the field as "quote" — which broke the
+    // frontend QuoteCard rendering. With Boolean, Lombok generates
+    // getIsQuote() and Jackson keeps the property name "isQuote".
+    private Boolean isQuote;
     private BigDecimal quotedPrice;
     /** Raw JSON string of line items — frontend parses. */
     private String quotedItems;
