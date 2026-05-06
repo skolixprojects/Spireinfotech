@@ -5,7 +5,7 @@ import { useToast } from "@/components/ui/Toast";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Clock, BookOpen, Loader2, AlertCircle, Plus, ChevronLeft, Star, Trash2, ChevronDown } from "lucide-react";
+import { Clock, BookOpen, Loader2, AlertCircle, Plus, ChevronLeft, Star, Trash2, ChevronDown, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { getCourse, getCourseLessons, getCourseAssignments, enroll, createLesson, deleteLesson, checkCertificate, generateCertificate, getCourseModules, createModule, deleteModule, getMyMentorForCourse, getCourseProgress, type CourseProgress } from "@/lib/api";
 import type { MentorInfo } from "@/lib/types";
@@ -386,7 +386,12 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
               </div>
               <p className="text-sm text-gray-500 mb-6">{course.isFree ? "No payment required" : "One-time payment"}</p>
 
-              {enrolled ? (
+              {isAdmin ? (
+                // Admin supervises — they don't enroll. Direct content access.
+                <div className="w-full py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium flex items-center justify-center gap-2">
+                  <ShieldCheck size={16} /> Admin Access
+                </div>
+              ) : enrolled ? (
                 <button onClick={handleContinueLearning}
                   className="w-full py-3 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 transition flex items-center justify-center gap-2">
                   <BookOpen size={16} /> Continue Learning
@@ -398,7 +403,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
                 </button>
               )}
 
-              {enrollMsg && <p className={cn(
+              {!isAdmin && enrollMsg && <p className={cn(
                 "text-xs mt-3 text-center",
                 enrollMsg.includes("success") || enrollMsg.startsWith("You're already enrolled")
                   ? "text-teal-600" : "text-red-500"

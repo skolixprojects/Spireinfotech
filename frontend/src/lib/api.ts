@@ -137,6 +137,27 @@ export interface ProfileData extends UserDTO {
   totalLearningMinutes: number;
   lastActiveAt: string | null;
   contributions: Record<string, number>;
+  enrolledCourses: ProfileCourseSummary[] | null;
+  certificates: ProfileCertSummary[] | null;
+}
+
+export interface ProfileCourseSummary {
+  id: number;
+  title: string;
+  type: string; // COURSE | SERVICE
+  progressPercent: number;
+  completedLessons: number;
+  totalLessons: number;
+  completed: boolean;
+  enrolledAt: string | null;
+}
+
+export interface ProfileCertSummary {
+  id: number;
+  certificateId: string | null;
+  courseTitle: string | null;
+  certificateUrl: string | null;
+  issuedAt: string | null;
 }
 
 export async function getProfile(): Promise<ProfileData> {

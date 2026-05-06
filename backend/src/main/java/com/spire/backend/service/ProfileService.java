@@ -2,6 +2,7 @@ package com.spire.backend.service;
 
 import com.spire.backend.dto.ProfileDTO;
 import com.spire.backend.dto.UpdateProfileRequest;
+import com.spire.backend.entity.Certificate;
 import com.spire.backend.entity.Enrollment;
 import com.spire.backend.entity.Progress;
 import com.spire.backend.entity.User;
@@ -45,17 +46,43 @@ public class ProfileService {
         List<Enrollment> enrollments = enrollmentRepository.findByUserId(userId);
         int enrolled = enrollments.size();
 
+        // Build the per-course summary list while we already have the data,
+        // so admin oversight gets actual course titles + progress.
+        List<ProfileDTO.CourseSummary> enrolledCourses = new java.util.ArrayList<>();
         int completed = 0;
         for (Enrollment e : enrollments) {
             Long courseId = e.getCourse().getId();
             int totalLessons = lessonRepository.findByCourseIdOrderByOrderIndex(courseId).size();
             long completedLessons = progressRepository.countCompletedLessons(userId, courseId);
-            if (totalLessons > 0 && completedLessons >= totalLessons) {
-                completed++;
-            }
+            boolean isComplete = totalLessons > 0 && completedLessons >= totalLessons;
+            if (isComplete) completed++;
+
+            int progressPct = totalLessons > 0
+                    ? (int) Math.round(100.0 * completedLessons / totalLessons)
+                    : 0;
+            enrolledCourses.add(ProfileDTO.CourseSummary.builder()
+                    .id(courseId)
+                    .title(e.getCourse().getTitle())
+                    .type(e.getCourse().getType())
+                    .progressPercent(progressPct)
+                    .completedLessons((int) completedLessons)
+                    .totalLessons(totalLessons)
+                    .completed(isComplete)
+                    .enrolledAt(e.getEnrolledAt())
+                    .build());
         }
 
-        int certificates = certificateRepository.findByUserId(userId).size();
+        List<Certificate> certs = certificateRepository.findByUserId(userId);
+        int certificates = certs.size();
+        List<ProfileDTO.CertSummary> certSummaries = certs.stream()
+                .map(c -> ProfileDTO.CertSummary.builder()
+                        .id(c.getId())
+                        .certificateId(c.getCertificateId())
+                        .courseTitle(c.getCourse() != null ? c.getCourse().getTitle() : null)
+                        .certificateUrl(c.getCertificateUrl())
+                        .issuedAt(c.getIssuedAt())
+                        .build())
+                .toList();
 
         // Activity analytics — derived from the user's per-lesson Progress rows.
         List<Progress> rows = progressRepository.findByUserId(userId);
@@ -93,7 +120,7 @@ public class ProfileService {
         return ProfileDTO.from(
                 user, enrolled, completed, certificates,
                 streakDays, totalLessonsCompleted, totalLearningMinutes,
-                lastActiveAt, contributions);
+                lastActiveAt, contributions, enrolledCourses, certSummaries);
     }
 
     @Transactional

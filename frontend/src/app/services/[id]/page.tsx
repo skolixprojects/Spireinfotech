@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  Briefcase, Loader2, AlertCircle, BookOpen, ChevronLeft, ShoppingCart, ArrowRight,
+  Briefcase, Loader2, AlertCircle, BookOpen, ChevronLeft, ShoppingCart, ArrowRight, ShieldCheck,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/auth-context";
@@ -55,7 +55,8 @@ interface ModuleData {
 export default function ServiceDetailPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const isAdmin = user?.role?.toUpperCase() === "ADMIN";
   const { toast } = useToast();
 
   const [service, setService] = useState<ServiceData | null>(null);
@@ -252,7 +253,12 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
                 {service.isFree ? "No payment required" : "One-time payment"}
               </p>
 
-              {enrolled ? (
+              {isAdmin ? (
+                // Admin supervises — no enrollment, full access by role.
+                <div className="w-full py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium flex items-center justify-center gap-2">
+                  <ShieldCheck size={16} /> Admin Access
+                </div>
+              ) : enrolled ? (
                 <button
                   onClick={() => document.getElementById("service-content")?.scrollIntoView({ behavior: "smooth" })}
                   className="w-full py-3 rounded-xl bg-teal-600 text-white text-sm font-semibold hover:bg-teal-700 transition flex items-center justify-center gap-2"

@@ -98,7 +98,13 @@ public class CourseController {
         boolean hasAccess = false;
         if (authentication != null) {
             Long userId = Long.parseLong(authentication.getPrincipal().toString());
-            hasAccess = enrollmentService.isEnrolled(userId, id);
+            // Admins supervise the platform — they get full content access
+            // on every course without enrolling. Same goes for the course's
+            // owning instructor (already covered by the @PreAuthorize on
+            // edit endpoints; treated as access here too).
+            boolean isAdmin = authentication.getAuthorities()
+                    .contains(new SimpleGrantedAuthority("ROLE_ADMIN"));
+            hasAccess = isAdmin || enrollmentService.isEnrolled(userId, id);
         }
 
         boolean finalHasAccess = hasAccess;

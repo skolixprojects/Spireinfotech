@@ -7,7 +7,7 @@ import { motion } from "framer-motion";
 import {
   ArrowLeft, Phone, MapPin, Calendar, Loader2, AlertCircle,
   BookOpen, GraduationCap, Award, Flame, CheckCircle2, Clock,
-  ShieldCheck,
+  ShieldCheck, ExternalLink, Briefcase,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -300,6 +300,138 @@ export default function AdminUserDetailPage({
 
           {/* Contribution heatmap */}
           <ContributionGraph contributions={profile.contributions ?? {}} />
+
+          <hr className="my-6 border-gray-100" />
+
+          {/* Enrolled courses (full list, with progress) */}
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+              <BookOpen size={14} className="text-[#0F766E]" />
+              Enrolled Courses & Services
+              {profile.enrolledCourses && profile.enrolledCourses.length > 0 && (
+                <span className="text-xs font-normal text-gray-400">
+                  ({profile.enrolledCourses.length})
+                </span>
+              )}
+            </h2>
+            {!profile.enrolledCourses || profile.enrolledCourses.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">
+                No enrollments yet.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {profile.enrolledCourses.map((c) => {
+                  const isService = c.type === "SERVICE";
+                  const href = isService ? `/services/${c.id}` : `/courses/${c.id}`;
+                  return (
+                    <li key={c.id}>
+                      <Link
+                        href={href}
+                        className="block rounded-xl border border-gray-100 bg-white p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:border-[#0F766E]/30 hover:shadow-[0_4px_12px_rgba(0,0,0,0.04)]"
+                      >
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isService ? (
+                              <Briefcase size={14} className="text-violet-600 shrink-0" />
+                            ) : (
+                              <BookOpen size={14} className="text-[#0F766E] shrink-0" />
+                            )}
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {c.title}
+                            </p>
+                          </div>
+                          <span className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full whitespace-nowrap ${
+                            c.completed
+                              ? "bg-emerald-100 text-emerald-700"
+                              : isService
+                                ? "bg-violet-100 text-violet-700"
+                                : "bg-[#0F766E]/10 text-[#115E59]"
+                          }`}>
+                            {c.completed ? "Completed" : isService ? "Service" : "Course"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
+                          <span>{c.completedLessons}/{c.totalLessons} lessons</span>
+                          <span className="font-semibold text-[#0F766E] tabular-nums">
+                            {c.progressPercent}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              c.completed
+                                ? "bg-emerald-500"
+                                : "bg-gradient-to-r from-[#0F766E] to-[#0D9488]"
+                            }`}
+                            style={{ width: `${Math.max(0, Math.min(100, c.progressPercent))}%` }}
+                          />
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <hr className="my-6 border-gray-100" />
+
+          {/* Certificates (full list with verification links) */}
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
+              <Award size={14} className="text-amber-500" />
+              Certificates
+              {profile.certificates && profile.certificates.length > 0 && (
+                <span className="text-xs font-normal text-gray-400">
+                  ({profile.certificates.length})
+                </span>
+              )}
+            </h2>
+            {!profile.certificates || profile.certificates.length === 0 ? (
+              <p className="text-sm text-gray-400 italic">
+                No certificates earned yet.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {profile.certificates.map((cert) => (
+                  <li
+                    key={cert.id}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 bg-white"
+                  >
+                    <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
+                      <Award size={16} className="text-amber-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {cert.courseTitle ?? "Untitled course"}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {cert.issuedAt
+                          ? `Issued ${new Date(cert.issuedAt).toLocaleDateString()}`
+                          : ""}
+                        {cert.certificateId && (
+                          <>
+                            {cert.issuedAt && " · "}
+                            <span className="font-mono">{cert.certificateId}</span>
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    {cert.certificateUrl && (
+                      <a
+                        href={cert.certificateUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-[#0F766E] bg-[#0F766E]/10 hover:bg-[#0F766E]/15 transition shrink-0"
+                      >
+                        <ExternalLink size={12} /> View
+                      </a>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </motion.div>
     </section>

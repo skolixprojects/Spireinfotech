@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,6 +50,39 @@ public class ProfileDTO {
     // fills in zeroes for the missing dates.
     private Map<String, Integer> contributions;
 
+    // Detailed lists — populated for full oversight (admin user detail
+    // page consumes them). The user's own /profile page can ignore them
+    // and just use the counts; payload cost is small.
+    private List<CourseSummary> enrolledCourses;
+    private List<CertSummary> certificates;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CourseSummary {
+        private Long id;
+        private String title;
+        private String type;        // COURSE | SERVICE
+        private Integer progressPercent;
+        private Integer completedLessons;
+        private Integer totalLessons;
+        private Boolean completed;
+        private LocalDateTime enrolledAt;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CertSummary {
+        private Long id;
+        private String certificateId;   // public verification ID
+        private String courseTitle;
+        private String certificateUrl;
+        private LocalDateTime issuedAt;
+    }
+
     public static ProfileDTO from(
             User user,
             int enrolledCoursesCount,
@@ -58,7 +92,9 @@ public class ProfileDTO {
             int totalLessonsCompleted,
             int totalLearningMinutes,
             LocalDateTime lastActiveAt,
-            Map<String, Integer> contributions) {
+            Map<String, Integer> contributions,
+            List<CourseSummary> enrolledCourses,
+            List<CertSummary> certificates) {
         return ProfileDTO.builder()
                 .id(user.getId())
                 .email(user.getEmail())
@@ -78,6 +114,8 @@ public class ProfileDTO {
                 .totalLearningMinutes(totalLearningMinutes)
                 .lastActiveAt(lastActiveAt)
                 .contributions(contributions)
+                .enrolledCourses(enrolledCourses)
+                .certificates(certificates)
                 .build();
     }
 }
