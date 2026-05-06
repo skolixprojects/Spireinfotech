@@ -22,6 +22,10 @@ import {
   IndianRupee,
   Download,
   TrendingUp,
+  Megaphone,
+  Plus,
+  Edit3,
+  Save,
 } from "lucide-react";
 import {
   getAnalytics,
@@ -46,6 +50,11 @@ import {
   downloadAdminCsv,
   type RevenueSummary,
   type RevenueTransaction,
+  getAllAnnouncements,
+  createAnnouncement,
+  updateAnnouncement,
+  deleteAnnouncement,
+  type Announcement,
 } from "@/lib/api";
 import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink } from "lucide-react";
 import Link from "next/link";
@@ -59,6 +68,7 @@ const sidebarLinks = [
   { label: "Enrollments", icon: ClipboardList },
   { label: "Sessions", icon: Calendar },
   { label: "Revenue", icon: IndianRupee },
+  { label: "Announcements", icon: Megaphone },
   { label: "Mentor Pools", icon: GraduationCap },
   { label: "Instructor Requests", icon: UserCheck },
 ];
@@ -173,8 +183,84 @@ function AdminContent() {
   const [transactionsLoading, setTransactionsLoading] = useState(false);
   const [revenueStatusFilter, setRevenueStatusFilter] = useState<string>("All");
 
+  // Announcements tab — full list (active + inactive + expired)
+  const [announcements, setAnnouncements] = useState<Announcement[] | null>(null);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(false);
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<number | "new" | null>(null);
+  const [annDraft, setAnnDraft] = useState<{
+    title: string;
+    message: string;
+    type: "INFO" | "SUCCESS" | "WARNING";
+    isActive: boolean;
+    expiresAt: string;
+  }>({ title: "", message: "", type: "INFO", isActive: true, expiresAt: "" });
+  const [annBusy, setAnnBusy] = useState(false);
+
   // CSV export — track which export is in flight to disable its button.
   const [exportingKind, setExportingKind] = useState<string | null>(null);
+  const beginCreateAnnouncement = () => {
+    setEditingAnnouncementId("new");
+    setAnnDraft({ title: "", message: "", type: "INFO", isActive: true, expiresAt: "" });
+  };
+  const beginEditAnnouncement = (a: Announcement) => {
+    setEditingAnnouncementId(a.id);
+    setAnnDraft({
+      title: a.title,
+      message: a.message,
+      type: a.type,
+      isActive: a.isActive,
+      expiresAt: a.expiresAt ? a.expiresAt.slice(0, 10) : "",
+    });
+  };
+  const cancelAnnouncementEdit = () => {
+    setEditingAnnouncementId(null);
+  };
+  const saveAnnouncement = async () => {
+    if (!annDraft.title.trim() || !annDraft.message.trim()) {
+      setActionMsg({ type: "error", text: "Title and message are required." });
+      return;
+    }
+    setAnnBusy(true);
+    try {
+      const payload = {
+        title: annDraft.title.trim(),
+        message: annDraft.message.trim(),
+        type: annDraft.type,
+        isActive: annDraft.isActive,
+        expiresAt: annDraft.expiresAt ? annDraft.expiresAt : null,
+      };
+      if (editingAnnouncementId === "new") {
+        const created = await createAnnouncement(payload);
+        setAnnouncements((prev) => [created, ...(prev ?? [])]);
+        setActionMsg({ type: "success", text: "Announcement created." });
+      } else if (typeof editingAnnouncementId === "number") {
+        const updated = await updateAnnouncement(editingAnnouncementId, payload);
+        setAnnouncements((prev) =>
+          (prev ?? []).map((a) => (a.id === updated.id ? updated : a))
+        );
+        setActionMsg({ type: "success", text: "Announcement updated." });
+      }
+      setEditingAnnouncementId(null);
+    } catch (err) {
+      setActionMsg({ type: "error", text: err instanceof Error ? err.message : "Save failed" });
+    } finally {
+      setAnnBusy(false);
+    }
+  };
+  const removeAnnouncement = async (id: number) => {
+    if (!confirm("Delete this announcement? Students who haven't dismissed it will stop seeing it.")) return;
+    setAnnBusy(true);
+    try {
+      await deleteAnnouncement(id);
+      setAnnouncements((prev) => (prev ?? []).filter((a) => a.id !== id));
+      setActionMsg({ type: "success", text: "Announcement deleted." });
+    } catch (err) {
+      setActionMsg({ type: "error", text: err instanceof Error ? err.message : "Delete failed" });
+    } finally {
+      setAnnBusy(false);
+    }
+  };
+
   const handleExport = async (kind: "users" | "enrollments" | "sessions" | "revenue") => {
     setExportingKind(kind);
     try {
@@ -261,7 +347,14 @@ function AdminContent() {
         .catch((err) => setError(err instanceof Error ? err.message : "Failed to load transactions"))
         .finally(() => setTransactionsLoading(false));
     }
-  }, [activeTab, enrollmentsRows, enrollmentsLoading, sessionsRows, sessionsLoading, revenue, revenueLoading, transactions, transactionsLoading]);
+    if (activeTab === "Announcements" && announcements === null && !announcementsLoading) {
+      setAnnouncementsLoading(true);
+      getAllAnnouncements()
+        .then((rows) => setAnnouncements(rows ?? []))
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load announcements"))
+        .finally(() => setAnnouncementsLoading(false));
+    }
+  }, [activeTab, enrollmentsRows, enrollmentsLoading, sessionsRows, sessionsLoading, revenue, revenueLoading, transactions, transactionsLoading, announcements, announcementsLoading]);
 
   // Handle course actions
   const handleDeleteCourse = async (courseId: number) => {
@@ -1102,6 +1195,191 @@ function AdminContent() {
                     </GlassCard>
                   )}
                 </>
+              )}
+            </>
+          )}
+
+          {/* ──────────── Announcements Tab ──────────── */}
+          {activeTab === "Announcements" && (
+            <>
+              <div className="flex items-center justify-between mb-6 gap-4">
+                <h1 className="text-2xl font-bold text-[#0F766E]">Announcements</h1>
+                <button
+                  onClick={beginCreateAnnouncement}
+                  disabled={editingAnnouncementId === "new"}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+                >
+                  <Plus size={12} /> New Announcement
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mb-6">
+                Active announcements appear at the top of every student dashboard. Students can dismiss them; setting <span className="font-mono text-xs">isActive=false</span> or an expiry hides them platform-wide.
+              </p>
+
+              {actionMsg && (
+                <div
+                  className={`mb-6 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm ${
+                    actionMsg.type === "success"
+                      ? "bg-teal-50 border-teal-200 text-teal-700"
+                      : "bg-red-50 border-red-200 text-red-700"
+                  }`}
+                >
+                  {actionMsg.type === "success" ? <CheckCircle2 size={16} /> : <AlertCircle size={16} />}
+                  {actionMsg.text}
+                  <button onClick={() => setActionMsg(null)} className="ml-auto opacity-60 hover:opacity-100 cursor-pointer">
+                    <XCircle size={16} />
+                  </button>
+                </div>
+              )}
+
+              {/* New / edit form */}
+              {editingAnnouncementId !== null && (
+                <GlassCard className="mb-6">
+                  <h3 className="font-semibold text-[#0F766E] mb-3 text-sm">
+                    {editingAnnouncementId === "new" ? "Create announcement" : `Edit announcement #${editingAnnouncementId}`}
+                  </h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-600">Title</label>
+                      <input
+                        type="text"
+                        value={annDraft.title}
+                        onChange={(e) => setAnnDraft((d) => ({ ...d, title: e.target.value }))}
+                        placeholder="e.g., Scheduled maintenance Sunday 9pm IST"
+                        className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F766E]/30"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-600">Message</label>
+                      <textarea
+                        value={annDraft.message}
+                        onChange={(e) => setAnnDraft((d) => ({ ...d, message: e.target.value }))}
+                        rows={3}
+                        placeholder="Body text shown under the title"
+                        className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#0F766E]/30"
+                      />
+                    </div>
+                    <div className="grid sm:grid-cols-3 gap-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-600">Type</label>
+                        <select
+                          value={annDraft.type}
+                          onChange={(e) => setAnnDraft((d) => ({ ...d, type: e.target.value as Announcement["type"] }))}
+                          className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+                        >
+                          <option value="INFO">Info (teal)</option>
+                          <option value="SUCCESS">Success (green)</option>
+                          <option value="WARNING">Warning (amber)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600">Expires (optional)</label>
+                        <input
+                          type="date"
+                          value={annDraft.expiresAt}
+                          onChange={(e) => setAnnDraft((d) => ({ ...d, expiresAt: e.target.value }))}
+                          className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm"
+                        />
+                      </div>
+                      <div className="flex items-end">
+                        <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={annDraft.isActive}
+                            onChange={(e) => setAnnDraft((d) => ({ ...d, isActive: e.target.checked }))}
+                            className="w-4 h-4 rounded border-gray-300 text-[#0F766E] focus:ring-[#0F766E]"
+                          />
+                          Active (visible to students)
+                        </label>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <button
+                        onClick={saveAnnouncement}
+                        disabled={annBusy}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+                      >
+                        {annBusy ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+                        {editingAnnouncementId === "new" ? "Create" : "Save changes"}
+                      </button>
+                      <button
+                        onClick={cancelAnnouncementEdit}
+                        disabled={annBusy}
+                        className="px-4 py-2 rounded-lg text-xs font-medium text-gray-600 border border-gray-300 hover:bg-gray-100 disabled:opacity-50 transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </GlassCard>
+              )}
+
+              {/* List */}
+              {announcementsLoading ? (
+                <Spinner />
+              ) : !announcements || announcements.length === 0 ? (
+                <GlassCard>
+                  <p className="text-center text-gray-400 py-8">
+                    No announcements yet. Click <span className="font-semibold text-[#0F766E]">New Announcement</span> to broadcast one.
+                  </p>
+                </GlassCard>
+              ) : (
+                <div className="space-y-3">
+                  {announcements.map((a) => {
+                    const expired = a.expiresAt && new Date(a.expiresAt) < new Date();
+                    return (
+                      <GlassCard key={a.id}>
+                        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <h3 className="font-semibold text-gray-900">{a.title}</h3>
+                              <span className={cn(
+                                "text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full",
+                                a.type === "INFO" && "bg-teal-100 text-teal-700",
+                                a.type === "SUCCESS" && "bg-emerald-100 text-emerald-700",
+                                a.type === "WARNING" && "bg-amber-100 text-amber-700",
+                              )}>
+                                {a.type}
+                              </span>
+                              {a.isActive && !expired ? (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                  LIVE
+                                </span>
+                              ) : (
+                                <span className="text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                                  {expired ? "EXPIRED" : "INACTIVE"}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 whitespace-pre-wrap">{a.message}</p>
+                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-400 flex-wrap">
+                              <span>Created {new Date(a.createdAt).toLocaleDateString()}</span>
+                              {a.createdByName && <span>by {a.createdByName}</span>}
+                              {a.expiresAt && (
+                                <span>Expires {new Date(a.expiresAt).toLocaleDateString()}</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              onClick={() => beginEditAnnouncement(a)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition cursor-pointer"
+                            >
+                              <Edit3 size={12} /> Edit
+                            </button>
+                            <button
+                              onClick={() => removeAnnouncement(a.id)}
+                              disabled={annBusy}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 disabled:opacity-50 transition cursor-pointer"
+                            >
+                              <Trash2 size={12} /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      </GlassCard>
+                    );
+                  })}
+                </div>
               )}
             </>
           )}

@@ -532,6 +532,61 @@ export async function getRevenueTransactions(params?: {
 // CSV endpoints stream a text/csv body — bypass apiFetch (which expects
 // JSON) and trigger a browser download via blob URL.
 
+// ─── Announcements ──────────────────────────────────────────────────
+
+export interface Announcement {
+  id: number;
+  title: string;
+  message: string;
+  type: "INFO" | "SUCCESS" | "WARNING";
+  isActive: boolean;
+  expiresAt: string | null;
+  createdAt: string;
+  createdByName: string | null;
+}
+
+export async function getActiveAnnouncements() {
+  const wrapper = await apiFetch<ApiResponse<Announcement[]>>("/api/announcements/active");
+  return wrapper.data;
+}
+
+export async function getAllAnnouncements() {
+  const wrapper = await apiFetch<ApiResponse<Announcement[]>>("/api/announcements");
+  return wrapper.data;
+}
+
+export async function createAnnouncement(data: {
+  title: string;
+  message: string;
+  type: "INFO" | "SUCCESS" | "WARNING";
+  isActive?: boolean;
+  expiresAt?: string | null;
+}) {
+  const wrapper = await apiFetch<ApiResponse<Announcement>>("/api/announcements", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return wrapper.data;
+}
+
+export async function updateAnnouncement(id: number, data: Partial<{
+  title: string;
+  message: string;
+  type: "INFO" | "SUCCESS" | "WARNING";
+  isActive: boolean;
+  expiresAt: string | null;
+}>) {
+  const wrapper = await apiFetch<ApiResponse<Announcement>>(`/api/announcements/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+  return wrapper.data;
+}
+
+export async function deleteAnnouncement(id: number) {
+  return apiFetch<ApiResponse<unknown>>(`/api/announcements/${id}`, { method: "DELETE" });
+}
+
 export async function downloadAdminCsv(kind: "users" | "enrollments" | "sessions" | "revenue") {
   const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
   const res = await fetch(`${BASE_URL}/api/admin/export/${kind}`, {

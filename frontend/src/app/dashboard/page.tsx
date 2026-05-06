@@ -23,6 +23,7 @@ import { SessionsList } from "@/components/mentorship/SessionsList";
 import { PendingRequests } from "@/components/mentorship/PendingRequests";
 import { MentorSessionsList } from "@/components/mentorship/MentorSessionsList";
 import { NextActionHero } from "@/components/dashboard/NextActionHero";
+import { AnnouncementsBanner } from "@/components/dashboard/AnnouncementsBanner";
 import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
 import type { SessionRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -220,6 +221,9 @@ export default function DashboardPage() {
         />
       )}
       <motion.div {...fadeUp}>
+        {/* Platform-wide announcements (admin-managed) */}
+        <AnnouncementsBanner />
+
         {/* Greeting */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-8">
           <div>
