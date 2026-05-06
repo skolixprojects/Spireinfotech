@@ -19,10 +19,15 @@ import java.util.List;
 @Repository
 public interface UserRecordRepository extends JpaRepository<UserRecord, Long> {
 
+    // PostgreSQL can't infer the type of a `:param IS NULL` JPQL
+     // parameter when it's actually null, so callers always pass
+    // sentinel values: empty string for category, far-past / far-future
+    // timestamps for the date range. Hibernate then binds proper types
+    // and the (:category = '' OR ...) form acts as the "no filter" path.
     @Query("SELECT r FROM UserRecord r WHERE r.userId = :userId " +
-           "AND (:category IS NULL OR r.category = :category) " +
-           "AND (:from IS NULL OR r.createdAt >= :from) " +
-           "AND (:to IS NULL OR r.createdAt <= :to) " +
+           "AND (:category = '' OR r.category = :category) " +
+           "AND r.createdAt >= :from " +
+           "AND r.createdAt <= :to " +
            "ORDER BY r.createdAt DESC")
     Page<UserRecord> findForUser(@Param("userId") Long userId,
                                   @Param("category") String category,
@@ -38,13 +43,14 @@ public interface UserRecordRepository extends JpaRepository<UserRecord, Long> {
 
     long countByUserId(Long userId);
 
-    // Cross-user search for the admin investigation tool.
+    // Cross-user search for the admin investigation tool. Same
+    // sentinel-value pattern as findForUser.
     @Query("SELECT r FROM UserRecord r WHERE " +
            "(LOWER(r.title) LIKE LOWER(CONCAT('%', :q, '%')) " +
            " OR LOWER(r.description) LIKE LOWER(CONCAT('%', :q, '%')) " +
            " OR LOWER(r.recordType) LIKE LOWER(CONCAT('%', :q, '%'))) " +
-           "AND (:from IS NULL OR r.createdAt >= :from) " +
-           "AND (:to IS NULL OR r.createdAt <= :to) " +
+           "AND r.createdAt >= :from " +
+           "AND r.createdAt <= :to " +
            "ORDER BY r.createdAt DESC")
     Page<UserRecord> searchAll(@Param("q") String query,
                                 @Param("from") LocalDateTime from,

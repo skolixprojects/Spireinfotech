@@ -43,6 +43,11 @@ public class RecordController {
 
     private static final DateTimeFormatter CSV_TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
+    // Sentinel values for the "no filter" case — see UserRecordRepository
+    // for why we can't pass nulls through the JPQL query on PostgreSQL.
+    private static final LocalDateTime FAR_PAST = LocalDateTime.of(1970, 1, 1, 0, 0);
+    private static final LocalDateTime FAR_FUTURE = LocalDateTime.of(9999, 12, 31, 23, 59, 59);
+
     @GetMapping("/api/admin/users/{userId}/records")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getUserRecords(
@@ -55,9 +60,9 @@ public class RecordController {
 
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200));
         String cat = (category == null || category.isBlank() || "ALL".equalsIgnoreCase(category))
-                ? null : category.toUpperCase();
-        LocalDateTime fromTs = from != null ? from.atStartOfDay() : null;
-        LocalDateTime toTs = to != null ? to.atTime(23, 59, 59) : null;
+                ? "" : category.toUpperCase();
+        LocalDateTime fromTs = from != null ? from.atStartOfDay() : FAR_PAST;
+        LocalDateTime toTs = to != null ? to.atTime(23, 59, 59) : FAR_FUTURE;
 
         Page<UserRecord> result = recordRepository.findForUser(userId, cat, fromTs, toTs, pageable);
 
@@ -140,8 +145,8 @@ public class RecordController {
             @RequestParam(defaultValue = "50") int size) {
 
         Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200));
-        LocalDateTime fromTs = from != null ? from.atStartOfDay() : null;
-        LocalDateTime toTs = to != null ? to.atTime(23, 59, 59) : null;
+        LocalDateTime fromTs = from != null ? from.atStartOfDay() : FAR_PAST;
+        LocalDateTime toTs = to != null ? to.atTime(23, 59, 59) : FAR_FUTURE;
 
         Page<UserRecord> result = recordRepository.searchAll(query.trim(), fromTs, toTs, pageable);
         List<UserRecordDTO> dtos = result.getContent().stream().map(UserRecordDTO::from).toList();
