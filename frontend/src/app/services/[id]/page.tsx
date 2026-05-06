@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  Briefcase, Loader2, AlertCircle, BookOpen, ChevronLeft, ShoppingCart, ArrowRight, ShieldCheck,
+  Briefcase, Loader2, AlertCircle, BookOpen, ChevronLeft, ShoppingCart, ArrowRight, ShieldCheck, MessageSquare,
 } from "lucide-react";
+import { ContactSalesModal } from "@/components/sales/ContactSalesModal";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -68,6 +69,7 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
   const [enrolled, setEnrolled] = useState(false);
   const [selectedLessonId, setSelectedLessonId] = useState<number | null>(null);
   const [enrollMsg, setEnrollMsg] = useState("");
+  const [showContactSales, setShowContactSales] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -280,12 +282,26 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
                   )}
                 </button>
               ) : (
-                <button
-                  onClick={handleAddToCart}
-                  className="w-full py-3 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition flex items-center justify-center gap-2"
-                >
-                  <ShoppingCart size={16} /> Add to Cart
-                </button>
+                <>
+                  <button
+                    onClick={handleAddToCart}
+                    className="w-full py-3 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-700 transition flex items-center justify-center gap-2"
+                  >
+                    <ShoppingCart size={16} /> Add to Cart
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!isAuthenticated) { router.push(`/login?redirect=/services/${id}`); return; }
+                      setShowContactSales(true);
+                    }}
+                    className="w-full mt-2 py-3 rounded-xl border-2 border-violet-600 text-violet-600 text-sm font-semibold hover:bg-violet-50 transition flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <MessageSquare size={16} /> Contact Sales
+                  </button>
+                  <p className="text-[11px] text-gray-500 mt-2 text-center">
+                    or contact our team for custom pricing and bundle offers
+                  </p>
+                </>
               )}
 
               {enrollMsg && (
@@ -375,6 +391,14 @@ export default function ServiceDetailPage({ params }: { params: { id: string } }
           )}
         </motion.div>
       </motion.div>
+
+      <ContactSalesModal
+        isOpen={showContactSales}
+        onClose={() => setShowContactSales(false)}
+        courseId={service.id}
+        courseTitle={service.title}
+        listedPrice={service.price}
+      />
     </section>
   );
 }

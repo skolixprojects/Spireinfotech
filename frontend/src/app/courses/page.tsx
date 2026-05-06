@@ -224,7 +224,7 @@ export default function CoursesPage() {
                     ) : (
                       <>
                         {!course.isFree && (
-                          <p className="mt-2 text-sm font-semibold text-gray-900">₹{course.price}</p>
+                          <p className="mt-2 text-sm font-semibold text-gray-900">₹{Number(course.price).toLocaleString("en-IN")}</p>
                         )}
                         <div className="mt-3" onClick={(e) => e.preventDefault()}>
                           {course.isFree ? (
