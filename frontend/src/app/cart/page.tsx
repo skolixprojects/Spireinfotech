@@ -4,9 +4,10 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Loader2, Trash2, ShoppingCart, ArrowRight } from "lucide-react";
+import { Loader2, Trash2, ShoppingCart, ArrowRight, ShieldCheck } from "lucide-react";
 import { getCart, removeFromCart, clearCart, checkoutCart } from "@/lib/api";
 import { friendlyEnrollmentError } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 interface CartCourse {
   id: number;
@@ -21,6 +22,8 @@ interface CartCourse {
 
 export default function CartPage() {
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
+  const isAdmin = user?.role?.toUpperCase() === "ADMIN";
   const [items, setItems] = useState<CartCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -74,6 +77,40 @@ export default function CartPage() {
   };
 
   const total = items.reduce((sum, c) => sum + (c.price || 0), 0);
+
+  // Admin supervises — they don't shop. Show a message instead of the cart.
+  if (!authLoading && isAdmin) {
+    return (
+      <section className="mx-auto max-w-2xl px-6 pt-32 pb-20 min-h-screen" style={{ backgroundColor: "#F0EDE8" }}>
+        <div className="bg-white rounded-2xl border border-amber-200 shadow-sm p-8 text-center">
+          <div className="w-14 h-14 rounded-full bg-amber-100 mx-auto flex items-center justify-center mb-4">
+            <ShieldCheck size={26} className="text-amber-500" />
+          </div>
+          <h1 className="font-serif text-2xl font-bold text-gray-900 mb-2">
+            Admin accounts don&apos;t use the cart
+          </h1>
+          <p className="text-sm text-gray-600 leading-relaxed mb-6 max-w-md mx-auto">
+            You supervise the platform — admins have direct preview access to all
+            courses and services without enrolling or purchasing.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => router.push("/admin")}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg bg-[#0F766E] text-white text-sm font-semibold hover:bg-[#134E4A] transition"
+            >
+              Go to Admin <ArrowRight size={14} />
+            </button>
+            <Link
+              href="/courses"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+            >
+              Browse Courses
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="mx-auto max-w-4xl px-6 pt-32 pb-20 min-h-screen" style={{ backgroundColor: "#F0EDE8" }}>

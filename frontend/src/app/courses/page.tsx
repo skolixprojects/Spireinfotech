@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/Toast";
-import { Search, Clock, Loader2, ShoppingCart } from "lucide-react";
+import { Search, Clock, Loader2, ShoppingCart, ShieldCheck, Eye } from "lucide-react";
 import { getCourses, addToCart, enroll, getDashboardSummary } from "@/lib/api";
 import { LEVELS } from "@/lib/constants";
 import { cn, friendlyEnrollmentError } from "@/lib/utils";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { useAuth } from "@/lib/auth-context";
 
 const allLevels = ["All", ...LEVELS] as const;
 
@@ -33,6 +34,8 @@ interface CourseItem {
 
 export default function CoursesPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role?.toUpperCase() === "ADMIN";
   const [selectedLevel, setSelectedLevel] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [courses, setCourses] = useState<CourseItem[]>([]);
@@ -196,7 +199,13 @@ export default function CoursesPage() {
                       </span>
                     </div>
 
-                    {progressByCourseId[course.id] !== undefined ? (
+                    {isAdmin ? (
+                      <div className="mt-3">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                          <ShieldCheck size={12} /> Preview <Eye size={12} />
+                        </span>
+                      </div>
+                    ) : progressByCourseId[course.id] !== undefined ? (
                       <div className="mt-3">
                         <div className="flex items-center justify-between mb-1.5">
                           <span className="text-xs font-medium text-gray-700">

@@ -28,12 +28,21 @@ public class EnrollmentService {
 
     @Transactional
     public void enrollUser(Long userId, Long courseId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        // Admin is a supervisor, not a student. Block enrollment so the
+        // role can't accidentally land in courses/cart flows. Admins use
+        // the preview path on /admin to view content without enrolling.
+        if (user.getRole() != null && "ADMIN".equals(user.getRole().getName())) {
+            throw new IllegalArgumentException(
+                    "Admin accounts cannot enroll in courses. Use admin preview to view content.");
+        }
+
         if (enrollmentRepository.existsByUserIdAndCourseId(userId, courseId)) {
             throw new IllegalArgumentException("Already enrolled in this course");
         }
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         Course course = courseRepository.findById(courseId)
                 .orElseThrow(() -> new ResourceNotFoundException("Course", "id", courseId));
 

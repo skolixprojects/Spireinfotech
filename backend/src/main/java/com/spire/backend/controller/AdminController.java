@@ -1,5 +1,7 @@
 package com.spire.backend.controller;
 
+import com.spire.backend.dto.AdminEnrollmentRow;
+import com.spire.backend.dto.AdminSessionRow;
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.dto.CourseDTO;
 import com.spire.backend.dto.InstructorRequestDTO;
@@ -12,6 +14,7 @@ import com.spire.backend.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -54,6 +57,33 @@ public class AdminController {
         }
         UserDTO user = adminService.updateUserRole(id, role);
         return ResponseEntity.ok(ApiResponse.success("Role updated", user));
+    }
+
+    @PutMapping("/users/{id}/status")
+    public ResponseEntity<ApiResponse<UserDTO>> updateUserStatus(
+            @PathVariable Long id,
+            @RequestBody Map<String, Boolean> body,
+            Authentication authentication) {
+        Boolean active = body.get("active");
+        if (active == null) {
+            throw new IllegalArgumentException("'active' field is required");
+        }
+        Long currentAdminId = Long.parseLong(authentication.getPrincipal().toString());
+        UserDTO user = adminService.updateUserStatus(id, currentAdminId, active);
+        return ResponseEntity.ok(ApiResponse.success(
+                active ? "User activated" : "User deactivated", user));
+    }
+
+    // ─── Platform-wide oversight ────────────────────────────────────
+
+    @GetMapping("/enrollments")
+    public ResponseEntity<ApiResponse<List<AdminEnrollmentRow>>> getAllEnrollments() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAllEnrollments()));
+    }
+
+    @GetMapping("/sessions")
+    public ResponseEntity<ApiResponse<List<AdminSessionRow>>> getAllSessions() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAllSessions()));
     }
 
     // ─── All Courses (including unpublished) ─────────────────────────

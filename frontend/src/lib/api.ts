@@ -200,6 +200,65 @@ export async function updateUserRoleAsAdmin(userId: number | string, role: strin
   return wrapper.data;
 }
 
+// Admin: activate/deactivate a user account.
+export async function updateUserStatusAsAdmin(userId: number | string, active: boolean) {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/admin/users/${userId}/status`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ active }),
+    }
+  );
+  return wrapper.data;
+}
+
+// Admin: every enrollment on the platform with mentor + progress resolved.
+export interface AdminEnrollmentRow {
+  enrollmentId: number;
+  userId: number;
+  studentName: string;
+  studentEmail: string;
+  courseId: number;
+  courseTitle: string;
+  courseType: string; // COURSE | SERVICE
+  enrolledAt: string;
+  progressPercent: number;
+  completedLessons: number;
+  totalLessons: number;
+  completed: boolean;
+  mentorName: string | null;
+  mentorAssignmentStatus: string | null;
+}
+
+export async function getAdminEnrollments() {
+  const wrapper = await apiFetch<ApiResponse<AdminEnrollmentRow[]>>(
+    "/api/admin/enrollments"
+  );
+  return wrapper.data;
+}
+
+// Admin: every session request on the platform.
+export interface AdminSessionRow {
+  sessionId: number;
+  studentName: string | null;
+  studentEmail: string | null;
+  mentorName: string | null;
+  courseTitle: string | null;
+  status: string;
+  topic: string | null;
+  requestedAt: string | null;
+  scheduledAt: string | null;
+  completedAt: string | null;
+  meetingUrl: string | null;
+}
+
+export async function getAdminSessions() {
+  const wrapper = await apiFetch<ApiResponse<AdminSessionRow[]>>(
+    "/api/admin/sessions"
+  );
+  return wrapper.data;
+}
+
 export async function completeOnboarding(): Promise<UserDTO> {
   const wrapper = await apiFetch<ApiResponse<UserDTO>>(
     "/api/users/complete-onboarding",

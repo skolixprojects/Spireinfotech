@@ -34,8 +34,12 @@ import {
   addMentorToCourse,
   removeMentorFromCourse,
   type CourseMentor,
+  getAdminEnrollments,
+  getAdminSessions,
+  type AdminEnrollmentRow,
+  type AdminSessionRow,
 } from "@/lib/api";
-import { Eye, Trash2, Globe, GlobeLock } from "lucide-react";
+import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { cn } from "@/lib/utils";
@@ -44,14 +48,28 @@ const sidebarLinks = [
   { label: "Overview", icon: LayoutDashboard },
   { label: "Users", icon: Users },
   { label: "Courses", icon: BookOpen },
+  { label: "Enrollments", icon: ClipboardList },
+  { label: "Sessions", icon: Calendar },
   { label: "Mentor Pools", icon: GraduationCap },
   { label: "Instructor Requests", icon: UserCheck },
 ];
 
 interface Analytics {
   totalUsers: number;
+  totalStudents?: number;
+  totalInstructors?: number;
+  totalTrainers?: number;
   totalCourses: number;
+  totalServices?: number;
   totalEnrollments: number;
+  totalCompletions?: number;
+  totalCertificates?: number;
+  totalSessionRequests?: number;
+  totalSessionsPending?: number;
+  totalSessionsAccepted?: number;
+  totalSessionsCompleted?: number;
+  activeUsersLast7Days?: number;
+  activeUsersLast30Days?: number;
 }
 
 interface User {
@@ -125,6 +143,16 @@ function AdminContent() {
   const [expandedCourseId, setExpandedCourseId] = useState<number | null>(null);
   const [mentorsByCourse, setMentorsByCourse] = useState<Record<number, CourseMentor[]>>({});
   const [loadingPoolFor, setLoadingPoolFor] = useState<number | null>(null);
+
+  // Admin oversight tabs — lazy-loaded when the tab is first opened
+  const [enrollmentsRows, setEnrollmentsRows] = useState<AdminEnrollmentRow[] | null>(null);
+  const [enrollmentsLoading, setEnrollmentsLoading] = useState(false);
+  const [enrollmentCourseFilter, setEnrollmentCourseFilter] = useState<string>("All");
+  const [enrollmentStatusFilter, setEnrollmentStatusFilter] = useState<"All" | "Active" | "Completed">("All");
+
+  const [sessionsRows, setSessionsRows] = useState<AdminSessionRow[] | null>(null);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
+  const [sessionStatusFilter, setSessionStatusFilter] = useState<string>("All");
   const [addPanelFor, setAddPanelFor] = useState<number | null>(null);
   const [selectedMentorId, setSelectedMentorId] = useState<string>("");
   const [poolBusy, setPoolBusy] = useState(false);
@@ -172,6 +200,24 @@ function AdminContent() {
   useEffect(() => {
     fetchRequests();
   }, []);
+
+  // Lazy-load oversight tabs the first time their sidebar entry is opened
+  useEffect(() => {
+    if (activeTab === "Enrollments" && enrollmentsRows === null && !enrollmentsLoading) {
+      setEnrollmentsLoading(true);
+      getAdminEnrollments()
+        .then((rows) => setEnrollmentsRows(rows ?? []))
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load enrollments"))
+        .finally(() => setEnrollmentsLoading(false));
+    }
+    if (activeTab === "Sessions" && sessionsRows === null && !sessionsLoading) {
+      setSessionsLoading(true);
+      getAdminSessions()
+        .then((rows) => setSessionsRows(rows ?? []))
+        .catch((err) => setError(err instanceof Error ? err.message : "Failed to load sessions"))
+        .finally(() => setSessionsLoading(false));
+    }
+  }, [activeTab, enrollmentsRows, enrollmentsLoading, sessionsRows, sessionsLoading]);
 
   // Handle course actions
   const handleDeleteCourse = async (courseId: number) => {
@@ -275,12 +321,17 @@ function AdminContent() {
     }
   };
 
-  // Stats cards derived from analytics
+  // Stats cards derived from analytics — extended set for full oversight.
   const statCards = analytics
     ? [
         { label: "Total Users", value: analytics.totalUsers.toLocaleString(), icon: Users },
-        { label: "Total Courses", value: analytics.totalCourses.toLocaleString(), icon: BookOpen },
+        { label: "Courses", value: (analytics.totalCourses ?? 0).toLocaleString(), icon: BookOpen },
+        { label: "Services", value: (analytics.totalServices ?? 0).toLocaleString(), icon: BookOpen },
         { label: "Enrollments", value: analytics.totalEnrollments.toLocaleString(), icon: CreditCard },
+        { label: "Completions", value: (analytics.totalCompletions ?? 0).toLocaleString(), icon: GraduationCap },
+        { label: "Certificates", value: (analytics.totalCertificates ?? 0).toLocaleString(), icon: UserCheck },
+        { label: "Pending Sessions", value: (analytics.totalSessionsPending ?? 0).toLocaleString(), icon: Calendar },
+        { label: "Active (7d)", value: (analytics.activeUsersLast7Days ?? 0).toLocaleString(), icon: Users },
       ]
     : [];
 
@@ -548,6 +599,232 @@ function AdminContent() {
                     </div>
                   )}
                 </>
+              )}
+            </>
+          )}
+
+          {/* ──────────── Enrollments Tab ──────────── */}
+          {activeTab === "Enrollments" && (
+            <>
+              <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold text-[#0F766E]">All Enrollments</h1>
+                <p className="text-xs text-gray-400">
+                  {enrollmentsRows ? `${enrollmentsRows.length} total` : ""}
+                </p>
+              </div>
+
+              {/* Filters */}
+              <div className="flex flex-wrap gap-3 mb-4 text-sm">
+                <select
+                  value={enrollmentCourseFilter}
+                  onChange={(e) => setEnrollmentCourseFilter(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-gray-300 bg-white"
+                >
+                  <option value="All">All courses & services</option>
+                  {(enrollmentsRows ?? [])
+                    .map((r) => r.courseTitle)
+                    .filter((t, i, arr) => arr.indexOf(t) === i)
+                    .sort()
+                    .map((title) => (
+                      <option key={title} value={title}>{title}</option>
+                    ))}
+                </select>
+                <select
+                  value={enrollmentStatusFilter}
+                  onChange={(e) => setEnrollmentStatusFilter(e.target.value as "All" | "Active" | "Completed")}
+                  className="px-3 py-2 rounded-lg border border-gray-300 bg-white"
+                >
+                  <option value="All">All statuses</option>
+                  <option value="Active">Active (in progress)</option>
+                  <option value="Completed">Completed</option>
+                </select>
+              </div>
+
+              {enrollmentsLoading ? (
+                <Spinner />
+              ) : !enrollmentsRows || enrollmentsRows.length === 0 ? (
+                <GlassCard>
+                  <p className="text-center text-gray-400 py-8">No enrollments yet.</p>
+                </GlassCard>
+              ) : (
+                <GlassCard className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b border-gray-100">
+                        <th className="pb-3 font-medium">Student</th>
+                        <th className="pb-3 font-medium">Course / Service</th>
+                        <th className="pb-3 font-medium">Mentor</th>
+                        <th className="pb-3 font-medium">Progress</th>
+                        <th className="pb-3 font-medium">Status</th>
+                        <th className="pb-3 font-medium">Enrolled</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {enrollmentsRows
+                        .filter((r) => enrollmentCourseFilter === "All" || r.courseTitle === enrollmentCourseFilter)
+                        .filter((r) => {
+                          if (enrollmentStatusFilter === "All") return true;
+                          if (enrollmentStatusFilter === "Completed") return r.completed;
+                          return !r.completed;
+                        })
+                        .map((r) => (
+                          <tr
+                            key={r.enrollmentId}
+                            onClick={() => router.push(`/admin/users/${r.userId}`)}
+                            className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-[#0F766E]/5 transition-colors"
+                          >
+                            <td className="py-3">
+                              <p className="font-medium text-[#1a1a1a]">{r.studentName}</p>
+                              <p className="text-xs text-gray-400">{r.studentEmail}</p>
+                            </td>
+                            <td className="py-3">
+                              <span className={cn(
+                                "inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full mr-2",
+                                r.courseType === "SERVICE" ? "bg-violet-100 text-violet-700" : "bg-teal-100 text-teal-700"
+                              )}>
+                                {r.courseType === "SERVICE" ? "Service" : "Course"}
+                              </span>
+                              {r.courseTitle}
+                            </td>
+                            <td className="py-3 text-gray-700">
+                              {r.mentorName ?? (r.courseType === "SERVICE" ? "—" : <span className="text-amber-600 text-xs">{r.mentorAssignmentStatus ?? "Unassigned"}</span>)}
+                            </td>
+                            <td className="py-3 min-w-[160px]">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                  <div
+                                    className={cn(
+                                      "h-full rounded-full",
+                                      r.completed ? "bg-emerald-500" : "bg-gradient-to-r from-[#0F766E] to-[#0D9488]"
+                                    )}
+                                    style={{ width: `${Math.max(0, Math.min(100, r.progressPercent))}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs font-semibold text-gray-700 tabular-nums w-10 text-right">
+                                  {r.progressPercent}%
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-gray-400 mt-0.5">{r.completedLessons}/{r.totalLessons} lessons</p>
+                            </td>
+                            <td className="py-3">
+                              <span className={cn(
+                                "inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full",
+                                r.completed
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-gray-100 text-gray-600"
+                              )}>
+                                {r.completed ? "Completed" : "Active"}
+                              </span>
+                            </td>
+                            <td className="py-3 text-xs text-gray-400">
+                              {r.enrolledAt ? new Date(r.enrolledAt).toLocaleDateString() : "—"}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </GlassCard>
+              )}
+            </>
+          )}
+
+          {/* ──────────── Sessions Tab ──────────── */}
+          {activeTab === "Sessions" && (
+            <>
+              <div className="flex items-center justify-between mb-6">
+                <h1 className="text-2xl font-bold text-[#0F766E]">All Mentor Sessions</h1>
+                <p className="text-xs text-gray-400">
+                  {sessionsRows ? `${sessionsRows.length} total` : ""}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3 mb-4 text-sm">
+                <select
+                  value={sessionStatusFilter}
+                  onChange={(e) => setSessionStatusFilter(e.target.value)}
+                  className="px-3 py-2 rounded-lg border border-gray-300 bg-white"
+                >
+                  <option value="All">All statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="ACCEPTED">Accepted (scheduled)</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="CANCELLED">Cancelled</option>
+                </select>
+              </div>
+
+              {sessionsLoading ? (
+                <Spinner />
+              ) : !sessionsRows || sessionsRows.length === 0 ? (
+                <GlassCard>
+                  <p className="text-center text-gray-400 py-8">No session requests yet.</p>
+                </GlassCard>
+              ) : (
+                <GlassCard className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b border-gray-100">
+                        <th className="pb-3 font-medium">Student</th>
+                        <th className="pb-3 font-medium">Mentor</th>
+                        <th className="pb-3 font-medium">Course</th>
+                        <th className="pb-3 font-medium">Topic</th>
+                        <th className="pb-3 font-medium">Status</th>
+                        <th className="pb-3 font-medium">When</th>
+                        <th className="pb-3 font-medium">Meeting</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sessionsRows
+                        .filter((s) => sessionStatusFilter === "All" || s.status === sessionStatusFilter)
+                        .map((s) => (
+                          <tr key={s.sessionId} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/60">
+                            <td className="py-3">
+                              <p className="font-medium text-[#1a1a1a]">{s.studentName ?? "—"}</p>
+                              {s.studentEmail && <p className="text-xs text-gray-400">{s.studentEmail}</p>}
+                            </td>
+                            <td className="py-3 text-gray-700">{s.mentorName ?? <span className="text-amber-600 text-xs">Unassigned</span>}</td>
+                            <td className="py-3 text-gray-700">{s.courseTitle ?? "—"}</td>
+                            <td className="py-3 text-gray-600 max-w-[260px]">
+                              <span className="line-clamp-2">{s.topic ?? "—"}</span>
+                            </td>
+                            <td className="py-3">
+                              <span className={cn(
+                                "inline-block text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full",
+                                s.status === "PENDING" && "bg-amber-100 text-amber-700",
+                                s.status === "ACCEPTED" && "bg-teal-100 text-teal-700",
+                                s.status === "COMPLETED" && "bg-emerald-100 text-emerald-700",
+                                s.status === "CANCELLED" && "bg-gray-100 text-gray-500",
+                              )}>
+                                {s.status}
+                              </span>
+                            </td>
+                            <td className="py-3 text-xs text-gray-500">
+                              {s.scheduledAt
+                                ? new Date(s.scheduledAt).toLocaleString(undefined, {
+                                    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+                                  })
+                                : s.requestedAt
+                                  ? `Requested ${new Date(s.requestedAt).toLocaleDateString()}`
+                                  : "—"}
+                            </td>
+                            <td className="py-3">
+                              {s.meetingUrl ? (
+                                <a
+                                  href={s.meetingUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs font-medium text-[#0F766E] hover:underline"
+                                >
+                                  <ExternalLink size={11} /> Open
+                                </a>
+                              ) : (
+                                <span className="text-xs text-gray-300">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </GlassCard>
               )}
             </>
           )}
