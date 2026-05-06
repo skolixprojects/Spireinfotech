@@ -110,11 +110,12 @@ export function LessonItem({
 
       {/* Actions */}
       <div className="flex items-center gap-2 flex-shrink-0">
-        {/* FREE badge only when the viewer can actually access this preview —
-            hiding it for visitors avoids the "FREE" + "₹5,499 course" mismatch. */}
-        {isFree && !lockedForVisitor && (
-          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">FREE</span>
-        )}
+        {/* The FREE badge was removed — there is no real free-preview
+            system on the platform yet (the `isFree` flag was a holdover
+            from seed data and didn't actually let visitors watch).
+            Showing "FREE" on a lesson inside a paid course was just
+            misleading, so the badge is gone until a proper preview
+            flow exists. */}
 
         {completed && (
           <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-600">DONE</span>

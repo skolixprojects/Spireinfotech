@@ -189,14 +189,20 @@ export default function CoursesPage() {
                     </p>
 
                     <div className="flex items-center gap-3 mt-3 text-xs text-gray-500">
-                      <span className="flex items-center gap-1">
-                        <Clock size={12} />
-                        {course.durationHours}h
-                      </span>
-                      <span>{course.lessonsCount} lessons</span>
-                      <span className="ml-auto font-medium text-amber-600">
-                        {course.rating} / 5
-                      </span>
+                      {course.durationHours > 0 && (
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} />
+                          {course.durationHours}h
+                        </span>
+                      )}
+                      {course.lessonsCount > 0 && (
+                        <span>{course.lessonsCount} lessons</span>
+                      )}
+                      {course.ratingsCount > 0 && (
+                        <span className="ml-auto font-medium text-amber-600">
+                          {course.rating} / 5
+                        </span>
+                      )}
                     </div>
 
                     {isAdmin ? (

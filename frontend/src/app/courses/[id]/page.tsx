@@ -364,20 +364,42 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
             <h1 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900 mb-4">{course.title}</h1>
             <p className="text-gray-600 mb-4">{course.description || course.shortDescription}</p>
 
-            <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mb-4">
-              <span className="flex items-center gap-1"><Clock size={14} /> {course.durationHours}h</span>
-              <span className="flex items-center gap-1"><BookOpen size={14} /> {course.lessonsCount} lessons</span>
-              {/* Only surface rating once at least one real review exists. */}
-              {course.ratingsCount > 0 && (
-                <span className="flex items-center gap-1"><Star size={14} className="text-amber-500" /> {course.rating} ({course.ratingsCount})</span>
-              )}
-              {/* Real enrollment count only — fall back to "Be the first to enroll!" instead of fake numbers. */}
-              {course.enrolledCount > 0 ? (
-                <span>{course.enrolledCount.toLocaleString()} enrolled</span>
-              ) : (
-                <span className="text-[#0F766E]">Be the first to enroll!</span>
-              )}
-            </div>
+            {(() => {
+              // Compute real duration from the lessons we already
+              // fetched — courses.duration_hours in the DB was seeded
+              // theatre. If lessons don't have durationMinutes set,
+              // hide the duration entirely instead of showing "0h".
+              const totalMinutes = lessons.reduce(
+                (s, l) => s + (l.durationMinutes ?? 0), 0
+              );
+              const realLessonsCount = lessons.length;
+              return (
+                <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 mb-4">
+                  {totalMinutes > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Clock size={14} /> {Math.round(totalMinutes / 60 * 10) / 10}h
+                    </span>
+                  )}
+                  {realLessonsCount > 0 && (
+                    <span className="flex items-center gap-1">
+                      <BookOpen size={14} /> {realLessonsCount} lesson{realLessonsCount === 1 ? "" : "s"}
+                    </span>
+                  )}
+                  {/* Only surface rating once at least one real review exists. */}
+                  {course.ratingsCount > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Star size={14} className="text-amber-500" /> {course.rating} ({course.ratingsCount})
+                    </span>
+                  )}
+                  {/* Real enrollment count only — fall back to "Be the first to enroll!" instead of fake numbers. */}
+                  {course.enrolledCount > 0 ? (
+                    <span>{course.enrolledCount.toLocaleString()} enrolled</span>
+                  ) : (
+                    <span className="text-[#0F766E]">Be the first to enroll!</span>
+                  )}
+                </div>
+              );
+            })()}
 
             {course.instructor && (
               <div className="flex items-center gap-3">
@@ -463,7 +485,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
               <div className="mt-6 space-y-2 text-sm text-gray-600">
                 <p>Category: <span className="font-medium text-gray-900">{course.category}</span></p>
                 <p>Level: <span className="font-medium text-gray-900">{course.level}</span></p>
-                <p>Lessons: <span className="font-medium text-gray-900">{course.lessonsCount}</span></p>
+                <p>Lessons: <span className="font-medium text-gray-900">{lessons.length}</span></p>
               </div>
             </div>
 
