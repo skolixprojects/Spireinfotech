@@ -3,15 +3,12 @@
 //      Railway domain; can be overridden per-environment for staging).
 //   2. Production fallback to the Railway URL — guards against a
 //      missing env var on a Vercel build silently shipping with
-//      `localhost:8080` baked in (the test email widget caught this:
-//      the browser would try localhost from a vercel.app page and
-//      either fail or be misread as "calling vercel.app").
+//      `localhost:8080` baked in.
 //   3. Localhost for `next dev` so the same code works locally
 //      against `./mvnw spring-boot:run` on :8080.
 //
-// Exported so diagnostic widgets (e.g. TestEmailWidget) can display
-// the URL they're hitting — handy when debugging "is my call going
-// to Railway or Vercel?" without opening DevTools.
+// Exported so diagnostic surfaces can display the URL they're hitting
+// without re-deriving the env-var resolution.
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
   || (process.env.NODE_ENV === "production"
       ? "https://spireinfotech-production.up.railway.app"
@@ -280,23 +277,6 @@ export async function softDeleteUserAsAdmin(userId: number | string) {
     { method: "DELETE" },
   );
   return wrapper.data;
-}
-
-// Test email — fires the public /api/test/send-email endpoint used
-// by the homepage diagnostic widget. Returns { success, message }.
-// TODO: Remove this helper when the test endpoint is removed.
-export async function sendTestEmail(to: string) {
-  const wrapper = await apiFetch<ApiResponse<unknown> | { success: boolean; message: string }>(
-    `/api/test/send-email?to=${encodeURIComponent(to)}`,
-  );
-  // The endpoint returns the raw payload (success/message) rather
-  // than the ApiResponse wrapper, so unwrap defensively.
-  if (wrapper && typeof wrapper === "object" && "success" in wrapper) {
-    return wrapper as { success: boolean; message: string };
-  }
-  // Fallback for ApiResponse-wrapped variants.
-  const w = wrapper as ApiResponse<{ success: boolean; message: string }>;
-  return w.data ?? { success: false, message: "Empty response" };
 }
 
 // Admin: every enrollment on the platform with mentor + progress resolved.

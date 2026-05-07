@@ -3,7 +3,6 @@ import HowSpireWorks from "@/components/home/HowSpireWorks";
 import WhySpire from "@/components/home/WhySpire";
 import WhatYouCanLearn from "@/components/home/WhatYouCanLearn";
 import CTASection from "@/components/home/CTASection";
-import { TestEmailWidget } from "@/components/home/TestEmailWidget";
 
 export default function Home() {
   return (
@@ -13,8 +12,6 @@ export default function Home() {
       <WhySpire />
       <WhatYouCanLearn />
       <CTASection />
-      {/* TODO: Remove TestEmailWidget before production launch. */}
-      <TestEmailWidget />
     </>
   );
 }

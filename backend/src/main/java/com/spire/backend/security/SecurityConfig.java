@@ -42,8 +42,6 @@ public class SecurityConfig {
                         .requestMatchers("/api/certificates/verify/**").permitAll()
                         .requestMatchers("/api/certificates/download/**").permitAll()
                         .requestMatchers("/api/verify/**").permitAll()
-                        // TODO: Remove this test endpoint before production launch.
-                        .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
