@@ -73,41 +73,71 @@ public class MentorAssignmentService {
     }
 
     /**
-     * Retroactively assigns mentors to existing PENDING_ASSIGNMENT
-     * enrollments for a course. Called from MentorPoolService after
-     * a new mentor is added to the pool — students who enrolled
-     * before any mentor existed get matched immediately instead of
-     * waiting for support to manually clean things up.
+     * Retroactively assigns mentors to existing enrollments for a
+     * course. Called from MentorPoolService after a new mentor is
+     * added to the pool — students who enrolled before any mentor
+     * existed get matched immediately instead of waiting for
+     * support to manually clean things up.
      *
-     * Uses the same load-balancer as new enrollments
+     * Handles two distinct populations:
+     *   1. Enrollments with a MentorAssignment row stuck at
+     *      PENDING_ASSIGNMENT (the field's there, mentor is null).
+     *      EnrollmentService.enrollUser creates these when no
+     *      mentor is available at signup time.
+     *   2. Enrollments with NO MentorAssignment row at all. Seeded
+     *      students fall in this bucket — DataSeeder.seedEnrollment
+     *      writes Enrollment rows directly via the repository,
+     *      bypassing the auto-assign path.
+     *
+     * Both paths use the same load-balancer
      * (MentorPoolService.getAvailableMentor) so capacity rules and
-     * the "fewest current students wins" tiebreaker stay consistent.
+     * the "fewest current students wins" tiebreaker stay consistent
+     * with new-enrollment auto-assign. Capacity is re-evaluated per
+     * row, so a single mentor with room for 5 students doesn't get
+     * assigned 50.
      *
-     * Returns the count of rows that were promoted to ACTIVE.
+     * Returns the total count of enrollments that ended up with an
+     * ACTIVE mentor as a result of this call.
      */
     @Transactional
     public int fillPendingAssignmentsForCourse(Long courseId) {
+        int promoted = 0;
+
+        // Pass 1: existing PENDING_ASSIGNMENT rows — mentor swap.
         List<MentorAssignment> pending = mentorAssignmentRepository
                 .findByEnrollment_Course_IdAndStatus(courseId, STATUS_PENDING);
-        if (pending.isEmpty()) return 0;
-
-        int promoted = 0;
         for (MentorAssignment assignment : pending) {
-            // Re-evaluate availability per row — a single mentor with
-            // capacity for 5 students shouldn't get assigned 50.
             Optional<CourseMentor> available = mentorPoolService.getAvailableMentor(courseId);
-            if (available.isEmpty()) {
-                // No more capacity in the pool — leave the rest pending.
-                break;
-            }
+            if (available.isEmpty()) break; // no more capacity — leave the rest pending
             assignment.setMentor(available.get().getUser());
             assignment.setStatus(STATUS_ACTIVE);
             mentorAssignmentRepository.save(assignment);
             promoted++;
         }
+
+        // Pass 2: enrollments with no MentorAssignment row at all.
+        // Catches seeded students and any pre-Step-2 legacy data.
+        List<Enrollment> orphans = enrollmentRepository
+                .findByCourseIdAndNoMentorAssignment(courseId);
+        for (Enrollment enrollment : orphans) {
+            Optional<CourseMentor> available = mentorPoolService.getAvailableMentor(courseId);
+            // If the pool is exhausted we still create a PENDING row
+            // so the next mentor-add can pick it up via Pass 1, and
+            // the student's MentorCard renders the friendly
+            // "Mentor coming soon" copy instead of erroring on a
+            // missing assignment.
+            MentorAssignment fresh = MentorAssignment.builder()
+                    .enrollment(enrollment)
+                    .mentor(available.map(CourseMentor::getUser).orElse(null))
+                    .status(available.isPresent() ? STATUS_ACTIVE : STATUS_PENDING)
+                    .build();
+            mentorAssignmentRepository.save(fresh);
+            if (available.isPresent()) promoted++;
+        }
+
         if (promoted > 0) {
-            log.info("Retroactively assigned mentors to {} pending enrollment(s) on course {}",
-                    promoted, courseId);
+            log.info("Retroactive mentor fill on course {} — assigned {} enrollment(s)",
+                    courseId, promoted);
         }
         return promoted;
     }
