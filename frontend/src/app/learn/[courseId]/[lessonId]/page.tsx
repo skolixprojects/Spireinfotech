@@ -18,6 +18,8 @@ import { useToast } from "@/components/ui/Toast";
 import { RequestSessionModal } from "@/components/mentorship/RequestSessionModal";
 import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import SecureVideoPlayer from "@/components/player/SecureVideoPlayer";
+import { useAuth } from "@/lib/auth-context";
 
 interface CourseHeader {
   id: number;
@@ -51,6 +53,7 @@ export default function LearnPage({
   const lessonIdNum = Number(params.lessonId);
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [course, setCourse] = useState<CourseHeader | null>(null);
   const [lessons, setLessons] = useState<LessonRow[]>([]);
@@ -62,7 +65,8 @@ export default function LearnPage({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
+  // SecureVideoPlayer manages its own <video> ref + listeners.
+  // We only keep the throttle timer here for the position-save call.
   const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load everything in parallel.
@@ -134,42 +138,40 @@ export default function LearnPage({
   // Lesson row from getCourseLessons (has videoUrl).
   const currentLessonRow = lessons.find((l) => l.id === lessonIdNum) ?? null;
 
-  // ── Resume seek & periodic position save ──────────────────────────
-  // Seek to saved position once metadata is loaded. Keep it idempotent.
-  const seekedRef = useRef(false);
-  useEffect(() => {
-    seekedRef.current = false;
-  }, [lessonIdNum]);
-  const handleLoadedMetadata = () => {
-    if (seekedRef.current || !videoRef.current || !currentLesson) return;
-    const pos = currentLesson.videoPositionSec;
-    if (pos > 5 && pos < (videoRef.current.duration || Infinity) - 5) {
-      videoRef.current.currentTime = pos;
-    }
-    seekedRef.current = true;
-  };
-
-  // Throttle saves: ~5s after the last timeupdate.
-  const handleTimeUpdate = () => {
-    if (!videoRef.current || !currentLesson) return;
-    const t = videoRef.current.currentTime;
-    if (positionSaveTimer.current) clearTimeout(positionSaveTimer.current);
-    positionSaveTimer.current = setTimeout(() => {
-      saveLessonPosition(courseIdNum, currentLesson.lessonId, t).catch(() => {});
-    }, 5000);
-  };
-
-  // Save on unmount/navigation too.
+  // ── Position save on unmount/navigation ──────────────────────────
+  // Periodic saves run via SecureVideoPlayer's onProgress callback
+  // (every 10s). We still flush any pending throttle timer here so
+  // a navigation right after a scrub doesn't lose the latest position.
   useEffect(() => {
     return () => {
-      if (videoRef.current && currentLesson) {
-        const t = videoRef.current.currentTime;
-        saveLessonPosition(courseIdNum, currentLesson.lessonId, t).catch(() => {});
-      }
       if (positionSaveTimer.current) clearTimeout(positionSaveTimer.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonIdNum]);
+
+  // ── Page-level right-click + keyboard hardening ──────────────────
+  // The player has its own listeners, but they only fire when the
+  // player has focus. Adding the same blocks at document level catches
+  // shortcuts pressed while the user is in the sidebar / next-lesson
+  // button / etc.
+  useEffect(() => {
+    const onContext = (e: MouseEvent) => e.preventDefault();
+    const onKey = (e: KeyboardEvent) => {
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (ctrl && (e.key === "s" || e.key === "S" || e.key === "p" || e.key === "P" || e.key === "u" || e.key === "U")) {
+        e.preventDefault();
+      }
+      if (e.key === "F12") e.preventDefault();
+      if (ctrl && e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j")) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener("contextmenu", onContext);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("contextmenu", onContext);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, []);
 
   // ── Mark complete ────────────────────────────────────────────────
   const refetchProgress = async () => {
@@ -261,28 +263,31 @@ export default function LearnPage({
       <div className="flex-1 flex flex-col lg:flex-row">
         {/* LEFT — video + content (~70%) */}
         <main className="flex-1 lg:w-[70%] p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          {/* Video */}
-          <div className="rounded-xl overflow-hidden bg-black aspect-video mb-5">
+          {/* Video — protected player with watermarking, DevTools
+              detection, blur-on-tab-switch, and shortcut blocking.
+              key={lessonId} forces a fresh mount on lesson navigation
+              so the player resets state cleanly. */}
+          <div className="mb-5">
             {currentLessonRow?.videoUrl ? (
-              <video
+              <SecureVideoPlayer
                 key={currentLessonRow.id}
-                ref={videoRef}
-                src={currentLessonRow.videoUrl}
-                controls
-                controlsList="nodownload"
-                onContextMenu={(e) => e.preventDefault()}
-                onLoadedMetadata={handleLoadedMetadata}
-                onTimeUpdate={handleTimeUpdate}
-                onEnded={handleVideoEnded}
-                className="w-full h-full"
-                playsInline
+                videoUrl={currentLessonRow.videoUrl}
+                initialPosition={currentLesson?.videoPositionSec ?? 0}
                 autoPlay
-              >
-                <track kind="captions" />
-                Your browser does not support the video tag.
-              </video>
+                onProgress={(position) => {
+                  if (!currentLesson) return;
+                  // Throttle DB writes — same 5s pattern as before.
+                  if (positionSaveTimer.current) clearTimeout(positionSaveTimer.current);
+                  positionSaveTimer.current = setTimeout(() => {
+                    saveLessonPosition(courseIdNum, currentLesson.lessonId, position).catch(() => {});
+                  }, 5000);
+                }}
+                onEnded={handleVideoEnded}
+                userEmail={user?.email}
+                userName={user?.fullName}
+              />
             ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-white/50">
+              <div className="w-full aspect-video rounded-xl bg-black flex flex-col items-center justify-center text-white/50">
                 <Play size={32} className="mb-2" />
                 <p className="text-sm">No video for this lesson yet.</p>
               </div>

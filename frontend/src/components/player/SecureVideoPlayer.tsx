@@ -9,29 +9,54 @@ import {
   VolumeX,
   Maximize,
   Minimize,
+  ShieldAlert,
+  AlertTriangle,
 } from "lucide-react";
 import ProtectedOverlay from "./ProtectedOverlay";
 
-// ─── Types ──────────────────────────────────────────────────────────
-
 interface SecureVideoPlayerProps {
   videoUrl: string;
+  /** Periodic position-save callback — fires every 10s while playing. */
   onProgress?: (position: number, duration: number) => void;
+  /** Fired when the video reaches the end. Used by /learn to mark
+   *  the lesson complete + auto-advance. */
+  onEnded?: () => void;
+  /** Resume position when the player mounts. */
   initialPosition?: number;
+  /** Auto-play when the source loads. /learn relies on this so a
+   *  student lands on a lesson and starts watching immediately. */
+  autoPlay?: boolean;
   userEmail?: string;
+  userName?: string;
 }
 
-// ─── Component ──────────────────────────────────────────────────────
-
+/**
+ * Single source of truth for protected video playback.
+ *
+ * Layers:
+ *   - Right-click suppressed on the container.
+ *   - Native controls hidden; underlying <video> still tagged with
+ *     controlsList="nodownload noplaybackrate" + disablePictureInPicture.
+ *   - Keyboard blocker for Save / Print / View-source / DevTools shortcuts.
+ *   - DevTools detection via outerWidth-innerWidth diff (≥160px).
+ *     Triggering it blacks the video out and pauses playback.
+ *   - Tab/window blur applies a CSS blur filter so OBS-style
+ *     full-desktop recorders capture a smear instead of the video.
+ *   - Watermark overlay (tiled + 3 moving instances) burns the
+ *     student's email + name into the visible frame.
+ */
 export default function SecureVideoPlayer({
   videoUrl,
   onProgress,
+  onEnded,
   initialPosition = 0,
+  autoPlay = false,
   userEmail,
+  userName,
 }: SecureVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const progressTimer = useRef<ReturnType<typeof setInterval>>();
+  const progressTimer = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const sessionStart = useRef(Date.now());
 
   const [isPlaying, setIsPlaying] = useState(false);
@@ -42,22 +67,32 @@ export default function SecureVideoPlayer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [isBlacked, setIsBlacked] = useState(false);
+  const [isBlurred, setIsBlurred] = useState(false);
+  const [warning, setWarning] = useState<string | null>(null);
 
-  const hideTimer = useRef<ReturnType<typeof setTimeout>>();
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const warningTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // ── Helpers ─────────────────────────────────────────────────────
+
+  const flashWarning = useCallback((message: string) => {
+    setWarning(message);
+    if (warningTimer.current) clearTimeout(warningTimer.current);
+    warningTimer.current = setTimeout(() => setWarning(null), 3000);
+  }, []);
 
   // ── Session token expiry (2 hours) ─────────────────────────────
   const SESSION_MAX_MS = 2 * 60 * 60 * 1000;
-
   useEffect(() => {
     const check = setInterval(() => {
       if (Date.now() - sessionStart.current > SESSION_MAX_MS) {
         videoRef.current?.pause();
-        alert("Session expired. Please reload to continue.");
+        flashWarning("Session expired — please reload to continue.");
         clearInterval(check);
       }
     }, 60_000);
     return () => clearInterval(check);
-  }, []);
+  }, [flashWarning]);
 
   // ── Resume from last position ──────────────────────────────────
   useEffect(() => {
@@ -70,6 +105,20 @@ export default function SecureVideoPlayer({
     return () => video.removeEventListener("loadedmetadata", onReady);
   }, [initialPosition]);
 
+  // ── Auto-play when source loads ────────────────────────────────
+  useEffect(() => {
+    if (!autoPlay) return;
+    const video = videoRef.current;
+    if (!video) return;
+    const onReady = () => {
+      // Browsers reject .play() if the user hasn't interacted yet.
+      // We swallow that — the play button still works.
+      video.play().then(() => setIsPlaying(true)).catch(() => {});
+    };
+    video.addEventListener("loadedmetadata", onReady, { once: true });
+    return () => video.removeEventListener("loadedmetadata", onReady);
+  }, [autoPlay, videoUrl]);
+
   // ── Progress tracking (every 10s) ─────────────────────────────
   useEffect(() => {
     progressTimer.current = setInterval(() => {
@@ -81,61 +130,83 @@ export default function SecureVideoPlayer({
     return () => clearInterval(progressTimer.current);
   }, [onProgress]);
 
-  // ── DevTools detection ─────────────────────────────────────────
+  // ── Keyboard shortcut blocker ──────────────────────────────────
+  // Listed only — we can't actually prevent PrintScreen at the OS
+  // level (the screen is captured before our handler runs), but
+  // surfacing the warning still has a deterrent effect.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "PrintScreen") {
+        flashWarning("Screen capture is not allowed for this content.");
+        return;
+      }
+      if (e.key === "F12") {
+        e.preventDefault();
+        flashWarning("Developer tools are blocked during playback.");
+        return;
+      }
+      const ctrl = e.ctrlKey || e.metaKey;
+      if (!ctrl) return;
+      // Save, Print, View-source — silently swallow.
+      if (e.key === "s" || e.key === "S" || e.key === "p" || e.key === "P" || e.key === "u" || e.key === "U") {
+        e.preventDefault();
+        flashWarning("That shortcut is disabled during playback.");
+        return;
+      }
+      // DevTools combos.
+      if (e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j" || e.key === "C" || e.key === "c")) {
+        e.preventDefault();
+        flashWarning("Developer tools are blocked during playback.");
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [flashWarning]);
+
+  // ── DevTools detection (window-dimension trick) ────────────────
+  // Generates false positives on small viewports / docked DevTools.
+  // Threshold tuned to 160px which is roughly the smallest DevTools
+  // panel — anything below that and the dimensions still match.
   useEffect(() => {
     const detectDevTools = () => {
       const threshold = 160;
-      const widthDiff =
-        window.outerWidth - window.innerWidth > threshold;
-      const heightDiff =
-        window.outerHeight - window.innerHeight > threshold;
+      const widthDiff = window.outerWidth - window.innerWidth > threshold;
+      const heightDiff = window.outerHeight - window.innerHeight > threshold;
       if (widthDiff || heightDiff) {
         setIsBlacked(true);
-      } else {
-        setIsBlacked(false);
+        videoRef.current?.pause();
       }
     };
-
-    // Debugger timing detection
-    const debuggerCheck = setInterval(() => {
-      const start = performance.now();
-      // eslint-disable-next-line no-debugger
-      debugger;
-      if (performance.now() - start > 100) {
-        setIsBlacked(true);
-      }
-    }, 5000);
-
     window.addEventListener("resize", detectDevTools);
     detectDevTools();
-
-    return () => {
-      window.removeEventListener("resize", detectDevTools);
-      clearInterval(debuggerCheck);
-    };
+    return () => window.removeEventListener("resize", detectDevTools);
   }, []);
 
-  // ── Screen sharing detection ───────────────────────────────────
+  // ── Tab-switch blur + pause ────────────────────────────────────
+  // OBS-style desktop recorders capture every visible window. By
+  // blurring the video when the user switches away, the recording
+  // gets smeared frames during alt-tabs. We also pause playback so
+  // they can't keep listening to audio either.
   useEffect(() => {
-    const checkDisplayMedia = async () => {
-      try {
-        // If getDisplayMedia is being used, the Display Capture API
-        // will be active. We detect this via the navigator.mediaDevices
-        // event or by checking if the video element is being captured.
-        if ("getDisplayMedia" in navigator.mediaDevices) {
-          const handler = () => setIsBlacked(true);
-          // Listen for visibility changes as a proxy
-          document.addEventListener("visibilitychange", () => {
-            if (document.visibilityState === "hidden") {
-              videoRef.current?.pause();
-            }
-          });
-        }
-      } catch {
-        // ignore
+    const onVisibility = () => {
+      if (document.hidden) {
+        setIsBlurred(true);
+        videoRef.current?.pause();
+      } else {
+        setIsBlurred(false);
       }
     };
-    checkDisplayMedia();
+    const onBlur = () => setIsBlurred(true);
+    const onFocus = () => setIsBlurred(false);
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("focus", onFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("focus", onFocus);
+    };
   }, []);
 
   // ── Controls auto-hide ─────────────────────────────────────────
@@ -152,8 +223,7 @@ export default function SecureVideoPlayer({
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) {
-      v.play();
-      setIsPlaying(true);
+      v.play().then(() => setIsPlaying(true)).catch(() => {});
     } else {
       v.pause();
       setIsPlaying(false);
@@ -195,7 +265,23 @@ export default function SecureVideoPlayer({
     }
   };
 
+  const handleResumeFromBlackout = () => {
+    // Re-run the same threshold check — if DevTools is still open,
+    // flip the flag right back on. If it's been closed, the video
+    // resumes playback.
+    const threshold = 160;
+    const widthDiff = window.outerWidth - window.innerWidth > threshold;
+    const heightDiff = window.outerHeight - window.innerHeight > threshold;
+    if (widthDiff || heightDiff) {
+      flashWarning("Developer tools still detected. Close them to continue.");
+      return;
+    }
+    setIsBlacked(false);
+    videoRef.current?.play().then(() => setIsPlaying(true)).catch(() => {});
+  };
+
   const formatTime = (s: number) => {
+    if (!Number.isFinite(s) || s < 0) return "0:00";
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return `${m}:${sec.toString().padStart(2, "0")}`;
@@ -209,20 +295,35 @@ export default function SecureVideoPlayer({
       onMouseMove={resetHideTimer}
       style={{ userSelect: "none", WebkitUserSelect: "none" }}
     >
-      {/* Black-out overlay for screen-recording detection */}
+      {/* DevTools / recording detection blackout. Sits above the
+          video but below the warning toast so the resume button is
+          still tappable. */}
       {isBlacked && (
-        <div className="absolute inset-0 z-50 bg-black flex items-center justify-center">
-          <p className="text-white text-lg">
-            Screen recording detected. Playback paused.
-          </p>
+        <div className="absolute inset-0 z-40 bg-black flex items-center justify-center px-6">
+          <div className="text-center text-white max-w-sm">
+            <ShieldAlert size={42} className="mx-auto mb-3 text-amber-400" />
+            <h3 className="font-semibold text-lg mb-2">Screen recording detected</h3>
+            <p className="text-sm text-white/80 mb-4">
+              Playback has been paused. Close any developer tools or screen
+              recording software to continue. This content is protected;
+              unauthorized recording is prohibited.
+            </p>
+            <button
+              onClick={handleResumeFromBlackout}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-white/15 hover:bg-white/25 text-sm font-semibold transition cursor-pointer"
+            >
+              Resume Playback
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Video element */}
+      {/* Video element. The CSS filter blurs frames when the tab
+          loses focus — the audio keeps going so users notice. */}
       <video
         ref={videoRef}
         src={videoUrl}
-        className="w-full h-full object-contain"
+        className="w-full h-full object-contain transition-[filter] duration-200"
         disablePictureInPicture
         controlsList="nodownload noplaybackrate"
         playsInline
@@ -232,16 +333,43 @@ export default function SecureVideoPlayer({
         onLoadedMetadata={() => {
           if (videoRef.current) setDuration(videoRef.current.duration);
         }}
-        onEnded={() => setIsPlaying(false)}
+        onEnded={() => {
+          setIsPlaying(false);
+          onEnded?.();
+        }}
         onClick={togglePlay}
+        style={{
+          filter: isBlurred ? "blur(20px)" : "none",
+          // userSelect prevents long-press save on mobile.
+          userSelect: "none",
+          WebkitUserSelect: "none",
+        }}
       />
 
-      {/* Protected overlay (watermark + screenshot block) */}
-      <ProtectedOverlay userEmail={userEmail} />
+      {/* Watermark + screenshot block layer */}
+      <ProtectedOverlay userEmail={userEmail} userName={userName} />
+
+      {/* Brief warning toast for keyboard-blocked actions. */}
+      <AnimatePresence>
+        {warning && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="absolute top-3 left-1/2 -translate-x-1/2 z-50 inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/95 text-white text-xs font-semibold shadow-lg"
+            role="status"
+            aria-live="polite"
+          >
+            <AlertTriangle size={12} />
+            {warning}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Custom Controls */}
       <AnimatePresence>
-        {showControls && (
+        {showControls && !isBlacked && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -249,7 +377,6 @@ export default function SecureVideoPlayer({
             transition={{ duration: 0.2 }}
             className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black/80 to-transparent px-4 pb-3 pt-10"
           >
-            {/* Progress scrubber */}
             <input
               type="range"
               min={0}
@@ -267,24 +394,20 @@ export default function SecureVideoPlayer({
 
             <div className="flex items-center justify-between text-white text-sm">
               <div className="flex items-center gap-3">
-                {/* Play / Pause */}
                 <button
                   onClick={togglePlay}
                   className="hover:text-[#00C896] transition-colors"
+                  aria-label={isPlaying ? "Pause" : "Play"}
                 >
                   {isPlaying ? <Pause size={20} /> : <Play size={20} />}
                 </button>
 
-                {/* Volume */}
                 <button
                   onClick={toggleMute}
                   className="hover:text-[#00C896] transition-colors"
+                  aria-label={isMuted ? "Unmute" : "Mute"}
                 >
-                  {isMuted ? (
-                    <VolumeX size={20} />
-                  ) : (
-                    <Volume2 size={20} />
-                  )}
+                  {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
                 </button>
                 <input
                   type="range"
@@ -295,24 +418,20 @@ export default function SecureVideoPlayer({
                   onChange={handleVolumeChange}
                   className="w-20 h-1 accent-[#00C896] cursor-pointer"
                   style={{ pointerEvents: "auto" }}
+                  aria-label="Volume"
                 />
 
-                {/* Time */}
                 <span className="font-mono text-xs">
                   {formatTime(currentTime)} / {formatTime(duration)}
                 </span>
               </div>
 
-              {/* Fullscreen */}
               <button
                 onClick={toggleFullscreen}
                 className="hover:text-[#00C896] transition-colors"
+                aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
               >
-                {isFullscreen ? (
-                  <Minimize size={20} />
-                ) : (
-                  <Maximize size={20} />
-                )}
+                {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
               </button>
             </div>
           </motion.div>
