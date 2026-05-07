@@ -5,9 +5,9 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/Toast";
 import {
-  BookOpen, ArrowRight, ShieldCheck, GraduationCap, PlusCircle,
+  BookOpen, ArrowRight, ShieldCheck, PlusCircle,
   Users, BarChart3, Loader2, AlertCircle, Trash2, Eye, Globe, GlobeLock,
-  TrendingUp, CreditCard, Inbox, CalendarClock, History, ExternalLink,
+  TrendingUp, CreditCard, Inbox, CalendarClock, History,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -24,6 +24,7 @@ import { PendingRequests } from "@/components/mentorship/PendingRequests";
 import { MentorSessionsList } from "@/components/mentorship/MentorSessionsList";
 import { NextActionHero } from "@/components/dashboard/NextActionHero";
 import { AnnouncementsBanner } from "@/components/dashboard/AnnouncementsBanner";
+import { StudentDashboard } from "@/components/dashboard/StudentDashboard";
 import { OnboardingWizard, onboardingDismissedKey } from "@/components/onboarding/OnboardingWizard";
 import { InstructorSalesInbox } from "@/components/sales/InstructorSalesInbox";
 import type { SessionRequest } from "@/lib/types";
@@ -230,16 +231,21 @@ export default function DashboardPage() {
         {/* Platform-wide announcements (admin-managed) */}
         <AnnouncementsBanner />
 
-        {/* Greeting */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-8">
-          <div>
-            <h1 className="font-serif text-3xl font-bold text-[#0F766E]">Welcome back, {user.fullName}!</h1>
-            <p className="text-gray-500 mt-1">Here&apos;s your overview.</p>
+        {/* Greeting — instructors and admins see the original
+            "Welcome back" header. Students get a dedicated
+            personalized layout via the StudentDashboard component
+            below, so we suppress this header for them. */}
+        {!isStudent && (
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-8">
+            <div>
+              <h1 className="font-serif text-3xl font-bold text-[#0F766E]">Welcome back, {user.fullName}!</h1>
+              <p className="text-gray-500 mt-1">Here&apos;s your overview.</p>
+            </div>
+            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${roleInfo.color} w-fit`}>
+              <ShieldCheck size={14} /> {roleInfo.label}
+            </span>
           </div>
-          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${roleInfo.color} w-fit`}>
-            <ShieldCheck size={14} /> {roleInfo.label}
-          </span>
-        </div>
+        )}
 
         {/* ── ADMIN: Analytics Dashboard ──────────────────────────── */}
         {isAdmin && (
@@ -320,108 +326,18 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── STUDENT: One Next Action hero + My Courses + Upcoming ── */}
+        {/* ── STUDENT: redesigned dashboard ────────────────────────
+            New 5-section layout (greeting + hero + courses + widgets
+            + activity timeline) lives in StudentDashboard. The
+            shared AnnouncementsBanner above still renders for
+            students; everything else here is role-gated. */}
         {isStudent && (
-          <div className="mb-10 space-y-10">
-            {/* Section 1: Next-action hero */}
-            <NextActionHero action={nextAction} loading={nextActionLoading} />
-
-            {/* Section 2: My Courses (compact, with real progress) */}
-            {enrolledForStudent.length > 0 && (
-              <div>
-                <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">
-                  <BookOpen size={20} /> My Courses
-                  <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                    {enrolledForStudent.length}
-                  </span>
-                </h2>
-                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {enrolledForStudent.map((c) => (
-                    <Link
-                      key={c.id}
-                      href={c.type === "SERVICE" ? `/services/${c.id}` : `/courses/${c.id}`}
-                      className="group block bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md hover:border-[#14B8A6]/60 transition-all p-5"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={cn(
-                          "text-[10px] font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full",
-                          c.type === "SERVICE" ? "bg-violet-100 text-violet-700" : "bg-teal-100 text-teal-700"
-                        )}>
-                          {c.type === "SERVICE" ? "Service" : "Course"}
-                        </span>
-                        <span className="text-xs text-gray-400">
-                          {c.lastAccessedAt
-                            ? new Date(c.lastAccessedAt).toLocaleDateString()
-                            : "Not started"}
-                        </span>
-                      </div>
-                      <h3 className="font-semibold text-gray-900 line-clamp-2 mb-3">{c.title}</h3>
-
-                      <div className="flex items-center justify-between text-xs text-gray-500 mb-1.5">
-                        <span>{c.completedLessons}/{c.totalLessons} lessons</span>
-                        <span className="font-semibold text-[#0F766E]">{c.progressPercent}%</span>
-                      </div>
-                      <ProgressBar percent={c.progressPercent} size="sm" />
-
-                      <div className="mt-4 text-xs font-semibold text-[#0F766E] group-hover:underline inline-flex items-center gap-1">
-                        Continue <ArrowRight size={12} />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Section 3: Upcoming sessions (next 7 days) */}
-            {upcomingForStudent.length > 0 && (
-              <div>
-                <h2 className="text-xl font-bold text-[#0F766E] mb-4 flex items-center gap-2">
-                  <CalendarClock size={20} /> Upcoming
-                  <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                    {upcomingForStudent.length}
-                  </span>
-                </h2>
-                <div className="space-y-2">
-                  {upcomingForStudent.map((s) => {
-                    const at = new Date(s.scheduledAt);
-                    const withinHour = at.getTime() - Date.now() <= 60 * 60 * 1000;
-                    return (
-                      <div
-                        key={s.sessionId}
-                        className="flex items-center gap-4 bg-white rounded-xl border border-gray-100 shadow-sm p-4"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center shrink-0">
-                          <CalendarClock size={18} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-gray-900 truncate">
-                            {s.courseTitle ?? "Mentor session"}
-                          </p>
-                          <p className="text-xs text-gray-500 truncate">
-                            {s.mentorName ? `with ${s.mentorName} · ` : ""}
-                            {at.toLocaleString(undefined, {
-                              weekday: "short", month: "short", day: "numeric",
-                              hour: "numeric", minute: "2-digit",
-                            })}
-                          </p>
-                        </div>
-                        {s.meetingUrl && withinHour && (
-                          <a
-                            href={s.meetingUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#0F766E] text-white text-xs font-semibold hover:bg-[#0D9488] transition shrink-0"
-                          >
-                            <ExternalLink size={12} /> Join
-                          </a>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
+          <StudentDashboard
+            user={user}
+            summary={summary}
+            nextAction={nextAction}
+            loading={nextActionLoading}
+          />
         )}
 
         {/* "Become an Instructor" lives on the profile page now —
