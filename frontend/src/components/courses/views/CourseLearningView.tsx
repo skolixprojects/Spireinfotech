@@ -162,11 +162,11 @@ export function CourseLearningView({
   });
 
   return (
-    <div className="bg-[#f8f9fa] pt-[88px] pb-12 min-h-screen">
-      <div className="max-w-[1000px] mx-auto pt-6 px-4 md:px-6">
+    <div className="bg-[#f8f9fa] pt-[80px] pb-8 min-h-screen">
+      <div className="w-full max-w-[1200px] mx-auto pt-4 px-4 md:px-12 lg:px-16">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#0F766E] transition-colors mb-6"
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-[#0F766E] transition-colors mb-3"
         >
           <ChevronLeft size={16} /> Back to dashboard
         </Link>
@@ -176,10 +176,9 @@ export function CourseLearningView({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="rounded-2xl border border-gray-100 mb-8"
+          className="rounded-2xl border border-gray-100 mb-4 px-6 py-5"
           style={{
             background: "linear-gradient(135deg, #f0fdf9 0%, #ffffff 100%)",
-            padding: "32px",
             boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
           }}
         >
@@ -189,27 +188,27 @@ export function CourseLearningView({
           )}>
             {course.level}
           </span>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mt-3">
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 mt-2">
             {course.title}
           </h1>
 
           {!supervisorMode && totalLessons > 0 && (
             <>
-              <div className="mt-4 flex items-center justify-between">
+              <div className="mt-3 flex items-center justify-between">
                 <span className="text-sm font-semibold text-gray-600">
                   Course progress
                 </span>
-                <span className="text-lg font-bold text-[#0F766E] tabular-nums">
+                <span className="text-base font-bold text-[#0F766E] tabular-nums">
                   {progressPercent}%
                 </span>
               </div>
-              <div className="h-2.5 rounded-full bg-gray-200 mt-2 overflow-hidden">
+              <div className="h-2 rounded-full bg-gray-200 mt-1.5 overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-[#0F766E] to-[#0D9488] rounded-full transition-all duration-500"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 mt-1.5">
                 {completedLessons} of {totalLessons} lesson{totalLessons === 1 ? "" : "s"} complete
               </p>
             </>
@@ -218,21 +217,21 @@ export function CourseLearningView({
           {nextLesson ? (
             <button
               onClick={onContinueLearning}
-              className="mt-4 inline-flex items-center gap-2 bg-[#0F766E] text-white text-base font-bold px-8 py-3.5 rounded-xl shadow-lg hover:shadow-xl hover:bg-[#0D9488] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+              className="mt-3 inline-flex items-center gap-2 bg-[#0F766E] text-white text-sm font-bold px-6 py-2.5 rounded-xl shadow-lg hover:shadow-xl hover:bg-[#0D9488] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer"
             >
-              <Play size={16} fill="currentColor" />
+              <Play size={14} fill="currentColor" />
               {completedLessons === 0 ? "Start learning" : "Continue learning"}
             </button>
           ) : (
-            <div className="mt-4 inline-flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-base font-bold px-6 py-3 rounded-xl">
-              <CheckCircle2 size={18} /> All lessons complete!
+            <div className="mt-3 inline-flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm font-bold px-5 py-2.5 rounded-xl">
+              <CheckCircle2 size={16} /> All lessons complete!
             </div>
           )}
         </motion.div>
 
         {/* ── Mentor + Next Up cards ────────────────────────────── */}
         {!supervisorMode && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
             <MentorMiniCard mentor={mentor} onRequestSession={onRequestSession} />
             <NextUpCard
               nextLesson={nextLesson}
@@ -242,14 +241,14 @@ export function CourseLearningView({
         )}
 
         {/* ── Curriculum ─────────────────────────────────────────── */}
-        <section className="mb-10">
-          <h2 className="text-xl font-bold text-gray-900 mb-4">Curriculum</h2>
+        <section className="mb-5">
+          <h2 className="text-base font-bold text-gray-900 mb-2">Curriculum</h2>
           {modules.length === 0 && orphanLessons.length === 0 ? (
-            <div className="text-center py-10 bg-white rounded-2xl border border-gray-100 shadow-sm text-gray-500 text-sm">
+            <div className="text-center py-8 bg-white rounded-2xl border border-gray-100 shadow-sm text-gray-500 text-sm">
               No lessons published yet.
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {modules.map((mod, mIdx) => {
                 const modProgress = progress?.modules.find((mp) => mp.moduleId === mod.id);
                 const modQuizzes = quizzesByModule.get(mod.id) ?? [];
@@ -269,8 +268,8 @@ export function CourseLearningView({
               })}
               {orphanLessons.length > 0 && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="px-5 py-4 bg-gray-50/50">
-                    <h3 className="text-base font-bold text-gray-900">Other lessons</h3>
+                  <div className="px-4 py-3 bg-gray-50/50">
+                    <h3 className="text-sm font-bold text-gray-900">Other lessons</h3>
                   </div>
                   <div>
                     {orphanLessons.map((l) => (
@@ -291,9 +290,9 @@ export function CourseLearningView({
 
         {/* ── Course-level quizzes ───────────────────────────────── */}
         {courseLevelQuizzes.length > 0 && (
-          <section className="mb-10">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Final assessment</h2>
-            <div className="grid sm:grid-cols-2 gap-4">
+          <section className="mb-5">
+            <h2 className="text-base font-bold text-gray-900 mb-2">Final assessment</h2>
+            <div className="grid sm:grid-cols-2 gap-3">
               {courseLevelQuizzes.map((q) => (
                 <QuizCard key={q.id} quiz={q} returnTo={`/courses/${course.id}`} />
               ))}
@@ -303,9 +302,9 @@ export function CourseLearningView({
 
         {/* ── Assignments ───────────────────────────────────────── */}
         {assignments.length > 0 && (
-          <section className="mb-10">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Assignments</h2>
-            <div className="space-y-3">
+          <section className="mb-5">
+            <h2 className="text-base font-bold text-gray-900 mb-2">Assignments</h2>
+            <div className="space-y-2">
               {assignments.map((a) => (
                 <AssignmentRow key={a.id} assignment={a} />
               ))}
@@ -315,9 +314,9 @@ export function CourseLearningView({
 
         {/* ── Sessions ──────────────────────────────────────────── */}
         {!supervisorMode && sessions.length > 0 && (
-          <section className="mb-10">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Mentorship sessions</h2>
-            <div className="space-y-3">
+          <section className="mb-5">
+            <h2 className="text-base font-bold text-gray-900 mb-2">Mentorship sessions</h2>
+            <div className="space-y-2">
               {sessions.map((s) => <SessionRow key={s.id} session={s} />)}
             </div>
           </section>
@@ -327,11 +326,11 @@ export function CourseLearningView({
         {!supervisorMode && (
           <section className="mb-2">
             <div
-              className="rounded-2xl border border-gray-100 px-6 sm:px-10 py-10 text-center shadow-sm"
+              className="rounded-2xl border border-gray-100 px-6 py-6 text-center shadow-sm"
               style={{ background: "linear-gradient(135deg, #f0fdf9 0%, #ffffff 100%)" }}
             >
-              <Award size={36} className="text-[#0F766E] mx-auto mb-3" />
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Course certificate</h2>
+              <Award size={28} className="text-[#0F766E] mx-auto mb-2" />
+              <h2 className="text-lg font-bold text-gray-900 mb-1.5">Course certificate</h2>
 
               {certificate?.exists && certificate.certificateUrl ? (
                 <>
@@ -379,36 +378,36 @@ function MentorMiniCard({
 }: { mentor: MentorInfo | null; onRequestSession: () => void }) {
   const isPending = !mentor || mentor.status === "PENDING_ASSIGNMENT" || !mentor.mentorName;
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
+    <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-200">
       <p className="text-[10px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
         Your mentor
       </p>
       {isPending ? (
-        <div className="mt-3">
-          <div className="flex items-center gap-2 text-amber-600 mb-1.5">
-            <Clock size={14} />
-            <p className="text-base font-bold">Mentor coming soon</p>
+        <div className="mt-2">
+          <div className="flex items-center gap-2 text-amber-600">
+            <Clock size={13} />
+            <p className="text-sm font-bold">Mentor coming soon</p>
           </div>
-          <p className="text-sm text-gray-500 leading-relaxed">
-            We&apos;ll match you with an expert shortly. Start learning in the meantime.
+          <p className="text-xs text-gray-500 leading-relaxed mt-1">
+            We&apos;ll match you with an expert shortly.
           </p>
         </div>
       ) : (
         <>
-          <h3 className="text-lg font-bold text-[#0F766E] mt-3">{mentor.mentorName}</h3>
+          <h3 className="text-base font-bold text-[#0F766E] mt-2">{mentor.mentorName}</h3>
           {mentor.mentorEmail && (
             <a
               href={`mailto:${mentor.mentorEmail}`}
-              className="text-sm text-gray-500 hover:text-[#0F766E] inline-flex items-center gap-1.5 mt-1 break-all transition-colors"
+              className="text-xs text-gray-500 hover:text-[#0F766E] inline-flex items-center gap-1.5 mt-0.5 break-all transition-colors"
             >
-              <Mail size={13} className="flex-shrink-0" /> {mentor.mentorEmail}
+              <Mail size={12} className="flex-shrink-0" /> {mentor.mentorEmail}
             </a>
           )}
           <button
             onClick={onRequestSession}
-            className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-[#0F766E] text-white text-sm font-semibold py-2.5 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+            className="mt-auto pt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#0F766E] text-white text-sm font-semibold py-2 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200 cursor-pointer"
           >
-            <MessageCircle size={14} /> Request a session
+            <MessageCircle size={13} /> Request a session
           </button>
         </>
       )}
@@ -423,32 +422,32 @@ function NextUpCard({
   onOpen: () => void;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
+    <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-200">
       <p className="text-[10px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
         Next up
       </p>
       {nextLesson ? (
         <>
           {nextLesson.moduleTitle && (
-            <p className="text-xs text-gray-400 mt-3">{nextLesson.moduleTitle}</p>
+            <p className="text-xs text-gray-400 mt-2">{nextLesson.moduleTitle}</p>
           )}
           <h3 className={cn(
-            "text-base font-bold text-gray-900 line-clamp-2",
-            nextLesson.moduleTitle ? "mt-1" : "mt-3"
+            "text-sm font-bold text-gray-900 line-clamp-2",
+            nextLesson.moduleTitle ? "mt-0.5" : "mt-2"
           )}>
             {nextLesson.title}
           </h3>
           <button
             onClick={onOpen}
-            className="mt-4 w-full inline-flex items-center justify-center gap-2 bg-white border border-[#0F766E] text-[#0F766E] text-sm font-semibold py-2.5 rounded-xl hover:bg-[#f0fdf9] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+            className="mt-auto pt-3 w-full inline-flex items-center justify-center gap-1.5 bg-white border border-[#0F766E] text-[#0F766E] text-sm font-semibold py-2 rounded-xl hover:bg-[#f0fdf9] active:scale-[0.98] transition-all duration-200 cursor-pointer"
           >
-            <Play size={13} fill="currentColor" /> Open lesson
+            <Play size={12} fill="currentColor" /> Open lesson
           </button>
         </>
       ) : (
-        <div className="flex items-center gap-2 text-green-600 mt-3">
-          <CheckCircle2 size={18} />
-          <p className="text-base font-bold">All lessons complete</p>
+        <div className="flex items-center gap-2 text-green-600 mt-2">
+          <CheckCircle2 size={16} />
+          <p className="text-sm font-bold">All lessons complete</p>
         </div>
       )}
     </div>
@@ -474,11 +473,11 @@ function ModuleSection({
       className="group bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200"
       open={openByDefault}
     >
-      <summary className="cursor-pointer px-5 py-4 bg-gray-50/50 flex items-center justify-between hover:bg-gray-50 [&::-webkit-details-marker]:hidden transition-colors">
+      <summary className="cursor-pointer px-4 py-3 bg-gray-50/50 flex items-center justify-between hover:bg-gray-50 [&::-webkit-details-marker]:hidden transition-colors">
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-bold text-gray-900">{m.title}</h3>
+          <h3 className="text-sm font-bold text-gray-900">{m.title}</h3>
           {m.description && (
-            <p className="text-sm text-gray-500 mt-1">{m.description}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{m.description}</p>
           )}
           <div className="mt-1.5 flex items-center gap-3">
             <p className="text-xs text-gray-400 whitespace-nowrap">
@@ -524,8 +523,8 @@ function ModuleSection({
           ))
         )}
         {moduleQuizzes.length > 0 && (
-          <div className="px-5 py-4 border-t border-gray-50 space-y-2">
-            <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-400">
+          <div className="px-4 py-3 border-t border-gray-50 space-y-2">
+            <p className="text-[10px] uppercase tracking-wide font-semibold text-gray-400">
               Module quiz
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
@@ -552,7 +551,7 @@ function UnlockedLessonRow({
     <button
       onClick={onOpen}
       className={cn(
-        "w-full flex items-center gap-3 px-5 py-3 border-t border-gray-50 text-sm transition-colors text-left cursor-pointer",
+        "w-full flex items-center gap-3 px-4 py-2.5 border-t border-gray-50 text-sm transition-colors text-left cursor-pointer",
         isCurrent ? "bg-[#f0fdf9]" : "hover:bg-gray-50"
       )}
     >

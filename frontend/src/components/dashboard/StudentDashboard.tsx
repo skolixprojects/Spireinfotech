@@ -233,13 +233,13 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex items-start justify-between gap-3"
+        className="flex items-center justify-between gap-3 mb-3"
       >
         <div>
-          <p className="text-sm text-gray-400 font-normal">
+          <p className="text-sm text-gray-400 font-normal leading-none">
             {greetingByHour(new Date().getHours())},
           </p>
-          <h1 className="text-2xl font-bold text-gray-900 mt-0.5">
+          <h1 className="text-2xl font-bold text-gray-900 mt-1 leading-none">
             {firstName(user.fullName)}
           </h1>
         </div>
@@ -260,10 +260,9 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
-        className="relative overflow-hidden rounded-2xl mt-6"
+        className="relative overflow-hidden rounded-2xl py-5 px-6"
         style={{
           background: "linear-gradient(135deg, #0F766E 0%, #134E4A 100%)",
-          padding: "28px 32px",
           boxShadow: "0 8px 30px rgba(15,118,110,0.25)",
         }}
       >
@@ -274,8 +273,8 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
           style={{
             top: -50,
             right: -30,
-            width: 180,
-            height: 180,
+            width: 160,
+            height: 160,
             background: "rgba(255,255,255,0.1)",
           }}
         />
@@ -283,10 +282,10 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
           aria-hidden
           className="absolute rounded-full"
           style={{
-            top: 30,
-            right: 60,
-            width: 100,
-            height: 100,
+            top: 20,
+            right: 50,
+            width: 90,
+            height: 90,
             background: "rgba(255,255,255,0.07)",
           }}
         />
@@ -295,19 +294,20 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
           <p className="text-[10px] uppercase tracking-[2px] text-white/50 font-semibold">
             {heroLabel}
           </p>
-          <p className="text-xl font-bold text-white mt-2 line-clamp-2">
+          <p className="text-lg font-bold text-white mt-1.5 line-clamp-2">
             {heroTitle}
           </p>
           {heroContext && (
-            <p className="text-sm text-white/50 mt-1 line-clamp-1">
+            <p className="text-xs text-white/50 mt-1 line-clamp-1">
               {heroContext}
             </p>
           )}
 
-          <div className="flex items-center gap-3 mt-5">
+          {/* Button + progress bar share one row to save vertical space. */}
+          <div className="flex items-center gap-3 mt-3">
             <button
               onClick={heroOnClick}
-              className="bg-white text-[#0F766E] text-sm font-bold px-6 py-2.5 rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+              className="bg-white text-[#0F766E] text-sm font-bold px-5 py-2 rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer shrink-0"
             >
               {heroButtonLabel}
             </button>
@@ -319,7 +319,7 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
                     style={{ width: `${Math.min(100, Math.max(0, heroProgressPercent))}%` }}
                   />
                 </div>
-                <span className="text-sm font-semibold text-white/60 tabular-nums">
+                <span className="text-sm font-semibold text-white/60 tabular-nums shrink-0">
                   {heroProgressPercent}%
                 </span>
               </>
@@ -329,10 +329,16 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
       </motion.div>
 
       {/* ── Section 3: My courses ─────────────────────────────────── */}
+      {/* Layout: 1-2 courses → single column (full width per card);
+          3+ courses → 2-column grid on lg+. Avoids stretched single
+          rows for power users while keeping focus when there are few. */}
       {enrolledCourses.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-base font-bold text-gray-900 mb-4">My courses</h2>
-          <div className="space-y-3">
+        <div className="mt-4">
+          <h2 className="text-sm font-bold text-gray-900 mb-2">My courses</h2>
+          <div className={enrolledCourses.length >= 3
+            ? "grid grid-cols-1 lg:grid-cols-2 gap-2.5"
+            : "space-y-2.5"
+          }>
             {enrolledCourses.map((course, idx) => {
               const completed = course.progressPercent >= 100;
               const href = course.type === "SERVICE"
@@ -343,13 +349,13 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
                   key={course.id}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.06 * idx }}
+                  transition={{ duration: 0.3, delay: 0.05 * idx }}
                 >
                   <Link
                     href={href}
-                    className="flex items-center gap-3.5 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 cursor-pointer"
+                    className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 py-3 px-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 cursor-pointer"
                   >
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#0F766E] to-[#0D9488] shadow-md flex items-center justify-center text-white font-bold text-lg shrink-0">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#0F766E] to-[#0D9488] shadow-md flex items-center justify-center text-white font-bold text-base shrink-0">
                       {course.title.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -367,13 +373,13 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
                           </span>
                         )}
                       </div>
-                      <div className="mt-2 h-1 rounded-full bg-gray-200 overflow-hidden">
+                      <div className="mt-1.5 h-1 rounded-full bg-gray-200 overflow-hidden">
                         <div
                           className="h-full bg-[#0F766E] rounded-full transition-all duration-500"
                           style={{ width: `${Math.min(100, Math.max(0, course.progressPercent))}%` }}
                         />
                       </div>
-                      <p className="text-[11px] text-gray-400 mt-1">
+                      <p className="text-[11px] text-gray-400 mt-1 truncate">
                         {completed
                           ? `${course.totalLessons}/${course.totalLessons} lessons · Certificate earned`
                           : `${course.completedLessons}/${course.totalLessons} lessons`}
@@ -388,20 +394,23 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
       )}
 
       {/* ── Section 4: Two-column widgets ─────────────────────────── */}
+      {/* items-stretch (grid default) keeps both widgets the same
+          height when one's content is taller. Inner flex-col +
+          mt-auto on the CTA pushes buttons to the bottom of each. */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.3 }}
-        className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4"
       >
         {/* Widget A — Upcoming session */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
+        <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-200">
           <p className="text-[10px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
             Upcoming Session
           </p>
           {upcomingSession ? (
             <>
-              <p className="text-sm font-semibold text-gray-900 mt-2 truncate">
+              <p className="text-sm font-semibold text-gray-900 mt-1.5 truncate">
                 with {upcomingSession.mentorName ?? "your mentor"}
               </p>
               <p className="text-[11px] text-[#0F766E] mt-1">
@@ -412,26 +421,26 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
                   href={upcomingSession.meetingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#0F766E] text-white text-sm font-semibold py-2.5 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200"
+                  className="mt-auto pt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#0F766E] text-white text-sm font-semibold py-2 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200"
                 >
                   <ExternalLink size={13} /> Join meeting
                 </a>
               ) : (
-                <p className="text-[11px] text-gray-400 mt-3">
+                <p className="text-[11px] text-gray-400 mt-auto pt-3">
                   Awaiting meeting link from mentor
                 </p>
               )}
             </>
           ) : (
             <>
-              <p className="text-sm font-semibold text-gray-900 mt-2">
+              <p className="text-sm font-semibold text-gray-900 mt-1.5">
                 No sessions scheduled
               </p>
               <Link
                 href={enrolledCourses[0]?.type === "SERVICE"
                   ? `/services/${enrolledCourses[0]?.id ?? ""}`
                   : `/courses/${enrolledCourses[0]?.id ?? ""}`}
-                className="mt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#0F766E] text-white text-sm font-semibold py-2.5 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200"
+                className="mt-auto pt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#0F766E] text-white text-sm font-semibold py-2 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200"
               >
                 Request a session <ArrowRight size={13} />
               </Link>
@@ -440,13 +449,13 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
         </div>
 
         {/* Widget B — Recent achievement */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
+        <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-200">
           <p className="text-[10px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
             Recent Achievement
           </p>
           {recentAchievement ? (
             <>
-              <div className="flex items-center gap-2.5 mt-2">
+              <div className="flex items-center gap-2.5 mt-1.5">
                 <div className="w-8 h-8 rounded-lg bg-[#f0fdf9] flex items-center justify-center shrink-0">
                   {recentAchievement.type === "cert"
                     ? <Award size={15} className="text-[#0F766E]" />
@@ -464,14 +473,14 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
               {recentAchievement.type === "course" && recentAchievement.courseId != null ? (
                 <Link
                   href={`/courses/${recentAchievement.courseId}`}
-                  className="mt-3 w-full inline-flex items-center justify-center gap-1 bg-transparent border border-[#0F766E]/20 text-[#0F766E] text-sm font-semibold py-2.5 rounded-xl hover:bg-[#f0fdf9] active:scale-[0.98] transition-all duration-200"
+                  className="mt-auto pt-3 w-full inline-flex items-center justify-center gap-1 bg-transparent border border-[#0F766E]/20 text-[#0F766E] text-sm font-semibold py-2 rounded-xl hover:bg-[#f0fdf9] active:scale-[0.98] transition-all duration-200"
                 >
                   View certificate
                 </Link>
               ) : null}
             </>
           ) : (
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-gray-500 mt-1.5">
               Keep learning — your first achievement is around the corner.
             </p>
           )}
@@ -480,16 +489,16 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
 
       {/* ── Section 5: Recent activity ────────────────────────────── */}
       {recentActivity.length > 0 && (
-        <div className="mt-8">
-          <h2 className="text-base font-bold text-gray-900 mb-3">Recent activity</h2>
-          <div className="bg-white rounded-2xl border border-gray-100 px-5 shadow-sm">
+        <div className="mt-4">
+          <h2 className="text-sm font-bold text-gray-900 mb-2">Recent activity</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 px-4 shadow-sm">
             {recentActivity.slice(0, 8).map((item, idx) => (
               <motion.div
                 key={`${item.timestamp}-${idx}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.2, delay: 0.04 * idx }}
-                className="flex gap-3 py-3 border-b border-gray-50 last:border-0"
+                className="flex gap-3 py-2.5 border-b border-gray-50 last:border-0"
               >
                 <div className={`shrink-0 mt-1.5 w-2 h-2 rounded-full ${activityDotClass(item.type ?? "")}`} />
                 <div className="flex-1 min-w-0">
@@ -506,9 +515,30 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
         </div>
       )}
 
+      {/* Browse-more card — fills space when content is short, and
+          surfaces a useful CTA back to /courses regardless. Only
+          suppressed when the user already has 4+ courses (they don't
+          need the nudge). */}
+      {enrolledCourses.length < 4 && (
+        <Link
+          href="/courses"
+          className="mt-4 flex items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 py-3 px-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200"
+        >
+          <div>
+            <p className="text-sm font-bold text-gray-900">Explore more courses</p>
+            <p className="text-[11px] text-gray-400 mt-0.5">
+              Discover what to learn next with personal mentorship.
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1 text-sm font-semibold text-[#0F766E] shrink-0">
+            Browse <ArrowRight size={14} />
+          </span>
+        </Link>
+      )}
+
       {/* Empty state — only when no enrollments AND no activity. */}
       {enrolledCourses.length === 0 && recentActivity.length === 0 && (
-        <div className="mt-8 text-center text-sm text-gray-500">
+        <div className="mt-4 text-center text-sm text-gray-500">
           Start a course to see your activity here.
         </div>
       )}
@@ -518,14 +548,14 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
 
 /**
  * Page shell — escapes the parent /dashboard wrapper's `px-6 pt-28
- * pb-20` so the gray bg can full-bleed. Then re-applies its own
- * padding per the design spec (pt-6 above the greeting, after a
- * navbar-clearance offset).
+ * pb-20` so the gray bg can full-bleed. Side margins replace a hard
+ * max-width: content stretches to fill the viewport up to a 1200px
+ * cap, with progressively larger gutters on bigger screens.
  */
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-[#f8f9fa] -mx-6 -mt-28 pt-[88px] pb-12 min-h-[calc(100vh-0px)]">
-      <div className="max-w-[900px] mx-auto pt-6 px-4 md:px-6">
+    <div className="bg-[#f8f9fa] -mx-6 -mt-28 pt-[80px] pb-8 min-h-screen">
+      <div className="w-full max-w-[1200px] mx-auto pt-4 px-4 md:px-12 lg:px-16">
         {children}
       </div>
     </div>
@@ -541,12 +571,12 @@ function StatBadge({
 }) {
   return (
     <div
-      className={`flex flex-col items-center justify-center text-center bg-white border border-gray-200 rounded-xl min-w-[80px] px-4 py-3 shadow-sm ${className}`}
+      className={`flex flex-col items-center justify-center text-center bg-white border border-gray-200 rounded-xl min-w-[72px] px-3 py-2 shadow-sm ${className}`}
     >
-      <span className="text-xl font-bold text-[#0F766E] tabular-nums leading-none">
+      <span className="text-lg font-bold text-[#0F766E] tabular-nums leading-none">
         {value}
       </span>
-      <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mt-1">
+      <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mt-0.5">
         {label}
       </span>
     </div>
