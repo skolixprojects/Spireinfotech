@@ -13,7 +13,7 @@ import {
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
-import { formatISTDate, formatISTTime } from "@/lib/datetime";
+import { formatISTDate, formatISTTimeWithZone, istDayKey } from "@/lib/datetime";
 
 const CATEGORIES = ["ALL", "ACCOUNT", "LEARNING", "ASSESSMENT", "MENTORSHIP", "PAYMENT", "CERTIFICATE", "SECURITY"] as const;
 type Category = typeof CATEGORIES[number];
@@ -28,21 +28,21 @@ const CATEGORY_STYLE: Record<string, { bg: string; text: string; Icon: typeof Ke
   SECURITY: { bg: "bg-red-100", text: "text-red-700", Icon: Lock },
 };
 
-// Date headers group records by day (IST). The dayKey below uses the
-// IST calendar boundary so a record at 11:30 PM IST and one at 1 AM
-// IST the next day land in different groups (instead of being lumped
-// together because their UTC clocks were both on the same day).
+// Date headers + day-bucket key both come from datetime.ts so the
+// "naive ISO is UTC" parsing is applied consistently — without it,
+// a record at 23:30 IST (= 18:00 UTC) would bucket into the wrong
+// day. Times carry an explicit "IST" suffix because admin staff
+// reading the audit log might not be in India.
 function formatDateHeader(iso: string): string {
   return formatISTDate(iso);
 }
 
 function formatTime(iso: string): string {
-  return formatISTTime(iso);
+  return formatISTTimeWithZone(iso);
 }
 
 function dayKey(iso: string): string {
-  // YYYY-MM-DD in IST. en-CA gives ISO order which sorts lexically.
-  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  return istDayKey(iso);
 }
 
 interface Props {

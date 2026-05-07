@@ -3,12 +3,23 @@
  * the UI surfaces a timestamp. Centralised here so a future timezone
  * switch (or a per-user preference) is a single-file change.
  *
- * Backend already serialises timestamps in IST via
- * `spring.jackson.time-zone=Asia/Kolkata`, but every helper here
- * passes `timeZone: "Asia/Kolkata"` to `Intl.DateTimeFormat` anyway —
- * defensive against any payload that comes from a third party (Razorpay
- * webhooks, Cloudinary, hand-crafted seed dates) and bypasses the
- * Jackson conversion.
+ * IMPORTANT — naive-ISO handling:
+ * Spring's `LocalDateTime` fields serialise to JSON as
+ * `"2026-05-07T18:08:00"` with no `Z` and no offset. JavaScript's
+ * `new Date()` parses such strings as **browser-local time**, not
+ * UTC, which means a Railway-served (UTC-clocked) timestamp would
+ * render at the user's wall-clock instead of being rebased to IST.
+ * `safeDate` below sniffs for that pattern and appends `Z` so the
+ * value is interpreted as UTC, then `Intl.DateTimeFormat` rebases
+ * to Asia/Kolkata correctly. {@link parseTimestamp} exposes the
+ * same logic for components that need a raw `Date` (e.g. day-bucket
+ * grouping in audit logs).
+ *
+ * `spring.jackson.time-zone=Asia/Kolkata` only affects timezone-
+ * aware types (`Instant`, `ZonedDateTime`) — for tz-naive
+ * `LocalDateTime` the frontend has to do the work. Every helper
+ * here passes `timeZone: "Asia/Kolkata"` to `Intl.DateTimeFormat`
+ * regardless, defensively.
  *
  * All helpers tolerate null/undefined/invalid input and return an
  * em-dash so callers don't need a defensive ternary at every site.
@@ -19,11 +30,35 @@ const FALLBACK = "—";
 
 type DateLike = string | number | Date | null | undefined;
 
-function safeDate(input: DateLike): Date | null {
+// Matches an ISO-ish datetime that ends in seconds/fractional-seconds
+// without a trailing `Z` and without a `±HH:MM` offset. Examples:
+//   "2026-05-07T18:08:00"          — match
+//   "2026-05-07T18:08:00.123"      — match
+//   "2026-05-07T18:08:00Z"         — no match (already UTC)
+//   "2026-05-07T18:08:00+05:30"    — no match (offset present)
+const NAIVE_ISO_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/;
+
+/**
+ * Parses a backend timestamp into a {@link Date}, treating naive
+ * ISO strings as UTC. Returns null on invalid input. Exported so
+ * components that need to do their own grouping/comparison (rather
+ * than display) parse with the same rules as the formatters.
+ */
+export function parseTimestamp(input: DateLike): Date | null {
   if (input == null) return null;
-  const d = input instanceof Date ? input : new Date(input);
+  if (input instanceof Date) {
+    return isNaN(input.getTime()) ? null : input;
+  }
+  let value = input;
+  if (typeof value === "string" && NAIVE_ISO_RE.test(value)) {
+    value = value + "Z";
+  }
+  const d = new Date(value);
   return isNaN(d.getTime()) ? null : d;
 }
+
+// Internal alias kept so existing in-file references don't churn.
+const safeDate = parseTimestamp;
 
 /** "7 May 2026, 8:00 PM" — full timestamp for activity feeds, audit. */
 export function formatIST(input: DateLike): string {
@@ -90,6 +125,24 @@ export function formatISTTime(input: DateLike): string {
 }
 
 /**
+ * "8:00 PM IST" — wall-clock with explicit zone label. Used on
+ * admin and audit surfaces where two staff in different timezones
+ * could be reading the same row and the unlabelled time is
+ * ambiguous. Avoid on student-facing screens — they're already
+ * implicitly IST.
+ */
+export function formatISTTimeWithZone(input: DateLike): string {
+  const t = formatISTTime(input);
+  return t === FALLBACK ? FALLBACK : `${t} IST`;
+}
+
+/** "7 May 2026, 8:00 PM IST" — full timestamp, zone-labelled. */
+export function formatISTWithZone(input: DateLike): string {
+  const t = formatIST(input);
+  return t === FALLBACK ? FALLBACK : `${t} IST`;
+}
+
+/**
  * "just now" / "5 min ago" / "3h ago" / "2d ago" / "7 May, 8:00 PM"
  * for older. The "now" comparison is in real time (UTC under the
  * hood) so the rebase to IST doesn't matter for the math; only the
@@ -126,4 +179,18 @@ export function formatISTContextual(input: DateLike): string {
   const today = new Date().toLocaleDateString("en-IN", { timeZone: IST });
   const dateDay = d.toLocaleDateString("en-IN", { timeZone: IST });
   return dateDay === today ? formatISTTime(d) : formatISTShort(d);
+}
+
+/**
+ * `YYYY-MM-DD` in IST — a stable, lexically-sortable bucket key for
+ * grouping audit-log rows by calendar day. Uses {@link parseTimestamp}
+ * so a naive UTC string at 23:30 on May 7 (UTC) correctly buckets
+ * into May 8 (IST), instead of being grouped with the previous IST
+ * day because the raw UTC clock hadn't ticked over yet.
+ */
+export function istDayKey(input: DateLike): string {
+  const d = safeDate(input);
+  if (!d) return "";
+  // en-CA gives ISO-style YYYY-MM-DD which sorts lexically.
+  return d.toLocaleDateString("en-CA", { timeZone: IST });
 }

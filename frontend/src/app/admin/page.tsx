@@ -73,7 +73,7 @@ import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink } 
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { cn } from "@/lib/utils";
-import { formatIST, formatISTDate } from "@/lib/datetime";
+import { formatIST, formatISTDate, formatISTWithZone } from "@/lib/datetime";
 
 const sidebarLinks = [
   { label: "Overview", icon: LayoutDashboard },
@@ -1133,7 +1133,7 @@ function AdminContent() {
                             </td>
                             <td className="py-3 text-xs text-gray-500">
                               {s.scheduledAt
-                                ? formatIST(s.scheduledAt)
+                                ? formatISTWithZone(s.scheduledAt)
                                 : s.requestedAt
                                   ? `Requested ${formatISTDate(s.requestedAt)}`
                                   : "—"}
@@ -1348,7 +1348,7 @@ function AdminContent() {
                                   {t.razorpayPaymentId ?? t.razorpayOrderId ?? "—"}
                                 </td>
                                 <td className="py-3 text-xs text-gray-500">
-                                  {formatIST(t.createdAt)}
+                                  {formatISTWithZone(t.createdAt)}
                                 </td>
                               </tr>
                             ))}
@@ -1663,7 +1663,7 @@ function AdminContent() {
                                 </td>
                                 <td className="py-3 text-xs text-gray-500">{s.budgetRange ?? "—"}</td>
                                 <td className="py-3 text-xs text-gray-500">
-                                  {formatIST(s.lastMessageAt)}
+                                  {formatISTWithZone(s.lastMessageAt)}
                                 </td>
                               </tr>
                             ))}
