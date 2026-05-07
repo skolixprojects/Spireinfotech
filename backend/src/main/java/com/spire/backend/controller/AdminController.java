@@ -93,6 +93,21 @@ public class AdminController {
                 active ? "User activated" : "User deactivated", user));
     }
 
+    /**
+     * Soft-delete: deactivates the account and scrubs personal data.
+     * Foreign-key heavy entities (records, certificates, enrollments)
+     * stay intact for audit. See {@link AdminService#softDeleteUser}.
+     */
+    @DeleteMapping("/users/{id}")
+    public ResponseEntity<ApiResponse<UserDTO>> softDeleteUser(
+            @PathVariable Long id,
+            Authentication authentication) {
+        Long currentAdminId = Long.parseLong(authentication.getPrincipal().toString());
+        UserDTO user = adminService.softDeleteUser(id, currentAdminId);
+        return ResponseEntity.ok(ApiResponse.success(
+                "User deactivated and anonymized", user));
+    }
+
     // ─── Platform-wide oversight ────────────────────────────────────
 
     @GetMapping("/enrollments")

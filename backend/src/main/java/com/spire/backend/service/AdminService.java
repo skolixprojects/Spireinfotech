@@ -234,6 +234,64 @@ public class AdminService {
     }
 
     /**
+     * Soft-deletes a user — the row stays in the database (so its
+     * activity logs, certificates, and enrollments remain valid for
+     * audit) but the account is marked inactive and personal data is
+     * scrubbed. The original email is replaced with
+     * {@code deleted_<id>@removed.com} so the address can be reused
+     * by a fresh signup.
+     *
+     * Guards:
+     *   - admins cannot soft-delete themselves (would lock them out)
+     *   - admins cannot soft-delete other admins (admin role changes
+     *     go through {@link #updateUserRole}, not deletion)
+     */
+    @Transactional
+    public UserDTO softDeleteUser(Long userId, Long currentAdminId) {
+        if (userId.equals(currentAdminId)) {
+            throw new IllegalArgumentException("You can't deactivate your own account.");
+        }
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        if (user.getRole() != null && "ADMIN".equalsIgnoreCase(user.getRole().getName())) {
+            throw new IllegalArgumentException("Admin accounts cannot be deactivated this way. Change their role first.");
+        }
+
+        // Capture identifiers before scrubbing so the audit record
+        // can name the original account, not the placeholder.
+        String originalEmail = user.getEmail();
+        String originalName = user.getFullName();
+
+        user.setIsActive(false);
+        user.setEmail("deleted_" + user.getId() + "@removed.com");
+        user.setFullName("Deleted User");
+        user.setPhone(null);
+        user.setLocation(null);
+        user.setBio(null);
+        user.setAvatarUrl(null);
+        // Clear in-flight verification / reset tokens too — none of
+        // them should be honoured against an anonymized account.
+        user.setVerificationToken(null);
+        user.setVerificationExpiresAt(null);
+        user.setResetToken(null);
+        user.setResetTokenExpiresAt(null);
+
+        UserDTO saved = UserDTO.from(userRepository.save(user));
+
+        recordService.record(userId, "ACCOUNT_DEACTIVATED", RecordService.Category.ACCOUNT,
+                "Account deactivated by admin",
+                "Admin soft-deleted this account; personal data scrubbed",
+                java.util.Map.of(
+                        "deactivatedBy", currentAdminId,
+                        "originalEmail", originalEmail != null ? originalEmail : "",
+                        "originalName", originalName != null ? originalName : ""
+                ));
+
+        return saved;
+    }
+
+    /**
      * Activate or deactivate a user account. An admin can't toggle
      * their own account to avoid lockout.
      */

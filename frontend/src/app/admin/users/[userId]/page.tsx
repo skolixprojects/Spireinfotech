@@ -8,10 +8,12 @@ import {
   ArrowLeft, Phone, MapPin, Calendar, Loader2, AlertCircle,
   BookOpen, GraduationCap, Award, Flame, CheckCircle2, Clock,
   ShieldCheck, ExternalLink, Briefcase, Activity, FileText,
+  Trash2, X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getUserProfileAsAdmin, updateUserRoleAsAdmin, type ProfileData,
+  getUserProfileAsAdmin, updateUserRoleAsAdmin, softDeleteUserAsAdmin,
+  type ProfileData,
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { UserRecordsPanel } from "@/components/admin/UserRecordsPanel";
@@ -71,6 +73,9 @@ export default function AdminUserDetailPage({
   const [error, setError] = useState("");
   const [roleSaving, setRoleSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<"activity" | "records">("activity");
+  // Soft-delete UI state — confirm modal + in-flight flag.
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -101,6 +106,23 @@ export default function AdminUserDetailPage({
       toast("error", err instanceof Error ? err.message : "Failed to update role");
     } finally {
       setRoleSaving(false);
+    }
+  };
+
+  const handleSoftDelete = async () => {
+    if (!profile || deleting) return;
+    setDeleting(true);
+    try {
+      await softDeleteUserAsAdmin(profile.id);
+      toast("success", "User deactivated and anonymized");
+      // Drop the panel and bounce to the admin index — the row's
+      // identity has changed, so staying here would render stale data.
+      router.replace("/admin?tab=Users");
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : "Failed to deactivate user");
+    } finally {
+      setDeleting(false);
+      setConfirmDeleteOpen(false);
     }
   };
 
@@ -468,11 +490,113 @@ export default function AdminUserDetailPage({
               </ul>
             )}
           </div>
+
+          {/* Danger zone — soft-delete. Hidden when viewing own
+              profile or another admin's profile (the backend
+              enforces the same guards, but suppressing the button
+              avoids tempting the click). Inactive users still show
+              the button so an admin can re-deactivate after a
+              re-activation reverted the anonymization (rare). */}
+          {me?.id !== profile.id && profile.role?.toUpperCase() !== "ADMIN" && (
+            <div className="mt-8">
+              <hr className="my-6 border-gray-100" />
+              <h2 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-1.5">
+                <AlertCircle size={14} />
+                Danger Zone
+              </h2>
+              <div className="rounded-xl border border-red-200 bg-red-50/50 p-4">
+                <p className="text-sm font-bold text-gray-900">
+                  Deactivate this user&apos;s account
+                </p>
+                <p className="text-sm text-gray-600 mt-1 leading-relaxed">
+                  The user will be logged out and unable to access the platform.
+                  Their personal data (name, email, phone, location, bio) will be
+                  anonymized. Activity records, certificates, and enrollments are
+                  preserved for audit.
+                </p>
+                <button
+                  onClick={() => setConfirmDeleteOpen(true)}
+                  disabled={deleting}
+                  className="mt-3 inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-60 cursor-pointer"
+                >
+                  <Trash2 size={14} /> Deactivate User
+                </button>
+              </div>
+            </div>
+          )}
           </>
           )}
         </div>
       </motion.div>
+
+      {confirmDeleteOpen && (
+        <DeactivateConfirmModal
+          userName={profile.fullName ?? profile.email ?? "this user"}
+          submitting={deleting}
+          onConfirm={handleSoftDelete}
+          onCancel={() => setConfirmDeleteOpen(false)}
+        />
+      )}
     </section>
+  );
+}
+
+function DeactivateConfirmModal({
+  userName, submitting, onConfirm, onCancel,
+}: {
+  userName: string;
+  submitting: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-6"
+      onClick={onCancel}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="inline-flex items-center gap-2 text-base font-bold text-gray-900">
+            <AlertCircle size={16} className="text-red-600" />
+            Deactivate user?
+          </h2>
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="p-1 rounded-md hover:bg-gray-100 text-gray-400 disabled:opacity-50"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-sm text-gray-700 leading-relaxed">
+            Are you sure you want to deactivate <strong>{userName}</strong>?
+            This will anonymize their personal data. This action cannot be undone.
+          </p>
+        </div>
+        <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-2">
+          <button
+            onClick={onCancel}
+            disabled={submitting}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={submitting}
+            className="inline-flex items-center gap-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-bold px-4 py-2 rounded-lg disabled:opacity-60"
+          >
+            {submitting && <Loader2 size={13} className="animate-spin" />}
+            {submitting ? "Deactivating…" : "Yes, Deactivate"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

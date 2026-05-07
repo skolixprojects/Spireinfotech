@@ -114,6 +114,10 @@ interface User {
   role: string;
   avatarUrl: string | null;
   bio: string | null;
+  // UserDTO surfaces isActive (true on default seed; flipped false
+  // by the soft-delete or status-toggle endpoints). Optional here
+  // so older payloads without the field still parse.
+  isActive?: boolean;
 }
 
 interface CourseItem {
@@ -160,6 +164,10 @@ function AdminContent() {
   // Data states
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [users, setUsers] = useState<User[]>([]);
+  // Active/inactive filter on the Users tab. Defaults to "all" so
+  // an admin coming from a deactivation immediately sees the row
+  // they just changed.
+  const [userStatusFilter, setUserStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [requests, setRequests] = useState<InstructorRequest[]>([]);
   const [courses, setCourses] = useState<CourseItem[]>([]);
 
@@ -768,6 +776,17 @@ function AdminContent() {
                 <h1 className="text-2xl font-bold text-[#0F766E]">All Users</h1>
                 <div className="flex items-center gap-3">
                   <p className="text-xs text-gray-400 hidden sm:block">Click any row to view full profile + activity</p>
+                  <select
+                    value={userStatusFilter}
+                    onChange={(e) =>
+                      setUserStatusFilter(e.target.value as "all" | "active" | "inactive")
+                    }
+                    className="px-3 py-2 rounded-lg text-xs font-semibold bg-white border border-gray-200 text-gray-700 hover:border-[#0F766E] cursor-pointer focus:outline-none focus:border-[#0F766E]"
+                  >
+                    <option value="all">All</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
                   <button
                     onClick={() => handleExport("users")}
                     disabled={exportingKind === "users"}
@@ -789,28 +808,56 @@ function AdminContent() {
                         <th className="pb-3 font-medium">Name</th>
                         <th className="pb-3 font-medium">Email</th>
                         <th className="pb-3 font-medium">Role</th>
+                        <th className="pb-3 font-medium">Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {users.map((user) => (
-                        <tr
-                          key={user.id}
-                          onClick={() => router.push(`/admin/users/${user.id}`)}
-                          className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-[#0F766E]/5 transition-colors"
-                        >
-                          <td className="py-3 text-gray-400">#{user.id}</td>
-                          <td className="py-3 font-medium text-[#1a1a1a]">{user.fullName}</td>
-                          <td className="py-3 text-gray-500">{user.email}</td>
-                          <td className="py-3">
-                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeColor(user.role)}`}>
-                              {user.role}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                      {users.length === 0 && (
+                      {users
+                        .filter((u) => {
+                          // `isActive` is optional on the type to keep
+                          // older payloads parsing — treat undefined as
+                          // active so legacy seed users aren't hidden.
+                          const active = u.isActive !== false;
+                          if (userStatusFilter === "active") return active;
+                          if (userStatusFilter === "inactive") return !active;
+                          return true;
+                        })
+                        .map((user) => {
+                          const active = user.isActive !== false;
+                          return (
+                            <tr
+                              key={user.id}
+                              onClick={() => router.push(`/admin/users/${user.id}`)}
+                              className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-[#0F766E]/5 transition-colors"
+                            >
+                              <td className="py-3 text-gray-400">#{user.id}</td>
+                              <td className={`py-3 font-medium ${active ? "text-[#1a1a1a]" : "text-gray-400"}`}>{user.fullName}</td>
+                              <td className="py-3 text-gray-500">{user.email}</td>
+                              <td className="py-3">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeColor(user.role)}`}>
+                                  {user.role}
+                                </span>
+                              </td>
+                              <td className="py-3">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  active
+                                    ? "bg-emerald-50 text-emerald-700"
+                                    : "bg-gray-100 text-gray-500"
+                                }`}>
+                                  {active ? "Active" : "Inactive"}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      {users.filter((u) => {
+                        const active = u.isActive !== false;
+                        if (userStatusFilter === "active") return active;
+                        if (userStatusFilter === "inactive") return !active;
+                        return true;
+                      }).length === 0 && (
                         <tr>
-                          <td colSpan={4} className="py-6 text-center text-gray-400">No users found.</td>
+                          <td colSpan={5} className="py-6 text-center text-gray-400">No users found.</td>
                         </tr>
                       )}
                     </tbody>

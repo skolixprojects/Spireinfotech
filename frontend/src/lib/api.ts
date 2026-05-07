@@ -251,6 +251,34 @@ export async function updateUserStatusAsAdmin(userId: number | string, active: b
   return wrapper.data;
 }
 
+// Admin: soft-delete a user (deactivates + scrubs personal data,
+// preserves audit records). Server enforces "no self-delete" and
+// "no admin-on-admin" rules and returns 400 with a message.
+export async function softDeleteUserAsAdmin(userId: number | string) {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/admin/users/${userId}`,
+    { method: "DELETE" },
+  );
+  return wrapper.data;
+}
+
+// Test email — fires the public /api/test/send-email endpoint used
+// by the homepage diagnostic widget. Returns { success, message }.
+// TODO: Remove this helper when the test endpoint is removed.
+export async function sendTestEmail(to: string) {
+  const wrapper = await apiFetch<ApiResponse<unknown> | { success: boolean; message: string }>(
+    `/api/test/send-email?to=${encodeURIComponent(to)}`,
+  );
+  // The endpoint returns the raw payload (success/message) rather
+  // than the ApiResponse wrapper, so unwrap defensively.
+  if (wrapper && typeof wrapper === "object" && "success" in wrapper) {
+    return wrapper as { success: boolean; message: string };
+  }
+  // Fallback for ApiResponse-wrapped variants.
+  const w = wrapper as ApiResponse<{ success: boolean; message: string }>;
+  return w.data ?? { success: false, message: "Empty response" };
+}
+
 // Admin: every enrollment on the platform with mentor + progress resolved.
 export interface AdminEnrollmentRow {
   enrollmentId: number;
