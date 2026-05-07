@@ -160,34 +160,39 @@ public class AgreementController {
         return request.getRemoteAddr();
     }
 
-    // ─── Terms text (matches PRODUCT.md) ────────────────────────────
+    // ─── Terms text (14 sections, frozen at v1.0) ───────────────────
+    // Edits to this list bump the agreement version implicitly —
+    // existing acceptance rows stamp the old version string at
+    // accept time, so historic consents stay attributable.
     private static final List<Map<String, String>> TERMS_SECTIONS = List.of(
-            sec("Introduction",
-                    "Welcome to Spire Info Tech. By creating an account and using our platform, you agree to be bound by these Terms of Service and our Privacy Policy."),
-            sec("Definitions",
-                    "\"Platform\" means spireinfotech.vercel.app and related services. \"User\" means any person who creates an account. \"Content\" means courses, videos, quizzes, and materials. \"Mentor\" means an instructor assigned to guide a user."),
-            sec("User Accounts",
-                    "You must provide accurate information. Users must be 18+ or have parental consent. You are responsible for keeping your account credentials secure. One account per person."),
-            sec("Course Content & Intellectual Property",
-                    "All content is owned by Spire Info Tech and its instructors. Users may not record, screenshot, download, share, or redistribute any course content. Violation may result in account termination. Content is for personal learning only."),
-            sec("Payments & Refunds",
-                    "Course prices are one-time payments in INR. Refund requests must be made within 7 days of purchase. No refunds after accessing more than 25% of course content. Custom pricing agreements via Contact Sales are binding."),
-            sec("Mentorship",
-                    "Mentors provide guidance, not guaranteed outcomes. Session scheduling is subject to mentor availability. Users must attend scheduled sessions or cancel at least 24 hours in advance."),
-            sec("Certificates",
-                    "Certificates are issued upon course completion. Certificates can be verified at our verification page. Misrepresentation of certificates is prohibited."),
-            sec("Privacy & Data Collection",
-                    "We collect: name, email, phone, learning activity, IP address. We use data for: platform operation, communication, analytics. We do not sell personal data to third parties. Activity logs are maintained for security and audit. Users can request data export or deletion."),
-            sec("Account Termination",
-                    "We may terminate accounts for terms violation. Users can request account deletion via support. Upon termination, course access is revoked."),
-            sec("Limitation of Liability",
-                    "Platform is provided \"as is\". We are not liable for career outcomes. We are not liable for technical issues beyond reasonable control."),
-            sec("Changes to Terms",
-                    "We may update these terms with notice. Continued use after an update constitutes acceptance. Major changes will require re-acceptance."),
-            sec("Governing Law",
-                    "These terms are governed by the laws of India. Any disputes are subject to the jurisdiction of courts in Hyderabad."),
-            sec("Contact",
-                    "Email: noreply@spireitco.com. Website: spireinfotech.vercel.app/support.")
+            sec("1. Introduction",
+                    "Welcome to Spire Info Tech (\"Company\", \"we\", \"us\"). By creating an account and using our platform at spireinfotech.vercel.app, you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, please do not use our services."),
+            sec("2. Definitions",
+                    "\"Platform\" refers to the Spire Info Tech website and all related services. \"User\" refers to any individual who creates an account. \"Content\" refers to all courses, video lessons, quizzes, assignments, and educational materials. \"Mentor\" refers to an instructor assigned to guide a User. \"Services\" refers to career services including resume preparation, interview training, LinkedIn optimization, and placement assistance."),
+            sec("3. User Accounts",
+                    "You must provide accurate and complete information when creating your account. You are responsible for maintaining the confidentiality of your login credentials. You must be at least 18 years of age or have parental/guardian consent. Each individual may maintain only one account. You agree to notify us immediately of any unauthorized use of your account."),
+            sec("4. Course Content & Intellectual Property",
+                    "All course content, including but not limited to video lessons, quizzes, assignments, code samples, and supplementary materials, is the intellectual property of Spire Info Tech and its respective instructors. You are granted a limited, non-exclusive, non-transferable license to access content solely for personal educational purposes. You may NOT record, screenshot, download, copy, distribute, share, or redistribute any course content by any means. You may NOT use screen recording software, capture tools, or any other method to capture course content. Violation of these terms may result in immediate account termination without refund and may subject you to legal action under applicable copyright laws."),
+            sec("5. Payments & Refunds",
+                    "All course prices are listed in Indian Rupees (INR) and are one-time payments granting lifetime access to the purchased course. Refund requests must be submitted within 7 days of purchase. No refunds will be issued if you have accessed more than 25% of the course content. Custom pricing agreements made through our Contact Sales feature are binding once accepted. Spire Info Tech reserves the right to modify pricing at any time. Existing purchases are not affected by price changes."),
+            sec("6. Mentorship",
+                    "Each course enrollment includes assignment of a personal mentor. Mentors provide guidance, feedback, and support but do not guarantee specific learning outcomes or career results. Session scheduling is subject to mentor availability. Users must attend scheduled sessions or cancel at least 24 hours in advance. Repeated no-shows may result in reduced session privileges. The mentor-student relationship is limited to the platform and course scope."),
+            sec("7. Certificates",
+                    "Certificates of completion are issued upon finishing all course requirements including lessons and assessments. Each certificate includes a unique verification number that can be independently verified at our verification page. Certificates represent completion of coursework and do not constitute a degree, diploma, or professional certification. Misrepresentation of certificate credentials is strictly prohibited."),
+            sec("8. Privacy & Data Collection",
+                    "We collect personal information including: name, email address, phone number, learning activity data, IP addresses, browser information, and device details. This data is used for: platform operation and improvement, communication regarding your account and courses, security monitoring and fraud prevention, and analytics to improve our services. We do NOT sell, rent, or trade your personal information to third parties. Activity logs and learning records are maintained for security, audit, and evidence purposes. You may request a complete export of your data or request deletion of your account by contacting support."),
+            sec("9. Content Protection Monitoring",
+                    "Our platform employs various security measures to protect course content, including but not limited to: browser-level protections against unauthorized copying, watermarking technology that identifies the viewing user, activity monitoring to detect potential content theft, and session tracking for security purposes. By using our platform, you consent to these protective measures. Attempting to circumvent content protection measures is a violation of these terms."),
+            sec("10. Account Termination",
+                    "Spire Info Tech reserves the right to suspend or terminate your account at any time for violation of these Terms of Service, including but not limited to: unauthorized content distribution, fraudulent activity, abusive behavior toward mentors or staff, or any other conduct deemed harmful to the platform or its users. Users may request voluntary account deletion through the support page. Upon termination, access to all courses and content is immediately revoked."),
+            sec("11. Limitation of Liability",
+                    "The platform and all content are provided on an \"as is\" and \"as available\" basis. Spire Info Tech makes no warranties regarding the accuracy, completeness, or reliability of any content. We are not liable for any direct, indirect, incidental, or consequential damages arising from your use of the platform. We do not guarantee specific career outcomes, job placements, or salary increases as a result of completing our courses or services."),
+            sec("12. Changes to Terms",
+                    "Spire Info Tech reserves the right to update or modify these Terms of Service at any time. Users will be notified of significant changes via email and/or platform notification. Continued use of the platform after changes constitutes acceptance of the updated terms. For major changes, users may be required to re-accept the updated terms."),
+            sec("13. Governing Law & Dispute Resolution",
+                    "These Terms of Service shall be governed by and construed in accordance with the laws of India. Any disputes arising from or relating to these terms shall be subject to the exclusive jurisdiction of the courts in Hyderabad, Telangana, India. Both parties agree to attempt to resolve any disputes through good-faith negotiation before pursuing legal action."),
+            sec("14. Contact Information",
+                    "For any questions or concerns regarding these Terms of Service, please contact us at: Email: noreply@spireitco.com | Website: spireinfotech.vercel.app/support | Address: Hyderabad, Telangana, India")
     );
 
     private static Map<String, String> sec(String title, String content) {

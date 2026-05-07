@@ -50,7 +50,16 @@ public class AgreementGateFilter extends OncePerRequestFilter {
         if (path == null) return true;
         return path.startsWith("/api/auth/")
                 || path.startsWith("/api/agreement/")
-                || path.equals("/api/health");
+                || path.equals("/api/health")
+                // Profile read is exempt so the AuthProvider on the
+                // /agreement page itself can hydrate the logged-in
+                // user. Without this, getProfile() would 403 →
+                // apiFetch interceptor would redirect to /agreement
+                // (already there) and throw → AuthProvider would
+                // clearAuth → page would bounce to /login. Profile
+                // contains only the user's own personal data; safe
+                // to expose pre-acceptance.
+                || path.equals("/api/users/profile");
     }
 
     @Override

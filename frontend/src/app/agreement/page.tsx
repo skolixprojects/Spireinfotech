@@ -391,14 +391,16 @@ export default function AgreementPage() {
                     <Loader2 size={14} className="animate-spin" /> Loading terms…
                   </div>
                 ) : (
-                  <ol className="space-y-4 list-decimal list-inside">
+                  <div className="space-y-5">
                     {terms.sections.map((s) => (
-                      <li key={s.title}>
-                        <span className="font-bold text-gray-900">{s.title}</span>
-                        <p className="mt-1 text-sm text-gray-700 leading-relaxed">{s.content}</p>
-                      </li>
+                      <div key={s.title}>
+                        <h3 className="text-base font-bold text-gray-900">{s.title}</h3>
+                        <p className="mt-1.5 text-sm text-gray-700" style={{ lineHeight: 1.7 }}>
+                          {s.content}
+                        </p>
+                      </div>
                     ))}
-                  </ol>
+                  </div>
                 )}
               </div>
 

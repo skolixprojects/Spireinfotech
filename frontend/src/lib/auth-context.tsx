@@ -81,8 +81,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const profile = await getProfile();
         setUser(profile);
-      } catch {
-        clearAuth();
+      } catch (err) {
+        // AGREEMENT_REQUIRED isn't an auth failure — the user is
+        // logged in, they just haven't accepted the Terms yet.
+        // Don't clear the token; the apiFetch interceptor has
+        // already redirected to /agreement, and we want the gate
+        // page to know who's signed in. Any other error genuinely
+        // means the token is bad → clear and force re-login.
+        if (err instanceof Error && err.message === "AGREEMENT_REQUIRED") {
+          // Leave user as null; the agreement page reads `email`
+          // off the JWT-derived profile via a fresh fetch once
+          // the gate is satisfied. (See exemption for
+          // /api/users/profile in AgreementGateFilter — this
+          // catch is just a defensive fallback.)
+        } else {
+          clearAuth();
+        }
       } finally {
         setIsLoading(false);
       }

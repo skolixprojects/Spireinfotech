@@ -104,45 +104,45 @@ public class EmailTemplateService {
             User user, String legalName, String ipAddress,
             long userId, long trackingTimestamp
     ) {
+        // Subject embeds the tracking marker the IMAP cron uses to
+        // match incoming replies back to this row. Format must stay
+        // [AGREE-{userId}-{ts}] — see TRACKING_REGEX in the cron.
         String tracking = String.format("[AGREE-%d-%d]", userId, trackingTimestamp);
-        String subject = "ACTION REQUIRED: Accept Spire Info Tech Agreement — Reply YES " + tracking;
+        String subject = "ACTION REQUIRED: Accept Spire Info Tech Agreement " + tracking;
         String dateStamp = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Kolkata"))
                 .format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a"));
 
-        String checks =
-                "<div style=\"background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px 18px; margin:16px 0;\">"
-                        + "<p style=\"margin:0 0 6px; color:#374151; font-size:13px; font-weight:bold;\">What you are agreeing to:</p>"
+        String summary =
+                "<div style=\"background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:16px 20px; margin:18px 0;\">"
+                        + "<p style=\"margin:0 0 10px; color:#0F766E; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:1.5px;\">Agreement Summary</p>"
                         + bullet("Terms of Service v1.0")
                         + bullet("Privacy Policy")
                         + bullet("Content Protection Policy")
-                        + "</div>";
-
-        String details =
-                "<div style=\"background:#f0fdf9; border-left:3px solid #0F766E; padding:12px 16px; margin:16px 0; border-radius:4px;\">"
-                        + "<p style=\"margin:0; color:#374151; font-size:13px;\">"
-                        + "<strong>Legal name:</strong> " + escape(legalName) + "<br/>"
+                        + bullet("Payment & Refund Policy")
+                        + "<hr style=\"border:none; border-top:1px solid #e5e7eb; margin:14px 0 10px;\"/>"
+                        + "<p style=\"margin:0; color:#374151; font-size:13px; line-height:1.7;\">"
+                        + "<strong>Legal name provided:</strong> " + escape(legalName) + "<br/>"
                         + "<strong>Date:</strong> " + escape(dateStamp) + " IST<br/>"
                         + "<strong>IP:</strong> " + escape(ipAddress == null ? "—" : ipAddress)
                         + "</p></div>";
 
         String replyCallout =
-                "<div style=\"text-align:center; margin:20px 0;\">"
+                "<div style=\"text-align:center; margin:24px 0;\">"
                         + "<span style=\"display:inline-block; font-size:22px; font-weight:bold; "
                         + "letter-spacing:4px; color:#0F766E; background:#f0fdf9; "
-                        + "padding:10px 24px; border-radius:8px; "
+                        + "padding:12px 28px; border-radius:8px; "
                         + "border:1px solid rgba(15,118,110,0.2); font-family:Arial,Helvetica,sans-serif;\">"
-                        + "Reply with: YES"
+                        + "REPLY: YES"
                         + "</span></div>";
 
         String body = p("Hi " + firstName(user) + ",")
-                + p("You are accepting the Terms of Service and Privacy Policy of <strong>Spire Info Tech</strong>.")
-                + p("To confirm your acceptance, simply <strong>reply</strong> to this email with the word:")
+                + p("You have reviewed and indicated your acceptance of the <strong>Spire Info Tech</strong> Terms of Service.")
+                + summary
+                + p("To confirm your acceptance, <strong>reply</strong> to this email with the word:")
                 + replyCallout
-                + checks
-                + details
-                + p("Reply <strong>YES</strong> to confirm. Any other reply will be ignored.")
+                + p("Your reply serves as your digital consent and will be recorded for legal purposes.")
                 + p("This request expires in <strong>30 minutes</strong>.")
-                + muted("If you didn't initiate this, ignore this email — no agreement will be recorded.");
+                + muted("If you did not initiate this, please ignore this email — no agreement will be recorded.");
 
         emailService.sendEmail(user.getEmail(), subject, wrap("Confirm your agreement", body));
         return subject;
