@@ -76,6 +76,17 @@ public class DataSeeder implements CommandLineRunner {
         // a NOT NULL violation that surfaces as a generic 409.
         relaxLegacyQuestionColumns();
 
+        // Add the email-verification + password-reset + nudge columns
+        // before Hibernate's ddl-auto=update kicks in. Hibernate would
+        // otherwise refuse to add `email_verified BOOLEAN NOT NULL` to
+        // an already-populated users table because existing rows have
+        // no value to satisfy the NOT NULL constraint — the failed
+        // ALTER cascades and leaves the rest of the migration batch in
+        // a partial state. Doing it here with an explicit DEFAULT FALSE
+        // gives every existing row the right default, so Hibernate's
+        // subsequent run is a clean no-op.
+        addUserEmailColumnsIfMissing();
+
         if (userRepository.count() > 0) {
             log.info("Database already seeded. Skipping initial users/courses block.");
             // Backfill on already-seeded dev DBs that predate the services
@@ -563,6 +574,46 @@ public class DataSeeder implements CommandLineRunner {
                                         new SvcLesson("First 90 Days at Your New Job", 18)
                                 ))
                 ));
+    }
+
+    /**
+     * Backfills the email-verification + password-reset + inactivity
+     * nudge columns on the {@code users} table. Each ALTER uses
+     * {@code ADD COLUMN IF NOT EXISTS} so reruns are idempotent — the
+     * statement no-ops once the column exists.
+     *
+     * The {@code email_verified} column carries an explicit
+     * {@code DEFAULT FALSE} so Hibernate's later ddl-auto=update
+     * doesn't have to grapple with a NOT NULL ALTER on a populated
+     * table. Without this, the deploy that introduced these fields
+     * silently left the columns missing and every welcome / verify
+     * email path failed at write time.
+     *
+     * Postgres-first; falls back to MySQL syntax (which also
+     * supports IF NOT EXISTS on 8.0.16+). Each ALTER is wrapped so
+     * an unsupported dialect / already-applied state is a silent
+     * no-op rather than crashing app startup.
+     */
+    private void addUserEmailColumnsIfMissing() {
+        // Tuples of (column DDL, log label). Order matches the
+        // declarations in User.java for readability.
+        String[][] columns = {
+                {"email_verified BOOLEAN NOT NULL DEFAULT FALSE", "email_verified"},
+                {"verification_token VARCHAR(64)", "verification_token"},
+                {"verification_expires_at TIMESTAMP", "verification_expires_at"},
+                {"reset_token VARCHAR(64)", "reset_token"},
+                {"reset_token_expires_at TIMESTAMP", "reset_token_expires_at"},
+                {"last_nudge_sent_at TIMESTAMP", "last_nudge_sent_at"},
+        };
+        for (String[] col : columns) {
+            try {
+                jdbcTemplate.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS " + col[0]);
+                log.info("Ensured users.{} exists", col[1]);
+            } catch (Exception e) {
+                log.debug("Couldn't add users.{} (likely already present or unsupported dialect): {}",
+                        col[1], e.getMessage());
+            }
+        }
     }
 
     /**
