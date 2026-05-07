@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   ChevronLeft, ChevronDown, CheckCircle2, Play, Lock,
   Award, Download, Loader2, Clock, MessageCircle, Mail, Calendar,
-  Video, FileText,
+  Video, FileText, BookOpen, GraduationCap, Brain,
 } from "lucide-react";
 import { QuizCard } from "@/components/quiz/QuizCard";
 import { cn } from "@/lib/utils";
@@ -242,7 +242,10 @@ export function CourseLearningView({
 
         {/* ── Curriculum ─────────────────────────────────────────── */}
         <section className="mb-5">
-          <h2 className="text-xl font-bold text-gray-900 mb-3">Curriculum</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <BookOpen size={20} className="text-[#0F766E]" />
+            Curriculum
+          </h2>
           {modules.length === 0 && orphanLessons.length === 0 ? (
             <div className="text-center py-8 bg-white rounded-2xl border border-gray-100 shadow-sm text-gray-500 text-sm">
               No lessons published yet.
@@ -269,7 +272,10 @@ export function CourseLearningView({
               {orphanLessons.length > 0 && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                   <div className="px-4 py-3.5 bg-gray-50/50">
-                    <h3 className="text-base font-bold text-gray-900">Other lessons</h3>
+                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                      <BookOpen size={16} className="text-gray-400" />
+                      Other lessons
+                    </h3>
                   </div>
                   <div>
                     {orphanLessons.map((l) => (
@@ -291,7 +297,10 @@ export function CourseLearningView({
         {/* ── Course-level quizzes ───────────────────────────────── */}
         {courseLevelQuizzes.length > 0 && (
           <section className="mb-5">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Final assessment</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <Brain size={18} className="text-[#0F766E]" />
+              Final assessment
+            </h2>
             <div className="grid sm:grid-cols-2 gap-3">
               {courseLevelQuizzes.map((q) => (
                 <QuizCard key={q.id} quiz={q} returnTo={`/courses/${course.id}`} />
@@ -303,7 +312,10 @@ export function CourseLearningView({
         {/* ── Assignments ───────────────────────────────────────── */}
         {assignments.length > 0 && (
           <section className="mb-5">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Assignments</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <FileText size={18} className="text-[#0F766E]" />
+              Assignments
+            </h2>
             <div className="space-y-2">
               {assignments.map((a) => (
                 <AssignmentRow key={a.id} assignment={a} />
@@ -315,7 +327,10 @@ export function CourseLearningView({
         {/* ── Sessions ──────────────────────────────────────────── */}
         {!supervisorMode && sessions.length > 0 && (
           <section className="mb-5">
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Mentorship sessions</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <Video size={18} className="text-[#0F766E]" />
+              Mentorship sessions
+            </h2>
             <div className="space-y-2">
               {sessions.map((s) => <SessionRow key={s.id} session={s} />)}
             </div>
@@ -379,7 +394,8 @@ function MentorMiniCard({
   const isPending = !mentor || mentor.status === "PENDING_ASSIGNMENT" || !mentor.mentorName;
   return (
     <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
-      <p className="text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+      <p className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+        <GraduationCap size={13} />
         Your mentor
       </p>
       {isPending ? (
@@ -423,7 +439,8 @@ function NextUpCard({
 }) {
   return (
     <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
-      <p className="text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+      <p className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+        <Play size={11} fill="currentColor" />
         Next up
       </p>
       {nextLesson ? (

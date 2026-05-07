@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Trophy, Award, ExternalLink, ArrowRight } from "lucide-react";
+import {
+  Trophy, Award, ExternalLink, ArrowRight, BookOpen, Flame, Play,
+  Calendar, CreditCard, CheckCircle2, Activity, Compass, Sparkles,
+} from "lucide-react";
 import { getProfile, type DashboardSummary, type NextAction, type ProfileData } from "@/lib/api";
 import type { UserDTO } from "@/lib/api";
 
@@ -51,15 +54,33 @@ function formatSessionDate(iso: string): string {
   });
 }
 
-// Maps a recent-activity row to a dot color. Strings come from
-// DashboardSummaryService — keep this in sync with what it emits.
-function activityDotClass(type: string): string {
+// Maps a recent-activity row to an icon + color tile. Strings come
+// from DashboardSummaryService — keep in sync with what it emits.
+function activityVisual(type: string): {
+  Icon: typeof BookOpen;
+  bg: string;
+  fg: string;
+} {
   const t = type.toUpperCase();
-  if (t.includes("LESSON") || t.includes("COURSE_PROGRESS")) return "bg-[#0D9488]";
-  if (t.includes("SESSION")) return "bg-amber-400";
-  if (t.includes("CERT") || t.includes("COMPLETED") || t.includes("QUIZ_PASSED")) return "bg-[#0F766E]";
-  if (t.includes("PAYMENT")) return "bg-blue-400";
-  return "bg-gray-300";
+  if (t.includes("LESSON") || t.includes("COURSE_PROGRESS")) {
+    return { Icon: BookOpen, bg: "bg-teal-50", fg: "text-[#0D9488]" };
+  }
+  if (t.includes("SESSION")) {
+    return { Icon: Calendar, bg: "bg-amber-50", fg: "text-amber-600" };
+  }
+  if (t.includes("CERT")) {
+    return { Icon: Award, bg: "bg-[#f0fdf9]", fg: "text-[#0F766E]" };
+  }
+  if (t.includes("QUIZ_PASSED")) {
+    return { Icon: Trophy, bg: "bg-[#f0fdf9]", fg: "text-[#0F766E]" };
+  }
+  if (t.includes("COMPLETED")) {
+    return { Icon: CheckCircle2, bg: "bg-[#f0fdf9]", fg: "text-[#0F766E]" };
+  }
+  if (t.includes("PAYMENT")) {
+    return { Icon: CreditCard, bg: "bg-blue-50", fg: "text-blue-600" };
+  }
+  return { Icon: Activity, bg: "bg-gray-50", fg: "text-gray-500" };
 }
 
 export function StudentDashboard({ user, summary, nextAction, loading }: Props) {
@@ -249,9 +270,10 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
         </div>
         {/* One badge on tiny phones; certs from sm+; days from md+. */}
         <div className="flex items-center gap-2">
-          <StatBadge value={enrolledCourses.length} label="courses" />
-          <StatBadge value={certificatesCount} label="certificates" className="hidden sm:flex" />
+          <StatBadge icon={BookOpen} value={enrolledCourses.length} label="courses" />
+          <StatBadge icon={Award} value={certificatesCount} label="certificates" className="hidden sm:flex" />
           <StatBadge
+            icon={Flame}
             value={daysActive}
             label={daysActive === 1 ? "day active" : "days active"}
             className="hidden md:flex"
@@ -311,8 +333,9 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
           <div className="flex items-center gap-3 mt-3">
             <button
               onClick={heroOnClick}
-              className="bg-white text-[#0F766E] text-sm font-bold px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer shrink-0"
+              className="inline-flex items-center gap-2 bg-white text-[#0F766E] text-sm font-bold px-5 py-2.5 rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer shrink-0"
             >
+              <HeroButtonIcon nextActionType={nextAction?.type} />
               {heroButtonLabel}
             </button>
             {heroProgressPercent != null && (
@@ -338,7 +361,10 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
           rows for power users while keeping focus when there are few. */}
       {enrolledCourses.length > 0 && (
         <div className="mt-5">
-          <h2 className="text-lg font-bold text-gray-900 mb-3">My courses</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <BookOpen size={18} className="text-[#0F766E]" />
+            My courses
+          </h2>
           <div className={enrolledCourses.length >= 3
             ? "grid grid-cols-1 lg:grid-cols-2 gap-3"
             : "space-y-3"
@@ -409,7 +435,8 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
       >
         {/* Widget A — Upcoming session */}
         <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-200">
-          <p className="text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+          <p className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+            <Calendar size={12} />
             Upcoming Session
           </p>
           {upcomingSession ? (
@@ -454,7 +481,8 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
 
         {/* Widget B — Recent achievement */}
         <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-200">
-          <p className="text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+          <p className="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+            <Trophy size={12} />
             Recent Achievement
           </p>
           {recentAchievement ? (
@@ -494,27 +522,35 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
       {/* ── Section 5: Recent activity ────────────────────────────── */}
       {recentActivity.length > 0 && (
         <div className="mt-5">
-          <h2 className="text-lg font-bold text-gray-900 mb-3">Recent activity</h2>
+          <h2 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <Activity size={18} className="text-[#0F766E]" />
+            Recent activity
+          </h2>
           <div className="bg-white rounded-2xl border border-gray-100 px-4 shadow-sm">
-            {recentActivity.slice(0, 8).map((item, idx) => (
-              <motion.div
-                key={`${item.timestamp}-${idx}`}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2, delay: 0.04 * idx }}
-                className="flex gap-3 py-3 border-b border-gray-50 last:border-0"
-              >
-                <div className={`shrink-0 mt-2 w-2 h-2 rounded-full ${activityDotClass(item.type ?? "")}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-700 leading-snug">
-                    {item.description}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {relativeTime(item.timestamp)}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
+            {recentActivity.slice(0, 8).map((item, idx) => {
+              const { Icon, bg, fg } = activityVisual(item.type ?? "");
+              return (
+                <motion.div
+                  key={`${item.timestamp}-${idx}`}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.2, delay: 0.04 * idx }}
+                  className="flex gap-3 py-3 border-b border-gray-50 last:border-0"
+                >
+                  <div className={`shrink-0 w-8 h-8 rounded-lg ${bg} flex items-center justify-center`}>
+                    <Icon size={15} className={fg} />
+                  </div>
+                  <div className="flex-1 min-w-0 pt-0.5">
+                    <p className="text-sm text-gray-700 leading-snug">
+                      {item.description}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {relativeTime(item.timestamp)}
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -526,9 +562,12 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
       {enrolledCourses.length < 4 && (
         <Link
           href="/courses"
-          className="mt-5 flex items-center justify-between gap-3 bg-white rounded-2xl border border-gray-100 py-3.5 px-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200"
+          className="mt-5 flex items-center gap-3 bg-white rounded-2xl border border-gray-100 py-3.5 px-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200"
         >
-          <div>
+          <div className="w-10 h-10 rounded-xl bg-[#f0fdf9] flex items-center justify-center shrink-0">
+            <Compass size={18} className="text-[#0F766E]" />
+          </div>
+          <div className="flex-1 min-w-0">
             <p className="text-base font-bold text-gray-900">Explore more courses</p>
             <p className="text-sm text-gray-500 mt-0.5">
               Discover what to learn next with personal mentorship.
@@ -542,7 +581,8 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
 
       {/* Empty state — only when no enrollments AND no activity. */}
       {enrolledCourses.length === 0 && recentActivity.length === 0 && (
-        <div className="mt-5 text-center text-base text-gray-500">
+        <div className="mt-5 flex flex-col items-center text-center text-base text-gray-500">
+          <Sparkles size={20} className="text-[#0F766E] mb-2" />
           Start a course to see your activity here.
         </div>
       )}
@@ -566,20 +606,43 @@ function PageShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Picks an icon for the hero CTA based on the next-action type.
+ * Resume / start lessons get a Play icon (filled, looks active);
+ * sessions get a Calendar; assignments get a FileText; browse gets
+ * Compass. Falls back to ArrowRight as a generic forward affordance.
+ */
+function HeroButtonIcon({ nextActionType }: { nextActionType?: string }) {
+  switch (nextActionType) {
+    case "SESSION_SOON":   return <ExternalLink size={14} />;
+    case "CONTINUE_COURSE":
+    case "START_COURSE":
+      return <Play size={13} fill="currentColor" />;
+    case "ASSIGNMENT_DUE": return <ArrowRight size={14} />;
+    case "ALL_COMPLETE":
+    case "BROWSE_COURSES":
+    default:               return <Compass size={14} />;
+  }
+}
+
 function StatBadge({
-  value, label, className = "",
+  icon: Icon, value, label, className = "",
 }: {
+  icon: typeof BookOpen;
   value: number;
   label: string;
   className?: string;
 }) {
   return (
     <div
-      className={`flex flex-col items-center justify-center text-center bg-white border border-gray-200 rounded-xl min-w-[80px] px-3 py-2 shadow-sm ${className}`}
+      className={`flex flex-col items-center justify-center text-center bg-white border border-gray-200 rounded-xl min-w-[84px] px-3 py-2 shadow-sm ${className}`}
     >
-      <span className="text-2xl font-bold text-[#0F766E] tabular-nums leading-none">
-        {value}
-      </span>
+      <div className="flex items-baseline gap-1.5 leading-none">
+        <Icon size={14} className="text-[#0F766E]" />
+        <span className="text-2xl font-bold text-[#0F766E] tabular-nums">
+          {value}
+        </span>
+      </div>
       <span className="text-[11px] text-gray-500 uppercase tracking-wider font-semibold mt-1">
         {label}
       </span>
