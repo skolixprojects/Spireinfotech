@@ -15,8 +15,6 @@ interface Props {
   loading: boolean;
 }
 
-const TEAL_SHADES = ["#0F766E", "#115E59", "#134E4A"]; // course avatar variants
-
 function greetingByHour(hour: number): string {
   if (hour >= 5 && hour < 12) return "Good morning";
   if (hour >= 12 && hour < 17) return "Good afternoon";
@@ -53,27 +51,23 @@ function formatSessionDate(iso: string): string {
   });
 }
 
-/**
- * Maps a recent-activity row to a dot color. The strings come from
- * the backend (see DashboardSummaryService) — keep this list in sync
- * with the activity types it emits.
- */
-function activityDotColor(type: string): string {
+// Maps a recent-activity row to a dot color. Strings come from
+// DashboardSummaryService — keep this in sync with what it emits.
+function activityDotClass(type: string): string {
   const t = type.toUpperCase();
-  if (t.includes("LESSON") || t.includes("COURSE_PROGRESS")) return "#0D9488"; // teal
-  if (t.includes("SESSION")) return "#EF9F27"; // amber
-  if (t.includes("CERT") || t.includes("COMPLETED") || t.includes("QUIZ_PASSED")) return "#0F766E"; // deep teal
-  if (t.includes("PAYMENT")) return "#378ADD"; // blue
-  return "#9ca3af"; // neutral fallback
+  if (t.includes("LESSON") || t.includes("COURSE_PROGRESS")) return "bg-[#0D9488]";
+  if (t.includes("SESSION")) return "bg-amber-400";
+  if (t.includes("CERT") || t.includes("COMPLETED") || t.includes("QUIZ_PASSED")) return "bg-[#0F766E]";
+  if (t.includes("PAYMENT")) return "bg-blue-400";
+  return "bg-gray-300";
 }
 
 export function StudentDashboard({ user, summary, nextAction, loading }: Props) {
   const router = useRouter();
   const [profile, setProfile] = useState<ProfileData | null>(null);
 
-  // Profile gives us certificate count + lastActiveAt without
-  // bloating DashboardSummary. Failures are silent — we degrade to
-  // approximated values.
+  // Profile gives certificate count + lastActiveAt without bloating
+  // DashboardSummary. Failures are silent — degrade to approximations.
   useEffect(() => {
     getProfile().then(setProfile).catch(() => setProfile(null));
   }, []);
@@ -85,7 +79,7 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
 
   // Days active fallback chain:
   //   1. profile.streakDays from server (if profile loaded)
-  //   2. summary.streakDays (already loaded)
+  //   2. summary.streakDays
   //   3. days since user.createdAt
   const daysActive = useMemo(() => {
     if (profile?.streakDays && profile.streakDays > 0) return profile.streakDays;
@@ -100,7 +94,7 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
   const certificatesCount = profile?.certificatesCount
     ?? enrolledCourses.filter((c) => c.progressPercent >= 100).length;
 
-  // ── Next action — figure out which CTA + copy to render. ────────
+  // ── Next action — pick the CTA + copy. ──────────────────────────
 
   const heroLabel = (() => {
     switch (nextAction?.type) {
@@ -204,10 +198,6 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
   // ── Recent achievement (Widget B). ──────────────────────────────
 
   const recentAchievement = useMemo(() => {
-    // Prefer the most recent CERTIFICATE_GENERATED entry from
-    // recentActivity. Otherwise fall back to the most recent
-    // completed course in enrolledCourses (sorted by lastAccessedAt
-    // when available).
     const cert = recentActivity.find((a) => a.type?.toUpperCase().includes("CERT"));
     if (cert) return { headline: "Certificate earned", sub: cert.description, type: "cert" as const };
     const completed = enrolledCourses
@@ -229,130 +219,107 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
 
   if (loading && !summary) {
     return (
-      <div className="max-w-3xl mx-auto px-6 py-8">
-        <div className="h-32 bg-gray-100 rounded-xl animate-pulse mb-4" />
-        <div className="h-24 bg-gray-100 rounded-xl animate-pulse" />
-      </div>
+      <PageShell>
+        <div className="h-32 bg-gray-100 rounded-2xl animate-pulse mb-4" />
+        <div className="h-24 bg-gray-100 rounded-2xl animate-pulse" />
+      </PageShell>
     );
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-6 py-8">
-      {/* ── Section 1: Greeting + stat badges ───────────────────── */}
+    <PageShell>
+      {/* ── Section 1: Greeting + stat badges ─────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="flex items-start justify-between gap-4 px-7 py-6 rounded-xl"
-        style={{ background: "linear-gradient(135deg, #f0fdf9 0%, #ffffff 100%)" }}
+        className="flex items-start justify-between gap-3"
       >
         <div>
-          <p className="text-sm" style={{ color: "#6b7280" }}>
+          <p className="text-sm text-gray-400 font-normal">
             {greetingByHour(new Date().getHours())},
           </p>
-          <h1 className="text-2xl font-medium mt-1" style={{ color: "#1a1a2e" }}>
+          <h1 className="text-2xl font-bold text-gray-900 mt-0.5">
             {firstName(user.fullName)}
           </h1>
         </div>
-        {/* Show one badge on tiny phones, the certificates badge from
-            sm+ (≥640px), and the days-active badge from md+ (≥768px). */}
+        {/* One badge on tiny phones; certs from sm+; days from md+. */}
         <div className="flex items-center gap-2">
           <StatBadge value={enrolledCourses.length} label="courses" />
           <StatBadge value={certificatesCount} label="certificates" className="hidden sm:flex" />
-          <StatBadge value={daysActive} label={daysActive === 1 ? "day active" : "days active"} className="hidden md:flex" />
+          <StatBadge
+            value={daysActive}
+            label={daysActive === 1 ? "day active" : "days active"}
+            className="hidden md:flex"
+          />
         </div>
       </motion.div>
 
-      {/* ── Section 2: One next action hero ─────────────────────── */}
+      {/* ── Section 2: Hero next-action card ──────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4, delay: 0.1 }}
-        // Negative top margin lets it visually overlap the greeting
-        // panel — gives the hero card more visual weight.
-        className="relative overflow-hidden rounded-xl mt-[-8px]"
-        style={{ background: "#0F766E", padding: "20px 24px" }}
+        className="relative overflow-hidden rounded-2xl mt-6"
+        style={{
+          background: "linear-gradient(135deg, #0F766E 0%, #134E4A 100%)",
+          padding: "28px 32px",
+          boxShadow: "0 8px 30px rgba(15,118,110,0.25)",
+        }}
       >
-        {/* Decorative concentric rings, top right. Pure CSS, behind text. */}
+        {/* Decorative concentric rings, top-right. */}
         <div
           aria-hidden
-          className="absolute"
+          className="absolute rounded-full"
           style={{
             top: -50,
             right: -30,
-            width: 100,
-            height: 100,
-            borderRadius: "50%",
-            border: "0.5px solid rgba(255,255,255,0.1)",
+            width: 180,
+            height: 180,
+            background: "rgba(255,255,255,0.1)",
           }}
         />
         <div
           aria-hidden
-          className="absolute"
+          className="absolute rounded-full"
           style={{
-            top: -10,
-            right: 30,
-            width: 60,
-            height: 60,
-            borderRadius: "50%",
-            border: "0.5px solid rgba(255,255,255,0.08)",
+            top: 30,
+            right: 60,
+            width: 100,
+            height: 100,
+            background: "rgba(255,255,255,0.07)",
           }}
         />
 
         <div className="relative">
-          <p
-            className="font-semibold"
-            style={{
-              fontSize: 11,
-              letterSpacing: 1,
-              color: "rgba(255,255,255,0.6)",
-            }}
-          >
+          <p className="text-[10px] uppercase tracking-[2px] text-white/50 font-semibold">
             {heroLabel}
           </p>
-          <p
-            className="font-medium mt-1.5 line-clamp-2"
-            style={{ color: "#ffffff", fontSize: 16 }}
-          >
+          <p className="text-xl font-bold text-white mt-2 line-clamp-2">
             {heroTitle}
           </p>
           {heroContext && (
-            <p
-              className="mt-1 line-clamp-1"
-              style={{ fontSize: 12, color: "rgba(255,255,255,0.5)" }}
-            >
+            <p className="text-sm text-white/50 mt-1 line-clamp-1">
               {heroContext}
             </p>
           )}
 
-          <div className="flex items-center gap-3 mt-3.5">
+          <div className="flex items-center gap-3 mt-5">
             <button
               onClick={heroOnClick}
-              className="rounded-lg font-medium transition-colors hover:opacity-90 cursor-pointer"
-              style={{
-                background: "#ffffff",
-                color: "#0F766E",
-                fontSize: 12,
-                padding: "8px 20px",
-              }}
+              className="bg-white text-[#0F766E] text-sm font-bold px-6 py-2.5 rounded-xl shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer"
             >
               {heroButtonLabel}
             </button>
             {heroProgressPercent != null && (
               <>
-                <div
-                  className="flex-1 overflow-hidden rounded-full"
-                  style={{ height: 4, background: "rgba(255,255,255,0.1)" }}
-                >
+                <div className="flex-1 h-[6px] rounded-full bg-white/15 overflow-hidden">
                   <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${Math.min(100, Math.max(0, heroProgressPercent))}%`,
-                      background: "rgba(255,255,255,0.8)",
-                    }}
+                    className="h-full bg-white/90 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.min(100, Math.max(0, heroProgressPercent))}%` }}
                   />
                 </div>
-                <span style={{ fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
+                <span className="text-sm font-semibold text-white/60 tabular-nums">
                   {heroProgressPercent}%
                 </span>
               </>
@@ -361,16 +328,13 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
         </div>
       </motion.div>
 
-      {/* ── Section 3: My courses ───────────────────────────────── */}
+      {/* ── Section 3: My courses ─────────────────────────────────── */}
       {enrolledCourses.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-medium mb-3" style={{ color: "#1a1a2e" }}>
-            My courses
-          </h2>
-          <div className="space-y-2">
+          <h2 className="text-base font-bold text-gray-900 mb-4">My courses</h2>
+          <div className="space-y-3">
             {enrolledCourses.map((course, idx) => {
               const completed = course.progressPercent >= 100;
-              const avatarBg = TEAL_SHADES[idx % TEAL_SHADES.length];
               const href = course.type === "SERVICE"
                 ? `/services/${course.id}`
                 : `/courses/${course.id}`;
@@ -379,66 +343,37 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
                   key={course.id}
                   initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: 0.08 * idx }}
+                  transition={{ duration: 0.3, delay: 0.06 * idx }}
                 >
                   <Link
                     href={href}
-                    className="flex items-center gap-3.5 px-4 py-3.5 rounded-[10px] hover:shadow-sm transition-shadow"
-                    style={{ background: "#f9fafb", border: "0.5px solid #e5e7eb" }}
+                    className="flex items-center gap-3.5 bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:-translate-y-0.5 active:scale-[0.99] transition-all duration-200 cursor-pointer"
                   >
-                    <div
-                      className="flex items-center justify-center font-medium text-white shrink-0"
-                      style={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: 8,
-                        background: avatarBg,
-                        fontSize: 16,
-                      }}
-                    >
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#0F766E] to-[#0D9488] shadow-md flex items-center justify-center text-white font-bold text-lg shrink-0">
                       {course.title.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p
-                          className="font-medium truncate"
-                          style={{ fontSize: 14, color: "#1a1a2e" }}
-                        >
+                        <p className="text-sm font-bold text-gray-900 truncate">
                           {course.title}
                         </p>
                         {completed ? (
-                          <span
-                            className="font-medium px-2 py-0.5 rounded shrink-0"
-                            style={{
-                              fontSize: 11,
-                              color: "#0D9488",
-                              background: "#f0fdf9",
-                            }}
-                          >
+                          <span className="text-[11px] font-semibold text-[#0D9488] bg-[#f0fdf9] px-2.5 py-0.5 rounded-full shrink-0">
                             Complete
                           </span>
                         ) : (
-                          <span
-                            className="font-medium tabular-nums shrink-0"
-                            style={{ fontSize: 11, color: "#0F766E" }}
-                          >
+                          <span className="text-sm font-bold text-[#0F766E] tabular-nums shrink-0">
                             {course.progressPercent}%
                           </span>
                         )}
                       </div>
-                      <div
-                        className="mt-1.5 overflow-hidden rounded-full"
-                        style={{ height: 3, background: "#e5e7eb" }}
-                      >
+                      <div className="mt-2 h-1 rounded-full bg-gray-200 overflow-hidden">
                         <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${Math.min(100, Math.max(0, course.progressPercent))}%`,
-                            background: completed ? "#0D9488" : "#0F766E",
-                          }}
+                          className="h-full bg-[#0F766E] rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(100, Math.max(0, course.progressPercent))}%` }}
                         />
                       </div>
-                      <p className="mt-1" style={{ fontSize: 10, color: "#9ca3af" }}>
+                      <p className="text-[11px] text-gray-400 mt-1">
                         {completed
                           ? `${course.totalLessons}/${course.totalLessons} lessons · Certificate earned`
                           : `${course.completedLessons}/${course.totalLessons} lessons`}
@@ -452,33 +387,24 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
         </div>
       )}
 
-      {/* ── Section 4: Two-column widgets ───────────────────────── */}
+      {/* ── Section 4: Two-column widgets ─────────────────────────── */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, delay: 0.3 }}
-        className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-8"
+        className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-8"
       >
         {/* Widget A — Upcoming session */}
-        <div
-          className="px-4 py-3.5 rounded-[10px]"
-          style={{ background: "#f9fafb", border: "0.5px solid #e5e7eb" }}
-        >
-          <p
-            className="font-semibold uppercase"
-            style={{ fontSize: 11, letterSpacing: "0.05em", color: "#6b7280" }}
-          >
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
+          <p className="text-[10px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
             Upcoming Session
           </p>
           {upcomingSession ? (
             <>
-              <p
-                className="font-medium mt-1.5 truncate"
-                style={{ fontSize: 14, color: "#1a1a2e" }}
-              >
+              <p className="text-sm font-semibold text-gray-900 mt-2 truncate">
                 with {upcomingSession.mentorName ?? "your mentor"}
               </p>
-              <p style={{ fontSize: 11, color: "#0F766E" }}>
+              <p className="text-[11px] text-[#0F766E] mt-1">
                 {formatSessionDate(upcomingSession.scheduledAt)}
               </p>
               {upcomingSession.meetingUrl ? (
@@ -486,80 +412,51 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
                   href={upcomingSession.meetingUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2.5 w-full inline-flex items-center justify-center gap-1 rounded-md font-medium transition-opacity hover:opacity-90"
-                  style={{
-                    background: "#0F766E",
-                    color: "#ffffff",
-                    fontSize: 11,
-                    padding: "6px 12px",
-                  }}
+                  className="mt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#0F766E] text-white text-sm font-semibold py-2.5 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200"
                 >
-                  <ExternalLink size={11} /> Join meeting
+                  <ExternalLink size={13} /> Join meeting
                 </a>
               ) : (
-                <p className="mt-2.5" style={{ fontSize: 10, color: "#9ca3af" }}>
+                <p className="text-[11px] text-gray-400 mt-3">
                   Awaiting meeting link from mentor
                 </p>
               )}
             </>
           ) : (
             <>
-              <p className="mt-1.5" style={{ fontSize: 13, color: "#6b7280" }}>
+              <p className="text-sm font-semibold text-gray-900 mt-2">
                 No sessions scheduled
               </p>
               <Link
                 href={enrolledCourses[0]?.type === "SERVICE"
                   ? `/services/${enrolledCourses[0]?.id ?? ""}`
                   : `/courses/${enrolledCourses[0]?.id ?? ""}`}
-                className="mt-2.5 w-full inline-flex items-center justify-center gap-1 rounded-md font-medium transition-opacity hover:opacity-90"
-                style={{
-                  background: "#0F766E",
-                  color: "#ffffff",
-                  fontSize: 11,
-                  padding: "6px 12px",
-                }}
+                className="mt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#0F766E] text-white text-sm font-semibold py-2.5 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200"
               >
-                Request a session <ArrowRight size={11} />
+                Request a session <ArrowRight size={13} />
               </Link>
             </>
           )}
         </div>
 
         {/* Widget B — Recent achievement */}
-        <div
-          className="px-4 py-3.5 rounded-[10px]"
-          style={{ background: "#f9fafb", border: "0.5px solid #e5e7eb" }}
-        >
-          <p
-            className="font-semibold uppercase"
-            style={{ fontSize: 11, letterSpacing: "0.05em", color: "#6b7280" }}
-          >
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
+          <p className="text-[10px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
             Recent Achievement
           </p>
           {recentAchievement ? (
             <>
-              <div className="flex items-center gap-2 mt-1.5">
-                <div
-                  className="flex items-center justify-center shrink-0"
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
-                    background: "#f0fdf9",
-                  }}
-                >
+              <div className="flex items-center gap-2.5 mt-2">
+                <div className="w-8 h-8 rounded-lg bg-[#f0fdf9] flex items-center justify-center shrink-0">
                   {recentAchievement.type === "cert"
-                    ? <Award size={14} style={{ color: "#0F766E" }} />
-                    : <Trophy size={14} style={{ color: "#0F766E" }} />}
+                    ? <Award size={15} className="text-[#0F766E]" />
+                    : <Trophy size={15} className="text-[#0F766E]" />}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p
-                    className="font-medium truncate"
-                    style={{ fontSize: 14, color: "#1a1a2e" }}
-                  >
+                  <p className="text-sm font-semibold text-gray-900 truncate">
                     {recentAchievement.headline}
                   </p>
-                  <p className="truncate" style={{ fontSize: 11, color: "#6b7280" }}>
+                  <p className="text-[11px] text-[#0F766E] truncate">
                     {recentAchievement.sub}
                   </p>
                 </div>
@@ -567,57 +464,39 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
               {recentAchievement.type === "course" && recentAchievement.courseId != null ? (
                 <Link
                   href={`/courses/${recentAchievement.courseId}`}
-                  className="mt-2.5 w-full inline-flex items-center justify-center gap-1 rounded-md font-medium hover:bg-[#0F766E]/5 transition"
-                  style={{
-                    color: "#0F766E",
-                    border: "0.5px solid rgba(15,118,110,0.2)",
-                    fontSize: 11,
-                    padding: "6px 12px",
-                  }}
+                  className="mt-3 w-full inline-flex items-center justify-center gap-1 bg-transparent border border-[#0F766E]/20 text-[#0F766E] text-sm font-semibold py-2.5 rounded-xl hover:bg-[#f0fdf9] active:scale-[0.98] transition-all duration-200"
                 >
                   View certificate
                 </Link>
               ) : null}
             </>
           ) : (
-            <p className="mt-1.5" style={{ fontSize: 12, color: "#6b7280" }}>
-              Keep learning! Your first achievement is around the corner.
+            <p className="text-sm text-gray-500 mt-2">
+              Keep learning — your first achievement is around the corner.
             </p>
           )}
         </div>
       </motion.div>
 
-      {/* ── Section 5: Recent activity ──────────────────────────── */}
+      {/* ── Section 5: Recent activity ────────────────────────────── */}
       {recentActivity.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-sm font-medium mb-2.5" style={{ color: "#1a1a2e" }}>
-            Recent activity
-          </h2>
-          <div>
+          <h2 className="text-base font-bold text-gray-900 mb-3">Recent activity</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 px-5 shadow-sm">
             {recentActivity.slice(0, 8).map((item, idx) => (
               <motion.div
                 key={`${item.timestamp}-${idx}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ duration: 0.2, delay: 0.05 * idx }}
-                className="flex gap-2.5 py-2"
-                style={{
-                  borderBottom: idx === recentActivity.slice(0, 8).length - 1
-                    ? "none" : "0.5px solid #f0f0f0",
-                }}
+                transition={{ duration: 0.2, delay: 0.04 * idx }}
+                className="flex gap-3 py-3 border-b border-gray-50 last:border-0"
               >
-                <div
-                  className="shrink-0 mt-1.5"
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    background: activityDotColor(item.type ?? ""),
-                  }}
-                />
+                <div className={`shrink-0 mt-1.5 w-2 h-2 rounded-full ${activityDotClass(item.type ?? "")}`} />
                 <div className="flex-1 min-w-0">
-                  <p style={{ fontSize: 12, color: "#1a1a2e" }}>{item.description}</p>
-                  <p className="mt-0.5" style={{ fontSize: 10, color: "#9ca3af" }}>
+                  <p className="text-[13px] text-gray-700 leading-snug">
+                    {item.description}
+                  </p>
+                  <p className="text-[11px] text-gray-400 mt-0.5">
                     {relativeTime(item.timestamp)}
                   </p>
                 </div>
@@ -627,14 +506,28 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
         </div>
       )}
 
-      {/* Empty state — only when there's literally no enrolled
-          courses AND no activity. Keeps the page from looking
-          half-built for fresh signups. */}
+      {/* Empty state — only when no enrollments AND no activity. */}
       {enrolledCourses.length === 0 && recentActivity.length === 0 && (
-        <div className="mt-8 text-center text-sm" style={{ color: "#6b7280" }}>
+        <div className="mt-8 text-center text-sm text-gray-500">
           Start a course to see your activity here.
         </div>
       )}
+    </PageShell>
+  );
+}
+
+/**
+ * Page shell — escapes the parent /dashboard wrapper's `px-6 pt-28
+ * pb-20` so the gray bg can full-bleed. Then re-applies its own
+ * padding per the design spec (pt-6 above the greeting, after a
+ * navbar-clearance offset).
+ */
+function PageShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="bg-[#f8f9fa] -mx-6 -mt-28 pt-[88px] pb-12 min-h-[calc(100vh-0px)]">
+      <div className="max-w-[900px] mx-auto pt-6 px-4 md:px-6">
+        {children}
+      </div>
     </div>
   );
 }
@@ -648,24 +541,14 @@ function StatBadge({
 }) {
   return (
     <div
-      className={`flex flex-col items-center justify-center text-center ${className}`}
-      style={{
-        background: "#f0fdf9",
-        border: "0.5px solid rgba(15,118,110,0.15)",
-        borderRadius: 8,
-        padding: "8px 14px",
-      }}
+      className={`flex flex-col items-center justify-center text-center bg-white border border-gray-200 rounded-xl min-w-[80px] px-4 py-3 shadow-sm ${className}`}
     >
-      <span
-        className="font-medium tabular-nums"
-        style={{ fontSize: 18, color: "#0F766E", lineHeight: 1.1 }}
-      >
+      <span className="text-xl font-bold text-[#0F766E] tabular-nums leading-none">
         {value}
       </span>
-      <span style={{ fontSize: 10, color: "#115E59", marginTop: 2 }}>
+      <span className="text-[10px] text-gray-500 uppercase tracking-wider font-semibold mt-1">
         {label}
       </span>
     </div>
   );
 }
-
