@@ -78,16 +78,44 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("Server configuration error: " + ex.getMessage()));
     }
 
-    // 409 — Database constraint violation (duplicate entry, etc.)
+    // 409 / 400 — Database constraint violation. The mostSpecificCause
+    // message is dialect-specific and not user-friendly; we classify
+    // it into a few buckets and return a message that hints at WHAT
+    // went wrong (duplicate vs. missing field vs. bad reference)
+    // instead of a generic "Data conflict". The full cause is logged
+    // server-side so the real diagnostic is in Railway logs.
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
-        log.error("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
-        String message = "Data conflict — this record may already exist.";
-        if (ex.getMostSpecificCause().getMessage().contains("Duplicate")) {
-            message = "A duplicate record already exists.";
+        String causeMsg = ex.getMostSpecificCause().getMessage();
+        log.error("Data integrity violation: {}", causeMsg);
+        String lower = causeMsg == null ? "" : causeMsg.toLowerCase();
+
+        // Duplicate / unique-constraint violation — return 409.
+        if (lower.contains("duplicate") || lower.contains("unique constraint") || lower.contains("violates unique")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("A record with the same identifier already exists."));
         }
+
+        // NOT NULL violation — really a 400 (client sent a row missing
+        // a required column). We return 400 so the frontend doesn't
+        // misinterpret it as "duplicate exists".
+        if (lower.contains("not-null") || lower.contains("not null") || lower.contains("null value")) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error("A required field was missing. Please complete all required values and try again."));
+        }
+
+        // Foreign-key violation — referenced row doesn't exist (or is
+        // in use). 409 because the conflict is between this row and
+        // another row's existence.
+        if (lower.contains("foreign key") || lower.contains("violates foreign")) {
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error("This action references a record that no longer exists."));
+        }
+
+        // Anything else — keep the message generic enough not to leak
+        // schema details, but specific enough that the user can act.
         return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(ApiResponse.error(message));
+                .body(ApiResponse.error("Could not save changes due to a data conflict. Please try again."));
     }
 
     // 404 — No endpoint matched (prevents "No static resource" 500 errors)

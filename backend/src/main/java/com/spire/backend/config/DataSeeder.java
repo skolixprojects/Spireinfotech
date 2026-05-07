@@ -68,6 +68,14 @@ public class DataSeeder implements CommandLineRunner {
         // constraints, so we have to do it ourselves.
         dropLegacyQuizAttemptUniqueConstraint();
 
+        // Drop the legacy NOT NULL on questions(option_a/b/c/d,
+        // correct_answer). The old fixed-4-option quiz schema marked
+        // these columns NOT NULL; the new normalized model leaves
+        // them nullable but ddl-auto=update never relaxes a NOT NULL
+        // — so on already-seeded DBs every new question save throws
+        // a NOT NULL violation that surfaces as a generic 409.
+        relaxLegacyQuestionColumns();
+
         if (userRepository.count() > 0) {
             log.info("Database already seeded. Skipping initial users/courses block.");
             // Backfill on already-seeded dev DBs that predate the services
@@ -555,6 +563,52 @@ public class DataSeeder implements CommandLineRunner {
                                         new SvcLesson("First 90 Days at Your New Job", 18)
                                 ))
                 ));
+    }
+
+    /**
+     * Relaxes legacy NOT NULL constraints on the {@code questions}
+     * table's old fixed-4-option columns ({@code option_a..d},
+     * {@code correct_answer}). The new normalized {@link
+     * com.spire.backend.entity.QuizOption} model leaves these
+     * columns out of new inserts, but on databases seeded under
+     * the old schema each insert throws a NOT NULL violation that
+     * Spring surfaces as a generic 409 "Data conflict" — blocking
+     * instructors from adding new questions.
+     *
+     * Probes Postgres first (prod), falls back to MySQL (dev).
+     * Each ALTER is wrapped so a missing column / already-relaxed
+     * column is a silent no-op rather than crashing app startup.
+     */
+    private void relaxLegacyQuestionColumns() {
+        List<String> columns = List.of("option_a", "option_b", "option_c", "option_d", "correct_answer");
+
+        // Postgres: ALTER COLUMN ... DROP NOT NULL is idempotent if the
+        // column is already nullable (it errors only if the column is
+        // missing — which the catch handles).
+        boolean isPg = false;
+        for (String col : columns) {
+            try {
+                jdbcTemplate.execute("ALTER TABLE questions ALTER COLUMN " + col + " DROP NOT NULL");
+                isPg = true;
+                log.info("Relaxed legacy NOT NULL on questions.{} (Postgres)", col);
+            } catch (Exception ignored) {
+                // Column missing, already nullable, or wrong dialect.
+            }
+        }
+        if (isPg) return;
+
+        // MySQL: re-declare the column as NULLable. Using TEXT for the
+        // option_a..d columns and CHAR(1) for correct_answer matches
+        // the original schema; MODIFY rewrites the column definition.
+        for (String col : columns) {
+            try {
+                String def = "correct_answer".equals(col) ? "CHAR(1) NULL" : "TEXT NULL";
+                jdbcTemplate.execute("ALTER TABLE questions MODIFY COLUMN " + col + " " + def);
+                log.info("Relaxed legacy NOT NULL on questions.{} (MySQL)", col);
+            } catch (Exception ignored) {
+                // Column missing or already nullable.
+            }
+        }
     }
 
     /**

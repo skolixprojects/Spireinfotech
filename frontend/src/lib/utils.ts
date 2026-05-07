@@ -14,17 +14,21 @@ export function formatPrice(price: number): string {
 }
 
 // Translates backend enrollment/cart errors into user-facing copy.
-// The backend's GlobalExceptionHandler returns a generic
-// "Data conflict — this record may already exist." for 409s on
-// duplicate enrollments and cart inserts; surface a friendly version.
+// The backend's GlobalExceptionHandler classifies DB integrity
+// violations (duplicates, NOT NULL, FK) and returns specific messages
+// — for the enrollment/cart flow the only legitimate 409 is a
+// duplicate, so we map the "already exists" wording to the
+// context-specific "you're already enrolled" copy. Anything else
+// (e.g. missing field, FK violation) passes through as the backend's
+// own message so the user sees what actually went wrong rather than
+// a misleading "you're enrolled".
 export function friendlyEnrollmentError(err: unknown): string {
   const raw = err instanceof Error ? err.message : "";
   const lower = raw.toLowerCase();
   if (
     lower.includes("already exist") ||
     lower.includes("duplicate") ||
-    lower.includes("data conflict") ||
-    lower.includes("conflict")
+    lower.includes("same identifier")
   ) {
     return "You're already enrolled in this course.";
   }
