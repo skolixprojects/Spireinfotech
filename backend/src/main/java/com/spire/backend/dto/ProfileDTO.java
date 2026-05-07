@@ -56,6 +56,11 @@ public class ProfileDTO {
     private List<CourseSummary> enrolledCourses;
     private List<CertSummary> certificates;
 
+    // Agreement (Terms of Service) acceptance — populated by
+    // ProfileService for admin views and self-service profile reads.
+    // Null when the user has never started the agreement flow.
+    private AgreementSummary agreement;
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -81,6 +86,38 @@ public class ProfileDTO {
         private String courseTitle;
         private String certificateUrl;
         private LocalDateTime issuedAt;
+    }
+
+    /**
+     * Audit-ready snapshot of the user's Terms of Service acceptance.
+     * Surfaced on the admin user-detail panel; included on the
+     * self-service profile read too so the user can see their own
+     * record. Null when the user has never started the flow (admin
+     * UI renders an "Not yet accepted" pill in that case).
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class AgreementSummary {
+        private Long id;
+        private Boolean accepted;       // status == VERIFIED
+        private String status;          // WAITING_REPLY / CODE_SENT / VERIFIED
+        private String legalName;
+        private String version;
+        private LocalDateTime acceptedAt;
+        // Email-reply audit trail.
+        private LocalDateTime agreementEmailSentAt;
+        private LocalDateTime userReplyReceivedAt;
+        private String userReplyContent;
+        private LocalDateTime verificationCodeSentAt;
+        private LocalDateTime verificationCodeVerifiedAt;
+        private String ipAddress;
+        private String browser;
+        private String os;
+        // Stable display id ("AGR-2026-00009") computed from the
+        // backing row's primary key + creation year.
+        private String recordId;
     }
 
     public static ProfileDTO from(

@@ -55,7 +55,14 @@ function LoginForm() {
     setError("");
     setNeedsVerification(null);
     try {
-      await login(data.email, data.password);
+      const auth = await login(data.email, data.password);
+      // Users who haven't accepted Terms of Service yet land on the
+      // agreement gate first; everyone else goes to their original
+      // redirect target.
+      if (!auth.user?.agreementAccepted) {
+        window.location.href = "/agreement";
+        return;
+      }
       window.location.href = redirect;
     } catch (err: unknown) {
       if (err instanceof EmailNotVerifiedError) {

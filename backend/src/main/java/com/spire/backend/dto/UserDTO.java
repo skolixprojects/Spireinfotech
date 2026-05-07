@@ -24,6 +24,12 @@ public class UserDTO {
     private Boolean onboardingCompleted;
     private Boolean isActive;
     private Boolean instructorApproved;
+    /**
+     * True after the user has completed the OTP-confirmed Terms of
+     * Service flow. The frontend reads this to decide whether to
+     * route post-login users to /agreement.
+     */
+    private Boolean agreementAccepted;
     private LocalDateTime createdAt;
 
     public static UserDTO from(User user) {
@@ -37,6 +43,7 @@ public class UserDTO {
                 .onboardingCompleted(Boolean.TRUE.equals(user.getOnboardingCompleted()))
                 .isActive(Boolean.TRUE.equals(user.getIsActive()))
                 .instructorApproved(Boolean.TRUE.equals(user.getInstructorApproved()))
+                .agreementAccepted(Boolean.TRUE.equals(user.getAgreementAccepted()))
                 .createdAt(user.getCreatedAt())
                 .build();
     }

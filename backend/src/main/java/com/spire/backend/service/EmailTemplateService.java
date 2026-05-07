@@ -91,6 +91,94 @@ public class EmailTemplateService {
         );
     }
 
+    // ── 2b. Agreement: "Reply YES" request ──────────────────────────
+    /**
+     * Sent the moment the user clicks "Accept" on /agreement. The
+     * subject embeds a tracking marker {@code [AGREE-{userId}-{ts}]}
+     * the IMAP inbox cron uses to match the user's reply back to
+     * the pending acceptance row. Body asks the user to reply with
+     * the literal word YES; any other reply is ignored. Returns
+     * the subject so the caller can persist it on the row.
+     */
+    public String sendAgreementReplyRequestEmail(
+            User user, String legalName, String ipAddress,
+            long userId, long trackingTimestamp
+    ) {
+        String tracking = String.format("[AGREE-%d-%d]", userId, trackingTimestamp);
+        String subject = "ACTION REQUIRED: Accept Spire Info Tech Agreement — Reply YES " + tracking;
+        String dateStamp = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Kolkata"))
+                .format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a"));
+
+        String checks =
+                "<div style=\"background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:14px 18px; margin:16px 0;\">"
+                        + "<p style=\"margin:0 0 6px; color:#374151; font-size:13px; font-weight:bold;\">What you are agreeing to:</p>"
+                        + bullet("Terms of Service v1.0")
+                        + bullet("Privacy Policy")
+                        + bullet("Content Protection Policy")
+                        + "</div>";
+
+        String details =
+                "<div style=\"background:#f0fdf9; border-left:3px solid #0F766E; padding:12px 16px; margin:16px 0; border-radius:4px;\">"
+                        + "<p style=\"margin:0; color:#374151; font-size:13px;\">"
+                        + "<strong>Legal name:</strong> " + escape(legalName) + "<br/>"
+                        + "<strong>Date:</strong> " + escape(dateStamp) + " IST<br/>"
+                        + "<strong>IP:</strong> " + escape(ipAddress == null ? "—" : ipAddress)
+                        + "</p></div>";
+
+        String replyCallout =
+                "<div style=\"text-align:center; margin:20px 0;\">"
+                        + "<span style=\"display:inline-block; font-size:22px; font-weight:bold; "
+                        + "letter-spacing:4px; color:#0F766E; background:#f0fdf9; "
+                        + "padding:10px 24px; border-radius:8px; "
+                        + "border:1px solid rgba(15,118,110,0.2); font-family:Arial,Helvetica,sans-serif;\">"
+                        + "Reply with: YES"
+                        + "</span></div>";
+
+        String body = p("Hi " + firstName(user) + ",")
+                + p("You are accepting the Terms of Service and Privacy Policy of <strong>Spire Info Tech</strong>.")
+                + p("To confirm your acceptance, simply <strong>reply</strong> to this email with the word:")
+                + replyCallout
+                + checks
+                + details
+                + p("Reply <strong>YES</strong> to confirm. Any other reply will be ignored.")
+                + p("This request expires in <strong>30 minutes</strong>.")
+                + muted("If you didn't initiate this, ignore this email — no agreement will be recorded.");
+
+        emailService.sendEmail(user.getEmail(), subject, wrap("Confirm your agreement", body));
+        return subject;
+    }
+
+    // ── 2c. Agreement: verification code (post-reply) ───────────────
+    /**
+     * Sent when the IMAP cron has detected a "YES" reply and the
+     * backend has issued the OTP. Entering this code on the website
+     * completes the acceptance.
+     */
+    public void sendAgreementCodeEmail(User user, String code) {
+        String codeBlock =
+                "<div style=\"text-align:center; margin:24px 0;\">"
+                        + "<span style=\"display:inline-block; font-size:32px; font-weight:bold; "
+                        + "letter-spacing:8px; color:#0F766E; background:#f0fdf9; "
+                        + "padding:12px 24px; border-radius:8px; "
+                        + "border:1px solid rgba(15,118,110,0.2); font-family:'Courier New',monospace;\">"
+                        + escape(code)
+                        + "</span>"
+                        + "</div>";
+
+        String body = p("Hi " + firstName(user) + ",")
+                + p("You are accepting the Terms of Service of <strong>Spire Info Tech</strong>.")
+                + p("Your confirmation code is:")
+                + codeBlock
+                + p("By entering this code, you confirm that you have read and agree to the Terms of Service and Privacy Policy.")
+                + p("This code expires in 10 minutes.")
+                + muted("If you didn't request this, ignore this email — your agreement won't be recorded.");
+        emailService.sendEmail(
+                user.getEmail(),
+                "Agreement confirmation code: " + code,
+                wrap("Confirm your agreement", body)
+        );
+    }
+
     /**
      * @deprecated Legacy magic-link flow. Kept compiling so any
      * straggling callers don't break, but unused under the OTP gate;

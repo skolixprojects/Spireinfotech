@@ -36,6 +36,9 @@ export interface UserDTO {
   onboardingCompleted?: boolean;
   isActive?: boolean;
   instructorApproved?: boolean;
+  // True after the user has completed the OTP-confirmed Terms of
+  // Service flow. Optional so older payloads still parse.
+  agreementAccepted?: boolean;
   createdAt?: string | null;
 }
 
@@ -91,6 +94,18 @@ export async function apiFetch<T = unknown>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // 403 AGREEMENT_REQUIRED — the agreement gate filter on the
+    // backend rejected this call because the user hasn't accepted
+    // the Terms of Service yet. Redirect to /agreement so the
+    // user can complete the flow; never bounce them when they're
+    // already on /agreement (that page itself calls API endpoints
+    // and we don't want a redirect loop).
+    if (res.status === 403 && body?.message === "AGREEMENT_REQUIRED") {
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/agreement")) {
+        window.location.href = "/agreement";
+      }
+      throw new Error("AGREEMENT_REQUIRED");
+    }
     throw new Error(body.message || body.detail || `API error ${res.status}`);
   }
 
@@ -209,6 +224,87 @@ export function logout() {
   return Promise.resolve();
 }
 
+// ─── Agreement (Terms of Service acceptance) ───────────────────────
+
+export interface TermsSection {
+  title: string;
+  content: string;
+}
+
+export interface TermsResponse {
+  version: string;
+  lastUpdated: string;
+  sections: TermsSection[];
+}
+
+export type AgreementStatusValue =
+  | "NOT_STARTED"
+  | "WAITING_REPLY"
+  | "CODE_SENT"
+  | "VERIFIED";
+
+export interface AgreementStatus {
+  status: AgreementStatusValue;
+  accepted: boolean;
+  version: string;
+  agreementExpiresAt?: string | null;
+  acceptedAt?: string | null;
+  legalName?: string | null;
+}
+
+/** Public — no auth required. Fetches the active terms document. */
+export async function getTerms(): Promise<TermsResponse> {
+  const wrapper = await apiFetch<ApiResponse<TermsResponse>>("/api/agreement/terms");
+  return wrapper.data;
+}
+
+/**
+ * Polled by the agreement page every few seconds while the user
+ * is in WAITING_REPLY — the IMAP cron flips the row to CODE_SENT
+ * once it sees the YES reply, at which point the page enables the
+ * OTP entry boxes.
+ */
+export async function getAgreementStatus(): Promise<AgreementStatus> {
+  const wrapper = await apiFetch<ApiResponse<AgreementStatus>>("/api/auth/agreement/check-status");
+  return wrapper.data;
+}
+
+/**
+ * Submits the agreement acceptance form. Server validates the legal
+ * name + checkbox state and emails the user a "Reply YES" prompt;
+ * no OTP yet — that comes after the IMAP cron sees the reply.
+ * Returns {@code alreadyAccepted: true} on idempotent re-submits.
+ */
+export async function acceptAgreement(payload: {
+  legalName: string;
+  termsAccepted: boolean;
+  contentPolicyAccepted: boolean;
+}): Promise<{ success: boolean; alreadyAccepted: boolean; status: AgreementStatusValue; message: string; expiresAt?: string }> {
+  const wrapper = await apiFetch<ApiResponse<{
+    success: boolean; alreadyAccepted: boolean;
+    status: AgreementStatusValue; message: string; expiresAt?: string;
+  }>>(
+    "/api/auth/agreement/accept",
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+  return wrapper.data;
+}
+
+export async function verifyAgreementCode(code: string): Promise<void> {
+  await apiFetch<ApiResponse<unknown>>("/api/auth/agreement/verify-code", {
+    method: "POST",
+    body: JSON.stringify({ code }),
+  });
+}
+
+export async function resendAgreementCode(): Promise<{ cooldownSeconds: number }> {
+  const wrapper = await apiFetch<ApiResponse<{ cooldownSeconds: number }>>(
+    "/api/auth/agreement/resend",
+    { method: "POST" },
+  );
+  return wrapper.data ?? { cooldownSeconds: 60 };
+}
+
 // ─── Password reset ─────────────────────────────────────────────────
 
 /**
@@ -234,6 +330,24 @@ export async function resetPassword(token: string, newPassword: string) {
 
 // ─── User / Profile ─────────────────────────────────────────────────
 
+export interface ProfileAgreementSummary {
+  id: number;
+  accepted: boolean;
+  status?: AgreementStatusValue;
+  legalName: string | null;
+  version: string;
+  acceptedAt: string | null;
+  agreementEmailSentAt?: string | null;
+  userReplyReceivedAt?: string | null;
+  userReplyContent?: string | null;
+  verificationCodeSentAt?: string | null;
+  verificationCodeVerifiedAt?: string | null;
+  ipAddress: string | null;
+  browser: string | null;
+  os: string | null;
+  recordId: string;
+}
+
 export interface ProfileData extends UserDTO {
   phone: string | null;
   location: string | null;
@@ -248,6 +362,10 @@ export interface ProfileData extends UserDTO {
   contributions: Record<string, number>;
   enrolledCourses: ProfileCourseSummary[] | null;
   certificates: ProfileCertSummary[] | null;
+  // Terms of Service acceptance — null when the user has never
+  // started the flow. Admin user-detail panel renders this; the
+  // self-service profile page can ignore it.
+  agreement: ProfileAgreementSummary | null;
 }
 
 export interface ProfileCourseSummary {

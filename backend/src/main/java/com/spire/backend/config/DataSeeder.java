@@ -609,6 +609,7 @@ public class DataSeeder implements CommandLineRunner {
                 {"reset_token VARCHAR(64)", "reset_token"},
                 {"reset_token_expires_at TIMESTAMP", "reset_token_expires_at"},
                 {"last_nudge_sent_at TIMESTAMP", "last_nudge_sent_at"},
+                {"agreement_accepted BOOLEAN NOT NULL DEFAULT FALSE", "agreement_accepted"},
         };
         for (String[] col : columns) {
             try {
@@ -634,6 +635,24 @@ public class DataSeeder implements CommandLineRunner {
             }
         } catch (Exception e) {
             log.debug("Couldn't grandfather pre-OTP users: {}", e.getMessage());
+        }
+
+        // Grandfather pre-agreement accounts. Email-verified users
+        // who existed before the agreement gate shipped have no
+        // acceptance row to satisfy the new requirement; rather
+        // than retroactively kick them to /agreement on next login,
+        // mark them accepted. New signups always start with
+        // agreement_accepted=false and have to walk through the
+        // /agreement flow.
+        try {
+            int updated = jdbcTemplate.update(
+                    "UPDATE users SET agreement_accepted = TRUE " +
+                    "WHERE agreement_accepted = FALSE AND email_verified = TRUE");
+            if (updated > 0) {
+                log.info("Grandfathered {} pre-agreement users to agreement_accepted=true", updated);
+            }
+        } catch (Exception e) {
+            log.debug("Couldn't grandfather pre-agreement users: {}", e.getMessage());
         }
     }
 

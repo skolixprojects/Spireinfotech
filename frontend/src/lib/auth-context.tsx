@@ -25,7 +25,13 @@ interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  /**
+   * Logs the user in. Returns the AuthResponse so callers can branch
+   * on flags like {@code user.agreementAccepted} before deciding
+   * where to route. The user state is also updated synchronously
+   * before this resolves.
+   */
+  login: (email: string, password: string) => Promise<AuthResponse>;
   // Register no longer establishes a session — the backend now
   // requires OTP verification first. Returns the registration
   // metadata so the signup page can route to /verify-email.
@@ -87,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const data = await apiLogin({ email, password });
     storeTokens(data);
+    return data;
   }, []);
 
   // Register no longer auto-logs-in. The backend response carries

@@ -37,6 +37,7 @@ public class ProfileService {
     private final LessonRepository lessonRepository;
     private final ProgressRepository progressRepository;
     private final CertificateRepository certificateRepository;
+    private final com.spire.backend.repository.AgreementAcceptanceRepository agreementRepository;
     private final RecordService recordService;
 
     @Transactional(readOnly = true)
@@ -118,10 +119,39 @@ public class ProfileService {
                         p -> p.getLastAccessed().toLocalDate().toString(),
                         Collectors.summingInt(p -> 1)));
 
-        return ProfileDTO.from(
+        ProfileDTO dto = ProfileDTO.from(
                 user, enrolled, completed, certificates,
                 streakDays, totalLessonsCompleted, totalLearningMinutes,
                 lastActiveAt, contributions, enrolledCourses, certSummaries);
+
+        // Attach Terms of Service acceptance for the admin user-detail
+        // panel + the user's own self-view. Pulled here so the
+        // AgreementService doesn't have to know about ProfileDTO.
+        agreementRepository.findByUserId(userId).ifPresent(a -> {
+            int year = a.getAcceptedAt() != null
+                    ? a.getAcceptedAt().getYear()
+                    : (a.getCreatedAt() != null ? a.getCreatedAt().getYear() : LocalDate.now().getYear());
+            String recordId = String.format("AGR-%d-%05d", year, a.getId());
+            dto.setAgreement(ProfileDTO.AgreementSummary.builder()
+                    .id(a.getId())
+                    .accepted(Boolean.TRUE.equals(a.getCodeVerified()))
+                    .status(a.getStatus())
+                    .legalName(a.getLegalName())
+                    .version(a.getAgreementVersion())
+                    .acceptedAt(a.getAcceptedAt())
+                    .agreementEmailSentAt(a.getAgreementEmailSentAt())
+                    .userReplyReceivedAt(a.getUserReplyReceivedAt())
+                    .userReplyContent(a.getUserReplyContent())
+                    .verificationCodeSentAt(a.getVerificationCodeSentAt())
+                    .verificationCodeVerifiedAt(a.getVerificationCodeVerifiedAt())
+                    .ipAddress(a.getIpAddress())
+                    .browser(a.getBrowser())
+                    .os(a.getOs())
+                    .recordId(recordId)
+                    .build());
+        });
+
+        return dto;
     }
 
     @Transactional

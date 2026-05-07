@@ -25,6 +25,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final AgreementGateFilter agreementGateFilter;
 
     private final CorsConfigurationSource corsConfigurationSource;
 
@@ -42,10 +43,17 @@ public class SecurityConfig {
                         .requestMatchers("/api/certificates/verify/**").permitAll()
                         .requestMatchers("/api/certificates/download/**").permitAll()
                         .requestMatchers("/api/verify/**").permitAll()
+                        // Public read of the active Terms of Service text.
+                        .requestMatchers(HttpMethod.GET, "/api/agreement/terms").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Agreement gate runs after JWT auth so it can read the
+                // resolved principal. It exempts /api/auth/* and
+                // /api/agreement/* internally so the user can always
+                // reach the flow that lets them satisfy it.
+                .addFilterAfter(agreementGateFilter, JwtAuthFilter.class);
 
         return http.build();
     }

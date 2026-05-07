@@ -163,9 +163,13 @@ function VerifyEmailInner() {
       const auth = await verifyCode(email, code);
       setSuccess(true);
       setSession(auth);
-      // Brief celebratory pause so the user sees the success state.
+      // Brief celebratory pause so the user sees the success state,
+      // then route based on whether the agreement has been accepted.
+      // Brand-new signups always land on /agreement next; returning
+      // users who'd already accepted skip ahead to /dashboard.
+      const target = auth.user?.agreementAccepted ? "/dashboard" : "/agreement";
       setTimeout(() => {
-        window.location.href = "/dashboard";
+        window.location.href = target;
       }, 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");
