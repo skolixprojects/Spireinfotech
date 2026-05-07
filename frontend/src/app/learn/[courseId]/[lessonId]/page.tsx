@@ -1,22 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  X, Menu, ArrowLeft, ArrowRight, CheckCircle, Play, Circle,
-  Loader2, MessageCircle, GraduationCap,
+  X, Menu, Search, Settings as SettingsIcon, Maximize2, Minimize2,
+  ChevronLeft, ChevronRight, ChevronDown, Check, Play,
+  Loader2, GraduationCap, FileQuestion, Brain,
+  Keyboard, Sparkles, ArrowRight, Trophy, Folder,
 } from "lucide-react";
 import {
   getCourse, getCourseProgress, getCourseLessons, getMyMentorForCourse,
-  completeLesson, saveLessonPosition,
+  completeLesson, saveLessonPosition, listCourseQuizzes,
   type CourseProgress, type LessonProgress as LessonProgressDTO,
+  type Quiz,
 } from "@/lib/api";
 import type { MentorInfo } from "@/lib/types";
 import { useToast } from "@/components/ui/Toast";
 import { RequestSessionModal } from "@/components/mentorship/RequestSessionModal";
-import { APP_NAME } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import SecureVideoPlayer from "@/components/player/SecureVideoPlayer";
 import { useAuth } from "@/lib/auth-context";
@@ -44,6 +47,20 @@ interface FlatLesson {
   videoPositionSec: number;
 }
 
+const PLAYBACK_SPEEDS = [0.5, 1, 1.25, 1.5, 2] as const;
+
+/**
+ * Cisco-inspired full-screen course player.
+ *
+ * Three regions stacked top-to-bottom: a 48px dark top bar, a 280px
+ * collapsible sidebar with module/lesson outline, and a main content
+ * area that holds the breadcrumb, video player, and lesson info. The
+ * page itself is `h-screen overflow-hidden` so only the inner panels
+ * scroll — no chrome fights for vertical space.
+ *
+ * The global Navbar is suppressed for /learn/* by ShellWrapper, so
+ * this page owns its own top bar.
+ */
 export default function LearnPage({
   params,
 }: {
@@ -59,17 +76,27 @@ export default function LearnPage({
   const [lessons, setLessons] = useState<LessonRow[]>([]);
   const [progress, setProgress] = useState<CourseProgress | null>(null);
   const [mentor, setMentor] = useState<MentorInfo | null>(null);
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [marking, setMarking] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // UI state
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"outline" | "resources">("outline");
+  const [outlineSearch, setOutlineSearch] = useState("");
   const [sessionModalOpen, setSessionModalOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
+  const [pageFullscreen, setPageFullscreen] = useState(false);
 
-  // SecureVideoPlayer manages its own <video> ref + listeners.
-  // We only keep the throttle timer here for the position-save call.
+  // Refs
   const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playerWrapperRef = useRef<HTMLDivElement>(null);
 
-  // Load everything in parallel.
+  // ── Data load ────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -77,19 +104,18 @@ export default function LearnPage({
 
     Promise.all([
       getCourse(params.courseId).catch(() => null),
-      getCourseProgress(params.courseId).catch((err) => {
-        // 401/403 → not enrolled. Bounce them out.
-        throw err;
-      }),
+      getCourseProgress(params.courseId), // 401/403 → not enrolled, throws
       getCourseLessons(params.courseId).catch(() => []),
       getMyMentorForCourse(params.courseId).catch(() => null),
+      listCourseQuizzes(courseIdNum).catch(() => []),
     ])
-      .then(([c, p, l, m]) => {
+      .then(([c, p, l, m, q]) => {
         if (cancelled) return;
-        setCourse((c as CourseHeader | null));
+        setCourse(c as CourseHeader | null);
         setProgress(p as CourseProgress);
         setLessons((l as LessonRow[]) ?? []);
         setMentor(m as MentorInfo | null);
+        setQuizzes((q as Quiz[]) ?? []);
       })
       .catch((err) => {
         if (cancelled) return;
@@ -100,9 +126,10 @@ export default function LearnPage({
       });
 
     return () => { cancelled = true; };
-  }, [params.courseId]);
+    // courseIdNum is derived from params.courseId, no extra dep.
+  }, [params.courseId, courseIdNum]);
 
-  // Flat ordered list of lessons across modules + orphans, with completion + position.
+  // Flat ordered list of lessons with completion + position.
   const flat: FlatLesson[] = useMemo(() => {
     if (!progress) return [];
     const out: FlatLesson[] = [];
@@ -134,34 +161,39 @@ export default function LearnPage({
   const prevLesson = currentIdx > 0 ? flat[currentIdx - 1] : null;
   const nextLesson = currentIdx >= 0 && currentIdx < flat.length - 1
     ? flat[currentIdx + 1] : null;
-
-  // Lesson row from getCourseLessons (has videoUrl).
   const currentLessonRow = lessons.find((l) => l.id === lessonIdNum) ?? null;
 
-  // ── Position save on unmount/navigation ──────────────────────────
-  // Periodic saves run via SecureVideoPlayer's onProgress callback
-  // (every 10s). We still flush any pending throttle timer here so
-  // a navigation right after a scrub doesn't lose the latest position.
+  // Quizzes scoped to this lesson (rendered in main content) and
+  // grouped by module (rendered in sidebar at end of each module).
+  const lessonQuizzes = quizzes.filter((q) => q.lessonId === lessonIdNum);
+  const quizzesByModule = useMemo(() => {
+    const map = new Map<number, Quiz[]>();
+    quizzes.forEach((q) => {
+      if (q.moduleId == null) return;
+      const list = map.get(q.moduleId) ?? [];
+      list.push(q);
+      map.set(q.moduleId, list);
+    });
+    return map;
+  }, [quizzes]);
+
+  // ── Cleanup throttle on lesson change ────────────────────────────
   useEffect(() => {
     return () => {
       if (positionSaveTimer.current) clearTimeout(positionSaveTimer.current);
     };
   }, [lessonIdNum]);
 
-  // ── Page-level right-click + keyboard hardening ──────────────────
-  // The player has its own listeners, but they only fire when the
-  // player has focus. Adding the same blocks at document level catches
-  // shortcuts pressed while the user is in the sidebar / next-lesson
-  // button / etc.
+  // ── Page-level right-click / DevTools shortcut hardening ─────────
   useEffect(() => {
     const onContext = (e: MouseEvent) => e.preventDefault();
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey;
-      if (ctrl && (e.key === "s" || e.key === "S" || e.key === "p" || e.key === "P" || e.key === "u" || e.key === "U")) {
+      if (ctrl && ["s", "S", "p", "P", "u", "U"].includes(e.key)) {
         e.preventDefault();
       }
       if (e.key === "F12") e.preventDefault();
-      if (ctrl && e.shiftKey && (e.key === "I" || e.key === "i" || e.key === "J" || e.key === "j")) {
+      if (ctrl && e.shiftKey && ["I", "i", "J", "j"].includes(e.key)) {
         e.preventDefault();
       }
     };
@@ -173,16 +205,28 @@ export default function LearnPage({
     };
   }, []);
 
-  // ── Mark complete ────────────────────────────────────────────────
-  const refetchProgress = async () => {
+  // ── Body overflow lock — page itself never scrolls ───────────────
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    const prevHtmlOverflow = document.documentElement.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.documentElement.style.overflow = prevHtmlOverflow;
+    };
+  }, []);
+
+  // ── Mark complete (no uncomplete API — once true, stays true) ────
+  const refetchProgress = useCallback(async () => {
     try {
       const p = await getCourseProgress(params.courseId);
       setProgress(p);
     } catch {}
-  };
+  }, [params.courseId]);
 
-  const handleMarkComplete = async (autoAdvance = false) => {
-    if (!currentLesson || marking) return;
+  const handleMarkComplete = useCallback(async (autoAdvance = false) => {
+    if (!currentLesson || marking || currentLesson.completed) return;
     setMarking(true);
     try {
       await completeLesson(currentLesson.lessonId);
@@ -196,18 +240,137 @@ export default function LearnPage({
     } finally {
       setMarking(false);
     }
-  };
+  }, [currentLesson, marking, nextLesson, courseIdNum, router, refetchProgress, toast]);
 
-  const handleVideoEnded = async () => {
+  const handleVideoEnded = useCallback(async () => {
     if (currentLesson && !currentLesson.completed) {
       await handleMarkComplete(false);
     }
-  };
+  }, [currentLesson, handleMarkComplete]);
+
+  // ── Page-level fullscreen toggle (entire player, not just video) ─
+  const togglePageFullscreen = useCallback(() => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    const onChange = () => setPageFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  // ── Playback speed control via direct <video> access ─────────────
+  // SecureVideoPlayer doesn't expose a speed prop, so we query its
+  // inner <video> element (rendered inside playerWrapperRef) and
+  // mutate playbackRate directly. Also re-applies on lesson change.
+  const applyPlaybackSpeed = useCallback((speed: number) => {
+    const video = playerWrapperRef.current?.querySelector("video");
+    if (video) video.playbackRate = speed;
+  }, []);
+
+  useEffect(() => {
+    // Wait one tick for the new player to mount on lesson change.
+    const t = setTimeout(() => applyPlaybackSpeed(playbackSpeed), 100);
+    return () => clearTimeout(t);
+  }, [lessonIdNum, playbackSpeed, applyPlaybackSpeed]);
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Don't intercept when the user is typing in an input.
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) return;
+      // Skip when modifier keys are held (those go to Ctrl+S etc).
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const video = playerWrapperRef.current?.querySelector("video");
+
+      switch (e.key) {
+        case " ":
+          if (video) {
+            e.preventDefault();
+            if (video.paused) void video.play(); else video.pause();
+          }
+          break;
+        case "ArrowLeft":
+          if (video) {
+            e.preventDefault();
+            video.currentTime = Math.max(0, video.currentTime - 10);
+          }
+          break;
+        case "ArrowRight":
+          if (video) {
+            e.preventDefault();
+            video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 10);
+          }
+          break;
+        case "n":
+        case "N":
+          if (nextLesson) {
+            e.preventDefault();
+            router.push(`/learn/${courseIdNum}/${nextLesson.lessonId}`);
+          }
+          break;
+        case "p":
+        case "P":
+          if (prevLesson) {
+            e.preventDefault();
+            router.push(`/learn/${courseIdNum}/${prevLesson.lessonId}`);
+          }
+          break;
+        case "m":
+        case "M":
+          e.preventDefault();
+          void handleMarkComplete(false);
+          break;
+        case "s":
+        case "S":
+          e.preventDefault();
+          setSidebarOpen((v) => !v);
+          break;
+        case "f":
+        case "F":
+          e.preventDefault();
+          togglePageFullscreen();
+          break;
+        case "?":
+          e.preventDefault();
+          setShowShortcuts((v) => !v);
+          break;
+        case "Escape":
+          if (showShortcuts) setShowShortcuts(false);
+          else if (mobileSidebarOpen) setMobileSidebarOpen(false);
+          break;
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [
+    nextLesson, prevLesson, courseIdNum, router, handleMarkComplete,
+    togglePageFullscreen, showShortcuts, mobileSidebarOpen,
+  ]);
+
+  // Search shortcut from top bar focuses the sidebar input. The
+  // input lives inside a child component, so we locate it by data
+  // attribute rather than threading a ref through props (avoids the
+  // RefObject<T | null> vs <T> typing friction in React 19).
+  const focusSearch = useCallback(() => {
+    setSidebarOpen(true);
+    setActiveTab("outline");
+    setTimeout(() => {
+      const el = document.querySelector<HTMLInputElement>("[data-outline-search]");
+      el?.focus();
+    }, 100);
+  }, []);
 
   // ── Render ───────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+      <div className="h-screen flex items-center justify-center bg-[#111827]">
         <Loader2 className="animate-spin text-white/60" size={32} />
       </div>
     );
@@ -215,11 +378,11 @@ export default function LearnPage({
 
   if (error) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-950 text-white px-6">
-        <p className="mb-4">{error}</p>
+      <div className="h-screen flex flex-col items-center justify-center bg-[#111827] text-white px-6">
+        <p className="mb-4 text-base">{error}</p>
         <Link
           href="/dashboard"
-          className="px-5 py-2.5 rounded-full bg-white text-gray-900 text-sm font-semibold hover:bg-gray-100"
+          className="px-5 py-2.5 rounded-xl bg-white text-gray-900 text-sm font-bold hover:bg-gray-100"
         >
           Back to Dashboard
         </Link>
@@ -227,191 +390,176 @@ export default function LearnPage({
     );
   }
 
+  const sidebarVisible = sidebarOpen;
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-950 text-white">
-      {/* Top bar */}
-      <header className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-white/10 bg-gray-950/95 backdrop-blur">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link
-            href="/dashboard"
-            className="font-serif text-xl font-bold text-white shrink-0"
-          >
-            {APP_NAME}
-          </Link>
-          <span className="text-white/30 mx-1">/</span>
-          <p className="text-sm text-white/80 truncate">{course?.title ?? "Course"}</p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            className="lg:hidden p-2 rounded-lg hover:bg-white/10 text-white/80"
-            aria-label="Open lessons"
-          >
-            <Menu size={18} />
-          </button>
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium border border-white/15 text-white/80 hover:bg-white/10 transition"
-          >
-            <X size={14} /> Exit
-          </Link>
-        </div>
-      </header>
+    <div className="h-screen flex flex-col overflow-hidden bg-white text-gray-900 select-none">
+      {/* ── 1. TOP BAR ─────────────────────────────────────────────── */}
+      <TopBar
+        courseTitle={course?.title}
+        progressPercent={progress?.progressPercent ?? 0}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
+        onFocusSearch={focusSearch}
+        settingsOpen={settingsOpen}
+        onToggleSettings={() => setSettingsOpen((v) => !v)}
+        playbackSpeed={playbackSpeed}
+        onChangeSpeed={(s) => {
+          setPlaybackSpeed(s);
+          applyPlaybackSpeed(s);
+          setSettingsOpen(false);
+        }}
+        pageFullscreen={pageFullscreen}
+        onToggleFullscreen={togglePageFullscreen}
+        onShowShortcuts={() => setShowShortcuts(true)}
+        exitHref={`/courses/${courseIdNum}`}
+      />
 
-      {/* Body */}
-      <div className="flex-1 flex flex-col lg:flex-row">
-        {/* LEFT — video + content (~70%) */}
-        <main className="flex-1 lg:w-[70%] p-4 sm:p-6 lg:p-8 overflow-y-auto">
-          {/* Video — protected player with watermarking, DevTools
-              detection, blur-on-tab-switch, and shortcut blocking.
-              key={lessonId} forces a fresh mount on lesson navigation
-              so the player resets state cleanly. */}
-          <div className="mb-5">
-            {currentLessonRow?.videoUrl ? (
-              <SecureVideoPlayer
-                key={currentLessonRow.id}
-                videoUrl={currentLessonRow.videoUrl}
-                initialPosition={currentLesson?.videoPositionSec ?? 0}
-                autoPlay
-                onProgress={(position) => {
-                  if (!currentLesson) return;
-                  // Throttle DB writes — same 5s pattern as before.
-                  if (positionSaveTimer.current) clearTimeout(positionSaveTimer.current);
-                  positionSaveTimer.current = setTimeout(() => {
-                    saveLessonPosition(courseIdNum, currentLesson.lessonId, position).catch(() => {});
-                  }, 5000);
-                }}
-                onEnded={handleVideoEnded}
-                userEmail={user?.email}
-                userName={user?.fullName}
-              />
-            ) : (
-              <div className="w-full aspect-video rounded-xl bg-black flex flex-col items-center justify-center text-white/50">
-                <Play size={32} className="mb-2" />
-                <p className="text-sm">No video for this lesson yet.</p>
-              </div>
-            )}
-          </div>
-
-          {/* Lesson title + module crumb */}
-          <h1 className="font-serif text-2xl sm:text-3xl font-bold text-white">
-            {currentLesson?.title ?? "Lesson"}
-          </h1>
-          {currentLesson?.moduleTitle && (
-            <p className="text-sm text-white/60 mt-1">{currentLesson.moduleTitle}</p>
+      {/* ── 2 + 3. SIDEBAR + MAIN CONTENT ──────────────────────────── */}
+      <div className="flex-1 flex min-h-0">
+        {/* Desktop sidebar — width animated to support smooth collapse. */}
+        <motion.aside
+          initial={false}
+          animate={{
+            width: sidebarVisible ? 280 : 0,
+            opacity: sidebarVisible ? 1 : 0,
+          }}
+          transition={{ duration: 0.25, ease: "easeInOut" }}
+          className="hidden md:flex flex-col bg-[#f8f9fa] border-r border-gray-200 overflow-hidden"
+        >
+          {sidebarVisible && (
+            <Sidebar
+              activeTab={activeTab}
+              onChangeTab={setActiveTab}
+              outlineSearch={outlineSearch}
+              onSearchChange={setOutlineSearch}
+              progress={progress}
+              quizzesByModule={quizzesByModule}
+              currentLessonId={lessonIdNum}
+              courseId={courseIdNum}
+              mentor={mentor}
+              onRequestSession={() => setSessionModalOpen(true)}
+            />
           )}
+        </motion.aside>
 
-          {/* Action row */}
-          <div className="mt-5 flex flex-col sm:flex-row sm:items-center gap-3">
-            {prevLesson ? (
-              <Link
-                href={`/learn/${courseIdNum}/${prevLesson.lessonId}`}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-medium border border-white/15 text-white/80 hover:bg-white/10 transition"
-              >
-                <ArrowLeft size={14} /> Previous
-              </Link>
-            ) : (
-              <span className="hidden sm:inline-block w-px" />
-            )}
-
-            {!currentLesson?.completed ? (
-              <button
-                onClick={() => handleMarkComplete(true)}
-                disabled={marking}
-                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-full bg-teal-500 hover:bg-teal-400 text-white text-sm font-semibold disabled:opacity-50 transition shadow"
-              >
-                {marking ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-                Mark Complete
-              </button>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full bg-teal-500/20 text-teal-300 text-sm font-semibold">
-                <CheckCircle size={14} /> Completed
-              </span>
-            )}
-
-            {nextLesson && (
-              <Link
-                href={`/learn/${courseIdNum}/${nextLesson.lessonId}`}
-                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-medium border border-white/15 text-white/80 hover:bg-white/10 transition sm:ml-auto"
-              >
-                Next <ArrowRight size={14} />
-              </Link>
-            )}
-          </div>
-
-          {/* Description */}
-          {currentLessonRow?.description && (
-            <section className="mt-8">
-              <h2 className="text-sm font-semibold text-white/60 uppercase tracking-wide mb-2">
-                Lesson Description
-              </h2>
-              <p className="text-white/85 leading-relaxed whitespace-pre-wrap">
-                {currentLessonRow.description}
-              </p>
-            </section>
-          )}
-        </main>
-
-        {/* RIGHT — sidebar (desktop) */}
-        <aside className="hidden lg:flex lg:flex-col lg:w-[30%] lg:max-w-[420px] border-l border-white/10 bg-gray-900/60">
-          <SidebarContent
-            course={course}
-            progress={progress}
-            currentLessonId={lessonIdNum}
-            courseId={courseIdNum}
-            mentor={mentor}
-            onRequestSession={() => setSessionModalOpen(true)}
+        {/* Main content */}
+        <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          {/* Breadcrumb */}
+          <BreadcrumbBar
+            moduleTitle={currentLesson?.moduleTitle}
+            lessonTitle={currentLesson?.title}
+            prevHref={prevLesson ? `/learn/${courseIdNum}/${prevLesson.lessonId}` : null}
+            nextHref={nextLesson ? `/learn/${courseIdNum}/${nextLesson.lessonId}` : null}
           />
-        </aside>
+
+          {/* Scrollable content area */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Video */}
+            <div ref={playerWrapperRef} className="bg-[#111827]">
+              <div className="aspect-video w-full">
+                {currentLessonRow?.videoUrl ? (
+                  <SecureVideoPlayer
+                    key={currentLessonRow.id}
+                    videoUrl={currentLessonRow.videoUrl}
+                    initialPosition={currentLesson?.videoPositionSec ?? 0}
+                    autoPlay
+                    onProgress={(position) => {
+                      if (!currentLesson) return;
+                      if (positionSaveTimer.current) clearTimeout(positionSaveTimer.current);
+                      positionSaveTimer.current = setTimeout(() => {
+                        saveLessonPosition(courseIdNum, currentLesson.lessonId, position).catch(() => {});
+                      }, 5000);
+                    }}
+                    onEnded={handleVideoEnded}
+                    userEmail={user?.email}
+                    userName={user?.fullName}
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-white/50 gap-2">
+                    <Play size={32} />
+                    <p className="text-sm">Video coming soon</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Lesson info — keyed on lesson id so it fades in on change. */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={lessonIdNum}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="px-6 py-6"
+              >
+                <LessonInfo
+                  lessonTitle={currentLesson?.title ?? "Lesson"}
+                  description={currentLessonRow?.description ?? null}
+                  completed={!!currentLesson?.completed}
+                  marking={marking}
+                  onMarkComplete={() => handleMarkComplete(false)}
+                  lessonQuizzes={lessonQuizzes}
+                  courseId={courseIdNum}
+                />
+              </motion.div>
+            </AnimatePresence>
+          </div>
+        </main>
       </div>
 
-      {/* Mobile sidebar drawer */}
+      {/* ── Mobile sidebar overlay ─────────────────────────────────── */}
       <AnimatePresence>
-        {sidebarOpen && (
+        {mobileSidebarOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="lg:hidden fixed inset-0 z-[70] bg-black/60 backdrop-blur-sm"
-            onClick={() => setSidebarOpen(false)}
+            className="md:hidden fixed inset-0 z-50 bg-black/50"
+            onClick={() => setMobileSidebarOpen(false)}
           >
             <motion.div
-              initial={{ x: "100%" }}
+              initial={{ x: "-100%" }}
               animate={{ x: 0 }}
-              exit={{ x: "100%" }}
+              exit={{ x: "-100%" }}
               transition={{ type: "spring", stiffness: 280, damping: 30 }}
-              className="absolute inset-y-0 right-0 w-[85%] max-w-[400px] bg-gray-900 flex flex-col"
+              className="absolute inset-y-0 left-0 w-[85%] max-w-[320px] bg-[#f8f9fa] border-r border-gray-200 flex flex-col shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between px-5 py-3 border-b border-white/10">
-                <p className="text-sm font-semibold text-white">Course Content</p>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
+                <p className="text-sm font-bold text-gray-900">Course Content</p>
                 <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="p-1.5 rounded-lg hover:bg-white/10 text-white/70"
+                  onClick={() => setMobileSidebarOpen(false)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
                   aria-label="Close sidebar"
                 >
                   <X size={18} />
                 </button>
               </div>
-              <SidebarContent
-                course={course}
+              <Sidebar
+                activeTab={activeTab}
+                onChangeTab={setActiveTab}
+                outlineSearch={outlineSearch}
+                onSearchChange={setOutlineSearch}
                 progress={progress}
+                quizzesByModule={quizzesByModule}
                 currentLessonId={lessonIdNum}
                 courseId={courseIdNum}
                 mentor={mentor}
                 onRequestSession={() => {
-                  setSidebarOpen(false);
+                  setMobileSidebarOpen(false);
                   setSessionModalOpen(true);
                 }}
-                onLessonClick={() => setSidebarOpen(false)}
+                onLessonClick={() => setMobileSidebarOpen(false)}
               />
             </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Request-session modal */}
+      {/* ── Modals & overlays ──────────────────────────────────────── */}
       {mentor && (
         <RequestSessionModal
           enrollmentId={mentor.enrollmentId}
@@ -419,154 +567,460 @@ export default function LearnPage({
           onClose={() => setSessionModalOpen(false)}
         />
       )}
+
+      <ShortcutsOverlay
+        isOpen={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+      />
     </div>
   );
 }
 
-// ─── Sidebar content (shared between desktop sticky panel + mobile drawer) ──
+// ───────────────────────────────────────────────────────────────────
+// TOP BAR
+// ───────────────────────────────────────────────────────────────────
 
-function SidebarContent({
-  course,
-  progress,
-  currentLessonId,
-  courseId,
-  mentor,
-  onRequestSession,
-  onLessonClick,
+function TopBar({
+  courseTitle, progressPercent, sidebarOpen, onToggleSidebar, onOpenMobileSidebar,
+  onFocusSearch, settingsOpen, onToggleSettings, playbackSpeed, onChangeSpeed,
+  pageFullscreen, onToggleFullscreen, onShowShortcuts, exitHref,
 }: {
-  course: CourseHeader | null;
+  courseTitle?: string;
+  progressPercent: number;
+  sidebarOpen: boolean;
+  onToggleSidebar: () => void;
+  onOpenMobileSidebar: () => void;
+  onFocusSearch: () => void;
+  settingsOpen: boolean;
+  onToggleSettings: () => void;
+  playbackSpeed: number;
+  onChangeSpeed: (s: number) => void;
+  pageFullscreen: boolean;
+  onToggleFullscreen: () => void;
+  onShowShortcuts: () => void;
+  exitHref: string;
+}) {
+  return (
+    <header className="h-12 shrink-0 flex items-center justify-between px-4 bg-[#111827] border-b border-black/30 z-30 relative">
+      {/* Left */}
+      <div className="flex items-center gap-3 min-w-0">
+        {/* Mobile menu */}
+        <button
+          onClick={onOpenMobileSidebar}
+          className="md:hidden p-1.5 rounded-md hover:bg-white/10 text-gray-300"
+          aria-label="Open course outline"
+        >
+          <Menu size={18} />
+        </button>
+        {/* Desktop sidebar toggle */}
+        <button
+          onClick={onToggleSidebar}
+          className="hidden md:flex p-1.5 rounded-md hover:bg-white/10 text-gray-300"
+          aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+          title={sidebarOpen ? "Hide sidebar (S)" : "Show sidebar (S)"}
+        >
+          <Menu size={18} />
+        </button>
+        <Link
+          href="/dashboard"
+          className="shrink-0 flex items-center"
+          aria-label="Back to dashboard"
+        >
+          <Image src="/logo.png" alt="Spire" width={24} height={24} className="h-6 w-6 object-contain" />
+        </Link>
+        <span className="hidden sm:inline text-gray-600">·</span>
+        <p className="hidden sm:block text-sm font-medium text-gray-300 truncate max-w-[180px] md:max-w-[300px]">
+          {courseTitle ?? "Course"}
+        </p>
+        <span className="hidden md:inline text-gray-600">·</span>
+        <p className="hidden md:block text-xs text-gray-500 tabular-nums">
+          {progressPercent}% complete
+        </p>
+      </div>
+
+      {/* Right */}
+      <div className="flex items-center gap-1 shrink-0">
+        <TopBarIconButton title="Search outline (focus)" onClick={onFocusSearch}>
+          <Search size={16} />
+        </TopBarIconButton>
+
+        <div className="relative">
+          <TopBarIconButton
+            title="Playback speed"
+            onClick={onToggleSettings}
+            active={settingsOpen}
+          >
+            <SettingsIcon size={16} />
+          </TopBarIconButton>
+          {settingsOpen && (
+            <>
+              <div
+                className="fixed inset-0 z-40"
+                onClick={onToggleSettings}
+                aria-hidden
+              />
+              <div className="absolute right-0 top-full mt-1 w-44 bg-[#1f2937] border border-white/10 rounded-lg shadow-xl py-1 z-50">
+                <p className="px-3 py-2 text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+                  Playback speed
+                </p>
+                {PLAYBACK_SPEEDS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => onChangeSpeed(s)}
+                    className={cn(
+                      "w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-white/5 transition-colors",
+                      playbackSpeed === s ? "text-[#5eead4] font-semibold" : "text-gray-300"
+                    )}
+                  >
+                    <span>{s}x{s === 1 ? "  (Normal)" : ""}</span>
+                    {playbackSpeed === s && <Check size={14} />}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <TopBarIconButton
+          title="Keyboard shortcuts (?)"
+          onClick={onShowShortcuts}
+        >
+          <Keyboard size={16} />
+        </TopBarIconButton>
+
+        <TopBarIconButton
+          title={pageFullscreen ? "Exit fullscreen (F)" : "Fullscreen (F)"}
+          onClick={onToggleFullscreen}
+        >
+          {pageFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+        </TopBarIconButton>
+
+        <Link
+          href={exitHref}
+          className="ml-1 inline-flex items-center gap-1.5 bg-white/10 hover:bg-white/15 text-gray-200 text-xs font-semibold px-3 py-1.5 rounded-md transition-colors"
+          title="Exit player"
+        >
+          <X size={13} /> Exit
+        </Link>
+      </div>
+    </header>
+  );
+}
+
+function TopBarIconButton({
+  children, onClick, title, active = false,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  title: string;
+  active?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={cn(
+        "w-8 h-8 inline-flex items-center justify-center rounded-md text-gray-300 transition-colors",
+        active ? "bg-white/10 text-white" : "hover:bg-white/10 hover:text-white"
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────
+// SIDEBAR
+// ───────────────────────────────────────────────────────────────────
+
+function Sidebar({
+  activeTab, onChangeTab, outlineSearch, onSearchChange,
+  progress, quizzesByModule, currentLessonId, courseId, mentor,
+  onRequestSession, onLessonClick,
+}: {
+  activeTab: "outline" | "resources";
+  onChangeTab: (t: "outline" | "resources") => void;
+  outlineSearch: string;
+  onSearchChange: (s: string) => void;
   progress: CourseProgress | null;
+  quizzesByModule: Map<number, Quiz[]>;
   currentLessonId: number;
   courseId: number;
   mentor: MentorInfo | null;
   onRequestSession: () => void;
   onLessonClick?: () => void;
 }) {
+  const filteredModules = (() => {
+    if (!progress) return [];
+    const term = outlineSearch.trim().toLowerCase();
+    if (!term) return progress.modules;
+    return progress.modules
+      .map((m) => ({
+        ...m,
+        lessons: m.lessons.filter((l) => l.title.toLowerCase().includes(term)),
+      }))
+      .filter((m) => m.moduleTitle.toLowerCase().includes(term) || m.lessons.length > 0);
+  })();
+
+  const filteredOrphans = (() => {
+    if (!progress) return [];
+    const term = outlineSearch.trim().toLowerCase();
+    if (!term) return progress.orphanLessons;
+    return progress.orphanLessons.filter((l) => l.title.toLowerCase().includes(term));
+  })();
+
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-y-auto">
-      {/* Course header + overall progress */}
-      <div className="px-5 py-4 border-b border-white/10">
-        <p className="text-sm font-semibold text-white truncate">
-          {course?.title ?? "Course"}
-        </p>
-        {progress && progress.totalLessons > 0 && (
-          <>
-            <div className="flex items-center justify-between mt-2 mb-1.5">
-              <span className="text-[11px] text-white/60">
-                {progress.completedLessons}/{progress.totalLessons} lessons
-              </span>
-              <span className="text-[11px] font-semibold text-teal-300 tabular-nums">
-                {progress.progressPercent}%
-              </span>
-            </div>
-            <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-teal-400 to-cyan-300 transition-all"
-                style={{ width: `${progress.progressPercent}%` }}
+    <div className="flex flex-col min-w-0 w-[280px] h-full">
+      {/* Tabs */}
+      <div className="flex shrink-0 border-b border-gray-200 bg-white">
+        <SidebarTab
+          label="Course Outline"
+          active={activeTab === "outline"}
+          onClick={() => onChangeTab("outline")}
+        />
+        <SidebarTab
+          label="Resources"
+          active={activeTab === "resources"}
+          onClick={() => onChangeTab("resources")}
+        />
+      </div>
+
+      {activeTab === "outline" ? (
+        <>
+          {/* Search */}
+          <div className="px-3 py-2 shrink-0">
+            <div className="relative">
+              <Search
+                size={13}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+              />
+              <input
+                data-outline-search
+                type="text"
+                value={outlineSearch}
+                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Search outline…"
+                className="w-full bg-white border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-xs text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#0F766E]"
               />
             </div>
-          </>
-        )}
-      </div>
-
-      {/* Modules */}
-      <div className="flex-1 px-3 py-3 space-y-4">
-        {progress?.modules.map((m) => {
-          const moduleDone = m.totalLessons > 0 && m.completedLessons >= m.totalLessons;
-          return (
-            <div key={m.moduleId}>
-              <div className="px-2 mb-2 flex items-center gap-2">
-                {moduleDone && <CheckCircle size={12} className="text-teal-400 shrink-0" />}
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60 truncate">
-                  {m.moduleTitle}
-                </p>
-                <span className="text-[10px] text-white/40 ml-auto whitespace-nowrap">
-                  {m.completedLessons}/{m.totalLessons}
-                </span>
-              </div>
-              <ul className="space-y-0.5">
-                {m.lessons.map((l) => (
-                  <SidebarLessonRow
-                    key={l.lessonId}
-                    courseId={courseId}
-                    lessonId={l.lessonId}
-                    title={l.title}
-                    completed={l.completed}
-                    isCurrent={l.lessonId === currentLessonId}
-                    onClick={onLessonClick}
-                  />
-                ))}
-              </ul>
-            </div>
-          );
-        })}
-
-        {progress && progress.orphanLessons.length > 0 && (
-          <div>
-            <p className="px-2 mb-2 text-[11px] font-semibold uppercase tracking-wider text-white/60">
-              Other Lessons
-            </p>
-            <ul className="space-y-0.5">
-              {progress.orphanLessons.map((l) => (
-                <SidebarLessonRow
-                  key={l.lessonId}
-                  courseId={courseId}
-                  lessonId={l.lessonId}
-                  title={l.title}
-                  completed={l.completed}
-                  isCurrent={l.lessonId === currentLessonId}
-                  onClick={onLessonClick}
-                />
-              ))}
-            </ul>
           </div>
-        )}
-      </div>
 
-      {/* Mentor card pinned at the bottom */}
-      <div className="px-5 py-4 border-t border-white/10 bg-gray-950/40">
-        <div className="flex items-center gap-2 mb-3">
-          <GraduationCap size={14} className="text-teal-400" />
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-white/60">
-            Your Mentor
+          {/* Module list */}
+          <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-1.5">
+            {filteredModules.map((m) => (
+              <ModuleSection
+                key={m.moduleId}
+                moduleId={m.moduleId}
+                moduleTitle={m.moduleTitle}
+                totalLessons={m.totalLessons}
+                completedLessons={m.completedLessons}
+                progressPercent={m.progressPercent}
+                lessons={m.lessons}
+                quizzes={quizzesByModule.get(m.moduleId) ?? []}
+                currentLessonId={currentLessonId}
+                courseId={courseId}
+                onLessonClick={onLessonClick}
+              />
+            ))}
+
+            {filteredOrphans.length > 0 && (
+              <ModuleSection
+                key="orphans"
+                moduleId={-1}
+                moduleTitle="Other lessons"
+                totalLessons={filteredOrphans.length}
+                completedLessons={filteredOrphans.filter((l) => l.completed).length}
+                progressPercent={
+                  Math.round(
+                    (filteredOrphans.filter((l) => l.completed).length /
+                      Math.max(1, filteredOrphans.length)) * 100
+                  )
+                }
+                lessons={filteredOrphans}
+                quizzes={[]}
+                currentLessonId={currentLessonId}
+                courseId={courseId}
+                onLessonClick={onLessonClick}
+              />
+            )}
+
+            {filteredModules.length === 0 && filteredOrphans.length === 0 && (
+              <p className="text-center text-xs text-gray-400 py-8">
+                {outlineSearch ? "No lessons match your search." : "No content yet."}
+              </p>
+            )}
+          </div>
+        </>
+      ) : (
+        // Resources tab — placeholder until per-lesson resources land
+        // as a real backend feature. Keeps the tab discoverable without
+        // shipping fake data.
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-6 py-10">
+          <Folder size={28} className="text-gray-300 mb-2" />
+          <p className="text-sm font-bold text-gray-700">No resources yet</p>
+          <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+            Lesson downloads, slide decks, and reference links will appear here when your instructor adds them.
           </p>
         </div>
+      )}
+
+      {/* Mentor card — sticky at the bottom */}
+      <div className="shrink-0 border-t border-gray-200 bg-white px-3 py-3">
         {mentor && mentor.mentorName ? (
-          <>
-            <p className="text-sm font-semibold text-white truncate">
-              {mentor.mentorName}
-            </p>
-            {mentor.mentorEmail && (
-              <p className="text-xs text-white/50 truncate mb-3">{mentor.mentorEmail}</p>
-            )}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-[#f0fdf9] text-[#0F766E] flex items-center justify-center text-xs font-bold shrink-0">
+              {mentor.mentorName.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold leading-none">
+                Your Mentor
+              </p>
+              <p className="text-xs font-semibold text-gray-900 truncate mt-0.5">
+                {mentor.mentorName}
+              </p>
+            </div>
             <button
               onClick={onRequestSession}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-teal-500 hover:bg-teal-400 text-white text-xs font-semibold transition"
+              className="text-[10px] font-semibold text-[#0F766E] border border-[#0F766E]/20 hover:bg-[#f0fdf9] px-2 py-1 rounded transition-colors shrink-0"
             >
-              <MessageCircle size={12} /> Request a Session
+              Ask
             </button>
-          </>
-        ) : mentor ? (
-          <p className="text-xs text-white/60">
-            Mentor assignment in progress — check back shortly.
-          </p>
+          </div>
         ) : (
-          <p className="text-xs text-white/60">
-            No mentor for this content (services don&apos;t include mentorship).
-          </p>
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <GraduationCap size={14} className="text-gray-400" />
+            <span>Mentor pending</span>
+          </div>
         )}
       </div>
     </div>
   );
 }
 
+function SidebarTab({
+  label, active, onClick,
+}: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex-1 px-4 py-3 text-xs transition-colors border-b-2",
+        active
+          ? "font-bold text-[#0F766E] border-[#0F766E]"
+          : "text-gray-400 border-gray-200 hover:text-gray-600"
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+function ModuleSection({
+  moduleId, moduleTitle, totalLessons, completedLessons, progressPercent,
+  lessons, quizzes, currentLessonId, courseId, onLessonClick,
+}: {
+  moduleId: number;
+  moduleTitle: string;
+  totalLessons: number;
+  completedLessons: number;
+  progressPercent: number;
+  lessons: Array<{ lessonId: number; title: string; completed: boolean }>;
+  quizzes: Quiz[];
+  currentLessonId: number;
+  courseId: number;
+  onLessonClick?: () => void;
+}) {
+  // Auto-expand the module that contains the current lesson; collapse
+  // the rest. Once mounted, the user controls expand/collapse.
+  const containsCurrent = lessons.some((l) => l.lessonId === currentLessonId);
+  const [expanded, setExpanded] = useState(containsCurrent);
+  void moduleId;
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full px-3 py-3 flex items-start gap-2 hover:bg-gray-50 transition-colors text-left"
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-bold text-gray-900 leading-snug">
+            {moduleTitle}
+          </p>
+          <div className="mt-1.5 flex items-center gap-2">
+            <div className="flex-1 h-1 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#0F766E] rounded-full transition-all duration-300"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-gray-500 tabular-nums shrink-0">
+              {completedLessons}/{totalLessons}
+            </span>
+          </div>
+        </div>
+        <ChevronDown
+          size={14}
+          className={cn(
+            "text-gray-400 mt-0.5 transition-transform duration-200 shrink-0",
+            expanded && "rotate-180"
+          )}
+        />
+      </button>
+
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden border-t border-gray-100"
+          >
+            {lessons.map((l) => (
+              <SidebarLessonRow
+                key={l.lessonId}
+                courseId={courseId}
+                lessonId={l.lessonId}
+                title={l.title}
+                completed={l.completed}
+                isCurrent={l.lessonId === currentLessonId}
+                onClick={onLessonClick}
+              />
+            ))}
+            {quizzes.map((q) => {
+              const passed = q.bestScorePercent != null && q.bestScorePercent >= q.passThreshold;
+              return (
+                <Link
+                  key={q.id}
+                  href={`/quiz/${q.id}/take?return=${encodeURIComponent(`/learn/${courseId}/${currentLessonId}`)}`}
+                  onClick={onLessonClick}
+                  className="flex items-center gap-2 py-2 px-3 pl-5 hover:bg-gray-50 transition-colors"
+                >
+                  <span className="w-4 h-4 rounded-full bg-[#f0fdf9] flex items-center justify-center shrink-0">
+                    <FileQuestion size={10} className="text-[#0F766E]" />
+                  </span>
+                  <span className="text-xs text-gray-700 flex-1 truncate font-semibold">
+                    Module Quiz
+                  </span>
+                  {passed && <Check size={11} className="text-[#0D9488]" />}
+                </Link>
+              );
+            })}
+            {lessons.length === 0 && quizzes.length === 0 && (
+              <p className="px-3 py-2 pl-5 text-[11px] text-gray-400 italic">
+                No lessons yet.
+              </p>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function SidebarLessonRow({
-  courseId,
-  lessonId,
-  title,
-  completed,
-  isCurrent,
-  onClick,
+  courseId, lessonId, title, completed, isCurrent, onClick,
 }: {
   courseId: number;
   lessonId: number;
@@ -575,30 +1029,267 @@ function SidebarLessonRow({
   isCurrent: boolean;
   onClick?: () => void;
 }) {
-  const Icon = completed ? CheckCircle : isCurrent ? Play : Circle;
   return (
-    <li>
-      <Link
-        href={`/learn/${courseId}/${lessonId}`}
-        onClick={onClick}
-        className={cn(
-          "flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition",
-          isCurrent
-            ? "bg-teal-500/15 text-white border-l-2 border-teal-400 pl-1.5"
-            : completed
-              ? "text-white/65 hover:text-white hover:bg-white/5"
-              : "text-white/85 hover:text-white hover:bg-white/5"
-        )}
-      >
-        <Icon
-          size={14}
-          className={cn(
-            "shrink-0",
-            completed ? "text-teal-400" : isCurrent ? "text-teal-300" : "text-white/40"
-          )}
-        />
-        <span className="truncate">{title}</span>
-      </Link>
-    </li>
+    <Link
+      href={`/learn/${courseId}/${lessonId}`}
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-2 py-2 px-3 pl-5 transition-colors",
+        isCurrent
+          ? "bg-[#f0fdf9] border-l-2 border-[#0F766E] pl-[18px]"
+          : "hover:bg-gray-50 border-l-2 border-transparent"
+      )}
+    >
+      <LessonStatusDot completed={completed} isCurrent={isCurrent} />
+      <span className={cn(
+        "text-xs flex-1 truncate",
+        completed ? "text-gray-500" :
+        isCurrent ? "font-semibold text-gray-900" :
+        "text-gray-400"
+      )}>
+        {title}
+      </span>
+    </Link>
   );
 }
+
+function LessonStatusDot({
+  completed, isCurrent,
+}: { completed: boolean; isCurrent: boolean }) {
+  if (completed) {
+    return (
+      <span className="w-4 h-4 rounded-full bg-[#0D9488] flex items-center justify-center shrink-0">
+        <Check size={10} className="text-white" strokeWidth={3} />
+      </span>
+    );
+  }
+  if (isCurrent) {
+    return (
+      <span className="w-4 h-4 rounded-full bg-[#0F766E] flex items-center justify-center shrink-0">
+        <Play size={8} className="text-white" fill="currentColor" />
+      </span>
+    );
+  }
+  return (
+    <span className="w-4 h-4 rounded-full border-[1.5px] border-gray-300 shrink-0" />
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────
+// MAIN CONTENT — breadcrumb, lesson info
+// ───────────────────────────────────────────────────────────────────
+
+function BreadcrumbBar({
+  moduleTitle, lessonTitle, prevHref, nextHref,
+}: {
+  moduleTitle: string | null | undefined;
+  lessonTitle: string | undefined;
+  prevHref: string | null;
+  nextHref: string | null;
+}) {
+  return (
+    <div className="h-11 shrink-0 px-5 flex items-center justify-between border-b border-gray-200 bg-white">
+      <div className="flex items-center gap-2 min-w-0">
+        {moduleTitle && (
+          <>
+            <span className="text-xs text-gray-400 truncate">{moduleTitle}</span>
+            <ChevronRight size={12} className="text-gray-300 shrink-0" />
+          </>
+        )}
+        <span className="text-sm font-semibold text-gray-900 truncate">
+          {lessonTitle ?? "Lesson"}
+        </span>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        {prevHref ? (
+          <Link
+            href={prevHref}
+            className="inline-flex items-center gap-1 text-xs text-gray-600 border border-gray-200 px-3 py-1.5 rounded-md hover:bg-gray-50 transition-colors"
+            title="Previous lesson (P)"
+          >
+            <ChevronLeft size={13} /> Prev
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs text-gray-300 border border-gray-100 px-3 py-1.5 rounded-md cursor-not-allowed">
+            <ChevronLeft size={13} /> Prev
+          </span>
+        )}
+        {nextHref ? (
+          <Link
+            href={nextHref}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-white bg-[#0F766E] px-3 py-1.5 rounded-md hover:bg-[#0D9488] transition-colors"
+            title="Next lesson (N)"
+          >
+            Next <ChevronRight size={13} />
+          </Link>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs text-gray-300 border border-gray-100 px-3 py-1.5 rounded-md cursor-not-allowed">
+            Next <ChevronRight size={13} />
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function LessonInfo({
+  lessonTitle, description, completed, marking, onMarkComplete,
+  lessonQuizzes, courseId,
+}: {
+  lessonTitle: string;
+  description: string | null;
+  completed: boolean;
+  marking: boolean;
+  onMarkComplete: () => void;
+  lessonQuizzes: Quiz[];
+  courseId: number;
+}) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <h1 className="text-lg font-bold text-gray-900 flex-1 min-w-0">
+          {lessonTitle}
+        </h1>
+        {completed ? (
+          <motion.span
+            initial={{ scale: 0.95 }}
+            animate={{ scale: 1 }}
+            className="inline-flex items-center gap-1.5 bg-[#f0fdf9] text-[#0D9488] border border-[#0D9488]/20 px-4 py-2 rounded-lg text-sm font-bold"
+          >
+            <Check size={15} strokeWidth={3} /> Completed
+          </motion.span>
+        ) : (
+          <button
+            onClick={onMarkComplete}
+            disabled={marking}
+            title="Mark complete (M)"
+            className="inline-flex items-center gap-1.5 bg-[#0F766E] hover:bg-[#0D9488] text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-md hover:shadow-lg active:scale-[0.98] transition-all duration-200 disabled:opacity-60 cursor-pointer"
+          >
+            {marking
+              ? <><Loader2 size={14} className="animate-spin" /> Saving…</>
+              : <><Check size={14} strokeWidth={3} /> Mark complete</>}
+          </button>
+        )}
+      </div>
+
+      {description && (
+        <p className="text-sm text-gray-600 mt-3 whitespace-pre-wrap" style={{ lineHeight: 1.7 }}>
+          {description}
+        </p>
+      )}
+
+      {lessonQuizzes.length > 0 && (
+        <div className="mt-5 space-y-3">
+          {lessonQuizzes.map((q) => (
+            <LessonQuizCard key={q.id} quiz={q} courseId={courseId} />
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function LessonQuizCard({ quiz, courseId }: { quiz: Quiz; courseId: number }) {
+  const attemptCount = quiz.attemptCount ?? 0;
+  const best = quiz.bestScorePercent;
+  const passed = best != null && best >= quiz.passThreshold;
+  const href = `/quiz/${quiz.id}/take?return=${encodeURIComponent(`/learn/${courseId}/${quiz.lessonId}`)}`;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="inline-flex items-center gap-2 text-base font-bold text-gray-900">
+            <Brain size={16} className="text-[#0F766E]" />
+            {quiz.title || "Lesson Quiz"}
+          </h3>
+          <p className="text-sm text-gray-500 mt-1">
+            {quiz.description || "Test your understanding of this lesson."}
+          </p>
+          {best != null && (
+            <div className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold">
+              <Trophy size={12} className={passed ? "text-[#0F766E]" : "text-amber-500"} />
+              <span className={passed ? "text-[#0F766E]" : "text-amber-600"}>
+                Best score: {best}% {passed && "· Passed"}
+              </span>
+            </div>
+          )}
+        </div>
+        <Link
+          href={href}
+          className="inline-flex items-center gap-1.5 bg-[#0F766E] hover:bg-[#0D9488] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 shrink-0"
+        >
+          {attemptCount > 0 ? "Retake quiz" : "Start quiz"} <ArrowRight size={14} />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────
+// SHORTCUTS OVERLAY
+// ───────────────────────────────────────────────────────────────────
+
+function ShortcutsOverlay({
+  isOpen, onClose,
+}: { isOpen: boolean; onClose: () => void }) {
+  const SHORTCUTS: Array<{ keys: string; label: string }> = [
+    { keys: "Space", label: "Play / pause video" },
+    { keys: "←", label: "Seek back 10s" },
+    { keys: "→", label: "Seek forward 10s" },
+    { keys: "N", label: "Next lesson" },
+    { keys: "P", label: "Previous lesson" },
+    { keys: "M", label: "Mark lesson complete" },
+    { keys: "S", label: "Toggle sidebar" },
+    { keys: "F", label: "Fullscreen" },
+    { keys: "?", label: "Show this help" },
+    { keys: "Esc", label: "Close overlays" },
+  ];
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] bg-black/60 flex items-center justify-center p-6"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden"
+          >
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="inline-flex items-center gap-2 text-base font-bold text-gray-900">
+                <Sparkles size={16} className="text-[#0F766E]" />
+                Keyboard shortcuts
+              </h2>
+              <button
+                onClick={onClose}
+                className="p-1 rounded-md hover:bg-gray-100 text-gray-400"
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <ul className="px-5 py-3">
+              {SHORTCUTS.map((s) => (
+                <li key={s.keys} className="flex items-center justify-between py-2">
+                  <span className="text-sm text-gray-700">{s.label}</span>
+                  <kbd className="text-xs font-bold text-gray-700 bg-gray-100 border border-gray-200 px-2 py-1 rounded-md min-w-[36px] text-center">
+                    {s.keys}
+                  </kbd>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
