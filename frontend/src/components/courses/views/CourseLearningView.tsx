@@ -176,7 +176,7 @@ export function CourseLearningView({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="rounded-2xl border border-gray-100 mb-4 px-6 py-5"
+          className="rounded-2xl border border-gray-100 mb-5 px-6 py-6"
           style={{
             background: "linear-gradient(135deg, #f0fdf9 0%, #ffffff 100%)",
             boxShadow: "0 2px 12px rgba(0,0,0,0.04)",
@@ -188,27 +188,27 @@ export function CourseLearningView({
           )}>
             {course.level}
           </span>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 mt-2">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 mt-2.5">
             {course.title}
           </h1>
 
           {!supervisorMode && totalLessons > 0 && (
             <>
-              <div className="mt-3 flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-600">
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-base font-semibold text-gray-600">
                   Course progress
                 </span>
-                <span className="text-base font-bold text-[#0F766E] tabular-nums">
+                <span className="text-xl font-bold text-[#0F766E] tabular-nums">
                   {progressPercent}%
                 </span>
               </div>
-              <div className="h-2 rounded-full bg-gray-200 mt-1.5 overflow-hidden">
+              <div className="h-2.5 rounded-full bg-gray-200 mt-2 overflow-hidden">
                 <div
                   className="h-full bg-gradient-to-r from-[#0F766E] to-[#0D9488] rounded-full transition-all duration-500"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-500 mt-1.5">
+              <p className="text-sm text-gray-500 mt-2">
                 {completedLessons} of {totalLessons} lesson{totalLessons === 1 ? "" : "s"} complete
               </p>
             </>
@@ -217,14 +217,14 @@ export function CourseLearningView({
           {nextLesson ? (
             <button
               onClick={onContinueLearning}
-              className="mt-3 inline-flex items-center gap-2 bg-[#0F766E] text-white text-sm font-bold px-6 py-2.5 rounded-xl shadow-lg hover:shadow-xl hover:bg-[#0D9488] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+              className="mt-4 inline-flex items-center gap-2 bg-[#0F766E] text-white text-base font-bold px-7 py-3 rounded-xl shadow-lg hover:shadow-xl hover:bg-[#0D9488] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer"
             >
-              <Play size={14} fill="currentColor" />
+              <Play size={15} fill="currentColor" />
               {completedLessons === 0 ? "Start learning" : "Continue learning"}
             </button>
           ) : (
-            <div className="mt-3 inline-flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-sm font-bold px-5 py-2.5 rounded-xl">
-              <CheckCircle2 size={16} /> All lessons complete!
+            <div className="mt-4 inline-flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 text-base font-bold px-6 py-3 rounded-xl">
+              <CheckCircle2 size={17} /> All lessons complete!
             </div>
           )}
         </motion.div>
@@ -242,7 +242,7 @@ export function CourseLearningView({
 
         {/* ── Curriculum ─────────────────────────────────────────── */}
         <section className="mb-5">
-          <h2 className="text-base font-bold text-gray-900 mb-2">Curriculum</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-3">Curriculum</h2>
           {modules.length === 0 && orphanLessons.length === 0 ? (
             <div className="text-center py-8 bg-white rounded-2xl border border-gray-100 shadow-sm text-gray-500 text-sm">
               No lessons published yet.
@@ -268,8 +268,8 @@ export function CourseLearningView({
               })}
               {orphanLessons.length > 0 && (
                 <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div className="px-4 py-3 bg-gray-50/50">
-                    <h3 className="text-sm font-bold text-gray-900">Other lessons</h3>
+                  <div className="px-4 py-3.5 bg-gray-50/50">
+                    <h3 className="text-base font-bold text-gray-900">Other lessons</h3>
                   </div>
                   <div>
                     {orphanLessons.map((l) => (
@@ -291,7 +291,7 @@ export function CourseLearningView({
         {/* ── Course-level quizzes ───────────────────────────────── */}
         {courseLevelQuizzes.length > 0 && (
           <section className="mb-5">
-            <h2 className="text-base font-bold text-gray-900 mb-2">Final assessment</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3">Final assessment</h2>
             <div className="grid sm:grid-cols-2 gap-3">
               {courseLevelQuizzes.map((q) => (
                 <QuizCard key={q.id} quiz={q} returnTo={`/courses/${course.id}`} />
@@ -303,7 +303,7 @@ export function CourseLearningView({
         {/* ── Assignments ───────────────────────────────────────── */}
         {assignments.length > 0 && (
           <section className="mb-5">
-            <h2 className="text-base font-bold text-gray-900 mb-2">Assignments</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3">Assignments</h2>
             <div className="space-y-2">
               {assignments.map((a) => (
                 <AssignmentRow key={a.id} assignment={a} />
@@ -315,7 +315,7 @@ export function CourseLearningView({
         {/* ── Sessions ──────────────────────────────────────────── */}
         {!supervisorMode && sessions.length > 0 && (
           <section className="mb-5">
-            <h2 className="text-base font-bold text-gray-900 mb-2">Mentorship sessions</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-3">Mentorship sessions</h2>
             <div className="space-y-2">
               {sessions.map((s) => <SessionRow key={s.id} session={s} />)}
             </div>
@@ -329,37 +329,37 @@ export function CourseLearningView({
               className="rounded-2xl border border-gray-100 px-6 py-6 text-center shadow-sm"
               style={{ background: "linear-gradient(135deg, #f0fdf9 0%, #ffffff 100%)" }}
             >
-              <Award size={28} className="text-[#0F766E] mx-auto mb-2" />
-              <h2 className="text-lg font-bold text-gray-900 mb-1.5">Course certificate</h2>
+              <Award size={32} className="text-[#0F766E] mx-auto mb-2" />
+              <h2 className="text-xl font-bold text-gray-900 mb-1.5">Course certificate</h2>
 
               {certificate?.exists && certificate.certificateUrl ? (
                 <>
-                  <p className="text-[#0F766E] font-semibold mb-4 text-sm">
+                  <p className="text-[#0F766E] font-semibold mb-4 text-base">
                     You&apos;ve earned your certificate!
                   </p>
                   <a
                     href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}${certificate.certificateUrl}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0F766E] text-white text-sm font-semibold shadow-md hover:shadow-lg hover:bg-[#0D9488] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0F766E] text-white text-base font-bold shadow-md hover:shadow-lg hover:bg-[#0D9488] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
                   >
-                    <Download size={14} /> Download certificate (PDF)
+                    <Download size={15} /> Download certificate (PDF)
                   </a>
                 </>
               ) : (
                 <>
-                  <p className="text-gray-600 mb-4 text-sm max-w-md mx-auto">
+                  <p className="text-gray-600 mb-4 text-base max-w-md mx-auto">
                     Complete all lessons, pass all quizzes, and submit all assignments to earn your certificate.
                   </p>
-                  {certError && <p className="text-red-500 text-xs mb-3">{certError}</p>}
+                  {certError && <p className="text-red-500 text-sm mb-3">{certError}</p>}
                   <button
                     onClick={onGenerateCertificate}
                     disabled={generatingCert}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0F766E] text-white text-sm font-semibold shadow-md hover:shadow-lg hover:bg-[#0D9488] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-[#0F766E] text-white text-base font-bold shadow-md hover:shadow-lg hover:bg-[#0D9488] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:hover:scale-100 cursor-pointer"
                   >
                     {generatingCert
-                      ? <><Loader2 size={14} className="animate-spin" /> Generating…</>
-                      : <><Award size={14} /> Generate certificate</>}
+                      ? <><Loader2 size={15} className="animate-spin" /> Generating…</>
+                      : <><Award size={15} /> Generate certificate</>}
                   </button>
                 </>
               )}
@@ -378,36 +378,36 @@ function MentorMiniCard({
 }: { mentor: MentorInfo | null; onRequestSession: () => void }) {
   const isPending = !mentor || mentor.status === "PENDING_ASSIGNMENT" || !mentor.mentorName;
   return (
-    <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-200">
-      <p className="text-[10px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+    <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
+      <p className="text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
         Your mentor
       </p>
       {isPending ? (
-        <div className="mt-2">
+        <div className="mt-2.5">
           <div className="flex items-center gap-2 text-amber-600">
-            <Clock size={13} />
-            <p className="text-sm font-bold">Mentor coming soon</p>
+            <Clock size={14} />
+            <p className="text-base font-bold">Mentor coming soon</p>
           </div>
-          <p className="text-xs text-gray-500 leading-relaxed mt-1">
+          <p className="text-sm text-gray-500 leading-relaxed mt-1">
             We&apos;ll match you with an expert shortly.
           </p>
         </div>
       ) : (
         <>
-          <h3 className="text-base font-bold text-[#0F766E] mt-2">{mentor.mentorName}</h3>
+          <h3 className="text-lg font-bold text-[#0F766E] mt-2.5">{mentor.mentorName}</h3>
           {mentor.mentorEmail && (
             <a
               href={`mailto:${mentor.mentorEmail}`}
-              className="text-xs text-gray-500 hover:text-[#0F766E] inline-flex items-center gap-1.5 mt-0.5 break-all transition-colors"
+              className="text-sm text-gray-500 hover:text-[#0F766E] inline-flex items-center gap-1.5 mt-1 break-all transition-colors"
             >
-              <Mail size={12} className="flex-shrink-0" /> {mentor.mentorEmail}
+              <Mail size={13} className="flex-shrink-0" /> {mentor.mentorEmail}
             </a>
           )}
           <button
             onClick={onRequestSession}
-            className="mt-auto pt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#0F766E] text-white text-sm font-semibold py-2 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+            className="mt-auto pt-3 w-full inline-flex items-center justify-center gap-1.5 bg-[#0F766E] text-white text-sm font-bold py-2.5 rounded-xl shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200 cursor-pointer"
           >
-            <MessageCircle size={13} /> Request a session
+            <MessageCircle size={14} /> Request a session
           </button>
         </>
       )}
@@ -422,32 +422,32 @@ function NextUpCard({
   onOpen: () => void;
 }) {
   return (
-    <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-all duration-200">
-      <p className="text-[10px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
+    <div className="flex flex-col bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md transition-all duration-200">
+      <p className="text-[11px] uppercase tracking-[1.5px] text-gray-400 font-semibold">
         Next up
       </p>
       {nextLesson ? (
         <>
           {nextLesson.moduleTitle && (
-            <p className="text-xs text-gray-400 mt-2">{nextLesson.moduleTitle}</p>
+            <p className="text-sm text-gray-400 mt-2.5">{nextLesson.moduleTitle}</p>
           )}
           <h3 className={cn(
-            "text-sm font-bold text-gray-900 line-clamp-2",
-            nextLesson.moduleTitle ? "mt-0.5" : "mt-2"
+            "text-base font-bold text-gray-900 line-clamp-2",
+            nextLesson.moduleTitle ? "mt-1" : "mt-2.5"
           )}>
             {nextLesson.title}
           </h3>
           <button
             onClick={onOpen}
-            className="mt-auto pt-3 w-full inline-flex items-center justify-center gap-1.5 bg-white border border-[#0F766E] text-[#0F766E] text-sm font-semibold py-2 rounded-xl hover:bg-[#f0fdf9] active:scale-[0.98] transition-all duration-200 cursor-pointer"
+            className="mt-auto pt-3 w-full inline-flex items-center justify-center gap-1.5 bg-white border border-[#0F766E] text-[#0F766E] text-sm font-bold py-2.5 rounded-xl hover:bg-[#f0fdf9] active:scale-[0.98] transition-all duration-200 cursor-pointer"
           >
-            <Play size={12} fill="currentColor" /> Open lesson
+            <Play size={13} fill="currentColor" /> Open lesson
           </button>
         </>
       ) : (
-        <div className="flex items-center gap-2 text-green-600 mt-2">
-          <CheckCircle2 size={16} />
-          <p className="text-sm font-bold">All lessons complete</p>
+        <div className="flex items-center gap-2 text-green-600 mt-2.5">
+          <CheckCircle2 size={18} />
+          <p className="text-base font-bold">All lessons complete</p>
         </div>
       )}
     </div>
@@ -473,14 +473,14 @@ function ModuleSection({
       className="group bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200"
       open={openByDefault}
     >
-      <summary className="cursor-pointer px-4 py-3 bg-gray-50/50 flex items-center justify-between hover:bg-gray-50 [&::-webkit-details-marker]:hidden transition-colors">
+      <summary className="cursor-pointer px-4 py-3.5 bg-gray-50/50 flex items-center justify-between hover:bg-gray-50 [&::-webkit-details-marker]:hidden transition-colors">
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-bold text-gray-900">{m.title}</h3>
+          <h3 className="text-base font-bold text-gray-900">{m.title}</h3>
           {m.description && (
-            <p className="text-xs text-gray-500 mt-0.5">{m.description}</p>
+            <p className="text-sm text-gray-500 mt-0.5">{m.description}</p>
           )}
-          <div className="mt-1.5 flex items-center gap-3">
-            <p className="text-xs text-gray-400 whitespace-nowrap">
+          <div className="mt-2 flex items-center gap-3">
+            <p className="text-xs text-gray-500 whitespace-nowrap font-medium">
               {moduleProgress
                 ? `${moduleProgress.completedLessons}/${moduleProgress.totalLessons} lessons`
                 : `${m.lessons.length} lesson${m.lessons.length === 1 ? "" : "s"}`}
@@ -494,7 +494,7 @@ function ModuleSection({
                     style={{ width: `${moduleProgress.progressPercent}%` }}
                   />
                 </div>
-                <span className="text-[10px] font-bold text-[#0F766E] tabular-nums">
+                <span className="text-xs font-bold text-[#0F766E] tabular-nums">
                   {moduleProgress.progressPercent}%
                 </span>
               </div>
@@ -524,7 +524,7 @@ function ModuleSection({
         )}
         {moduleQuizzes.length > 0 && (
           <div className="px-4 py-3 border-t border-gray-50 space-y-2">
-            <p className="text-[10px] uppercase tracking-wide font-semibold text-gray-400">
+            <p className="text-[11px] uppercase tracking-wide font-semibold text-gray-400">
               Module quiz
             </p>
             <div className="grid sm:grid-cols-2 gap-3">
@@ -551,35 +551,35 @@ function UnlockedLessonRow({
     <button
       onClick={onOpen}
       className={cn(
-        "w-full flex items-center gap-3 px-4 py-2.5 border-t border-gray-50 text-sm transition-colors text-left cursor-pointer",
+        "w-full flex items-center gap-3 px-4 py-3 border-t border-gray-50 text-sm transition-colors text-left cursor-pointer",
         isCurrent ? "bg-[#f0fdf9]" : "hover:bg-gray-50"
       )}
     >
       <span className="shrink-0">
         {completed ? (
-          <CheckCircle2 size={16} className="text-[#0D9488]" fill="currentColor" />
+          <CheckCircle2 size={17} className="text-[#0D9488]" fill="currentColor" />
         ) : isCurrent ? (
-          <Play size={14} className="text-[#0F766E]" fill="currentColor" />
+          <Play size={15} className="text-[#0F766E]" fill="currentColor" />
         ) : (
-          <Play size={14} className="text-gray-300" />
+          <Play size={15} className="text-gray-300" />
         )}
       </span>
       <span className={cn(
-        "flex-1 truncate",
+        "flex-1 truncate text-sm",
         completed ? "text-gray-700" : isCurrent ? "text-gray-900 font-semibold" : "text-gray-700"
       )}>
         {lesson.title}
       </span>
       {completed && (
-        <span className="text-xs text-[#0F766E] font-semibold shrink-0">Revisit</span>
+        <span className="text-sm text-[#0F766E] font-semibold shrink-0">Revisit</span>
       )}
       {!completed && isCurrent && (
-        <span className="text-xs font-bold text-white bg-[#0F766E] px-3 py-1 rounded-full shrink-0">
+        <span className="text-sm font-semibold text-white bg-[#0F766E] px-3 py-1 rounded-full shrink-0">
           Watch
         </span>
       )}
       {lesson.durationMinutes != null && lesson.durationMinutes > 0 && (
-        <span className="text-xs text-gray-400 shrink-0 tabular-nums">
+        <span className="text-sm text-gray-500 shrink-0 tabular-nums">
           {lesson.durationMinutes}m
         </span>
       )}
@@ -602,15 +602,15 @@ function AssignmentRow({ assignment: a }: { assignment: LearningAssignment }) {
         {a.unlocked ? <FileText size={16} /> : <Lock size={14} />}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900">{a.title}</p>
+        <p className="text-base font-bold text-gray-900">{a.title}</p>
         {a.description && (
-          <p className="text-xs text-gray-500 line-clamp-2 mt-0.5">{a.description}</p>
+          <p className="text-sm text-gray-500 line-clamp-2 mt-0.5">{a.description}</p>
         )}
-        <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-400">
+        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
           <span className="uppercase tracking-wide font-semibold">{a.assignmentType}</span>
           {a.dueDate && (
             <span className="inline-flex items-center gap-1">
-              <Calendar size={10} /> Due {new Date(a.dueDate).toLocaleDateString()}
+              <Calendar size={11} /> Due {new Date(a.dueDate).toLocaleDateString()}
             </span>
           )}
         </div>
@@ -633,20 +633,20 @@ function SessionRow({ session: s }: { session: SessionRequest }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-gray-900 truncate">{s.topic}</p>
+          <p className="text-base font-bold text-gray-900 truncate">{s.topic}</p>
           <span className={cn(
-            "inline-flex items-center gap-1 text-[10px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full border",
+            "inline-flex items-center gap-1 text-[11px] uppercase tracking-wide font-semibold px-2 py-0.5 rounded-full border",
             style.pill
           )}>
             <span className={cn("w-1.5 h-1.5 rounded-full", style.dot)} /> {style.label}
           </span>
         </div>
-        <p className="text-xs text-gray-500 mt-0.5">
+        <p className="text-sm text-gray-500 mt-0.5">
           With {s.mentorName} · Requested {new Date(s.requestedAt).toLocaleDateString()}
         </p>
         {scheduled && (
-          <p className="text-xs text-[#0F766E] font-semibold mt-1 inline-flex items-center gap-1">
-            <Calendar size={11} /> {scheduled.toLocaleString()}
+          <p className="text-sm text-[#0F766E] font-semibold mt-1 inline-flex items-center gap-1">
+            <Calendar size={12} /> {scheduled.toLocaleString()}
           </p>
         )}
       </div>
@@ -655,9 +655,9 @@ function SessionRow({ session: s }: { session: SessionRequest }) {
           href={s.meetingUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[#0F766E] text-white text-xs font-semibold shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200 self-center"
+          className="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0F766E] text-white text-sm font-bold shadow-md hover:shadow-lg hover:bg-[#0D9488] active:scale-[0.98] transition-all duration-200 self-center"
         >
-          <Video size={12} /> Join
+          <Video size={13} /> Join
         </a>
       )}
     </div>

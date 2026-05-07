@@ -96,7 +96,7 @@ export function Navbar() {
           {/* Logo + wordmark */}
           <Link
             href={isAuthenticated ? "/dashboard" : "/"}
-            className="flex items-center gap-2 font-serif text-2xl font-bold text-[#0F766E] tracking-tight"
+            className="flex items-center gap-2 font-serif text-lg font-bold text-[#0F766E] tracking-tight"
           >
             <Image
               src="/logo.png"
@@ -134,7 +134,7 @@ export function Navbar() {
               <div className="relative">
                 <button
                   onClick={() => setDropdownOpen((v) => !v)}
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-[#0F766E] transition-colors"
+                  className="flex items-center gap-2 text-sm font-semibold text-gray-700 hover:text-[#0F766E] transition-colors"
                 >
                   <div className="w-8 h-8 rounded-full bg-[#0F766E] text-white flex items-center justify-center text-xs font-bold">
                     {user.fullName?.charAt(0)?.toUpperCase() || "U"}

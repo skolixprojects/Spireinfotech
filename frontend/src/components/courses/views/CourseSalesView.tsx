@@ -124,17 +124,17 @@ export function CourseSalesView({
               )}>
                 {course.level}
               </span>
-              <h1 className="font-serif text-3xl sm:text-4xl font-bold text-gray-900 mb-3">
+              <h1 className="font-serif text-3xl md:text-4xl font-bold text-gray-900 mb-3">
                 {course.title}
               </h1>
-              <p className="text-gray-600 max-w-xl mb-5 leading-relaxed">
+              <p className="text-base text-gray-600 max-w-xl mb-5" style={{ lineHeight: 1.7 }}>
                 {course.description || course.shortDescription}
               </p>
 
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-gray-600">
                 {course.instructor && (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="w-7 h-7 rounded-full bg-[#0F766E] text-white flex items-center justify-center text-xs font-bold">
+                  <span className="inline-flex items-center gap-2 text-base">
+                    <span className="w-8 h-8 rounded-full bg-[#0F766E] text-white flex items-center justify-center text-sm font-bold">
                       {course.instructor.fullName.charAt(0)}
                     </span>
                     {course.instructor.fullName}
@@ -142,12 +142,12 @@ export function CourseSalesView({
                 )}
                 {totalLessons > 0 && (
                   <span className="inline-flex items-center gap-1.5">
-                    <BookOpen size={14} /> {totalLessons} lesson{totalLessons === 1 ? "" : "s"}
+                    <BookOpen size={15} /> {totalLessons} lesson{totalLessons === 1 ? "" : "s"}
                   </span>
                 )}
                 {totalMinutes > 0 && (
                   <span className="inline-flex items-center gap-1.5">
-                    <Clock size={14} /> {Math.round(totalMinutes / 60 * 10) / 10}h
+                    <Clock size={15} /> {Math.round(totalMinutes / 60 * 10) / 10}h
                   </span>
                 )}
                 {course.enrolledCount > 0 && (
@@ -181,7 +181,7 @@ export function CourseSalesView({
                   key={i}
                   className="flex items-start gap-2 px-4 py-3 rounded-xl bg-white border border-gray-100"
                 >
-                  <Check size={14} className="text-[#0F766E] mt-0.5 shrink-0" />
+                  <Check size={15} className="text-[#0F766E] mt-0.5 shrink-0" />
                   <span className="text-sm text-gray-700 capitalize">{outcome}</span>
                 </div>
               ))}
@@ -226,9 +226,9 @@ export function CourseSalesView({
                 {course.instructor.fullName.charAt(0)}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-gray-900">{course.instructor.fullName}</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{course.instructor.fullName}</h3>
                 <p className="text-sm text-gray-500 mb-2">Instructor</p>
-                <p className="text-sm text-gray-700 leading-relaxed">
+                <p className="text-base text-gray-700" style={{ lineHeight: 1.7 }}>
                   {course.instructor.bio?.trim() ||
                     `Instructor for ${course.title}.`}
                 </p>
@@ -255,7 +255,7 @@ export function CourseSalesView({
                 key={i}
                 className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white border border-gray-100"
               >
-                <Icon size={16} className="text-[#0F766E] shrink-0" />
+                <Icon size={17} className="text-[#0F766E] shrink-0" />
                 <span className="text-sm text-gray-700">{label}</span>
               </div>
             ))}
@@ -271,7 +271,7 @@ export function CourseSalesView({
             <h2 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
               Ready to start?
             </h2>
-            <p className="text-gray-600 mb-5 text-sm">
+            <p className="text-base text-gray-600 mb-5">
               {course.isFree
                 ? "Free to enroll · Personal mentor included"
                 : `₹${Number(course.price).toLocaleString("en-IN")} · One-time payment`}
@@ -280,18 +280,18 @@ export function CourseSalesView({
               <button
                 onClick={onEnroll}
                 disabled={enrolling}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-6 py-3 rounded-xl bg-[#0F766E] text-white text-sm font-semibold hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-6 py-3 rounded-xl bg-[#0F766E] text-white text-base font-bold hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
               >
                 {enrolling
-                  ? <><Loader2 size={14} className="animate-spin" /> Enrolling…</>
+                  ? <><Loader2 size={15} className="animate-spin" /> Enrolling…</>
                   : (course.isFree ? "Enroll free" : "Add to cart")}
               </button>
               {!course.isFree && (
                 <button
                   onClick={onContactSales}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-6 py-3 rounded-xl border-2 border-[#0F766E] text-[#0F766E] text-sm font-semibold hover:bg-[#0F766E]/5 transition cursor-pointer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-6 py-3 rounded-xl border-2 border-[#0F766E] text-[#0F766E] text-base font-semibold hover:bg-[#0F766E]/5 transition cursor-pointer"
                 >
-                  <MessageSquare size={14} /> Contact sales
+                  <MessageSquare size={15} /> Contact sales
                 </button>
               )}
             </div>
@@ -318,37 +318,37 @@ function PriceCard({
       <div className="text-3xl font-bold text-gray-900">
         {course.isFree ? "Free" : `₹${Number(course.price).toLocaleString("en-IN")}`}
       </div>
-      <p className="text-xs text-gray-500 mb-5">
+      <p className="text-sm text-gray-500 mb-5">
         {course.isFree ? "No payment required" : "One-time payment"}
       </p>
 
       <button
         onClick={onEnroll}
         disabled={enrolling}
-        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-[#0F766E] text-white text-sm font-semibold hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+        className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl bg-[#0F766E] text-white text-base font-bold hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
       >
         {enrolling
-          ? <><Loader2 size={14} className="animate-spin" /> Enrolling…</>
+          ? <><Loader2 size={15} className="animate-spin" /> Enrolling…</>
           : (course.isFree ? "Enroll free" : "Add to cart")}
       </button>
 
       {!course.isFree && (
         <button
           onClick={onContactSales}
-          className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border-2 border-[#0F766E] text-[#0F766E] text-sm font-semibold hover:bg-[#0F766E]/5 transition cursor-pointer"
+          className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl border-2 border-[#0F766E] text-[#0F766E] text-base font-semibold hover:bg-[#0F766E]/5 transition cursor-pointer"
         >
-          <MessageSquare size={14} /> Contact sales
+          <MessageSquare size={15} /> Contact sales
         </button>
       )}
       {!course.isFree && (
-        <p className="text-[11px] text-gray-500 mt-2 text-center">
+        <p className="text-xs text-gray-500 mt-2 text-center">
           or contact our team for custom pricing
         </p>
       )}
 
       {enrollMsg && (
         <p className={cn(
-          "text-xs mt-3 text-center",
+          "text-sm mt-3 text-center",
           enrollMsg.toLowerCase().includes("success") ||
           enrollMsg.toLowerCase().startsWith("you're already enrolled")
             ? "text-teal-600" : "text-red-500"
@@ -357,9 +357,9 @@ function PriceCard({
         </p>
       )}
 
-      <div className="mt-5 pt-5 border-t border-gray-100 space-y-1.5 text-xs text-gray-600">
-        <p>Category: <span className="font-medium text-gray-900">{course.category}</span></p>
-        <p>Level: <span className="font-medium text-gray-900">{course.level}</span></p>
+      <div className="mt-5 pt-5 border-t border-gray-100 space-y-1.5 text-sm text-gray-600">
+        <p>Category: <span className="font-semibold text-gray-900">{course.category}</span></p>
+        <p>Level: <span className="font-semibold text-gray-900">{course.level}</span></p>
       </div>
     </div>
   );
