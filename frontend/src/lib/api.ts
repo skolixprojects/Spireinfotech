@@ -1313,15 +1313,29 @@ export async function getMyCertificates() {
  * Public verification — no auth required. Used by the /verify/[id]
  * page so anyone with a certificate ID can confirm its authenticity.
  *
- * Hits the cleaner /api/verify/{number} endpoint (the URL printed on
- * physical certificates). The legacy /api/certificates/verify/{id}
- * route also works but is undocumented for new callers.
+ * Tries the cleaner /api/verify/{number} endpoint first, then falls
+ * back to the legacy /api/certificates/verify/{id} path. The fallback
+ * matters during a deploy window where the frontend (Vercel) ships
+ * before the backend (Railway) — without it, the verify page would
+ * render "Not found" for valid certs while the new endpoint is still
+ * 404'ing on the old backend.
+ *
+ * Network/auth errors propagate; only a 404 on the new path triggers
+ * the fallback (and even that is treated as a soft retry, not an error).
  */
 export async function verifyCertificate(certificateId: string) {
-  const wrapper = await apiFetch<ApiResponse<CertificateVerification>>(
-    `/api/verify/${encodeURIComponent(certificateId)}`,
-  );
-  return wrapper.data;
+  const enc = encodeURIComponent(certificateId);
+  try {
+    const wrapper = await apiFetch<ApiResponse<CertificateVerification>>(
+      `/api/verify/${enc}`,
+    );
+    return wrapper.data;
+  } catch {
+    const wrapper = await apiFetch<ApiResponse<CertificateVerification>>(
+      `/api/certificates/verify/${enc}`,
+    );
+    return wrapper.data;
+  }
 }
 
 // ─── Video Upload ───────────────────────────────────────────────
