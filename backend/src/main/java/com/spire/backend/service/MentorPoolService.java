@@ -9,9 +9,9 @@ import com.spire.backend.repository.CourseMentorRepository;
 import com.spire.backend.repository.CourseRepository;
 import com.spire.backend.repository.MentorAssignmentRepository;
 import com.spire.backend.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class MentorPoolService {
 
     private static final Logger log = LoggerFactory.getLogger(MentorPoolService.class);
@@ -35,15 +34,37 @@ public class MentorPoolService {
     private final UserRepository userRepository;
     // Needed for active-student counts (capacity checks + DTO mapping).
     private final MentorAssignmentRepository mentorAssignmentRepository;
+    private final MentorAssignmentService mentorAssignmentService;
+
     /**
-     * @Lazy breaks the circular dependency:
+     * Manual constructor (no Lombok @RequiredArgsConstructor) so we
+     * can put @Lazy on the MentorAssignmentService parameter.
+     *
+     * The cycle to break:
      *   MentorAssignmentService → MentorPoolService.getAvailableMentor
      *   MentorPoolService       → MentorAssignmentService.fillPending…
-     * Spring injects a proxy and resolves on first call instead of at
-     * construction time.
+     *
+     * Lombok's @RequiredArgsConstructor doesn't propagate field-level
+     * annotations to the generated constructor parameters, so a
+     * field-level @Lazy gets ignored at injection time and Spring
+     * tries to resolve the bean eagerly — which throws the circular-
+     * reference error at startup. Putting @Lazy on the parameter
+     * itself makes Spring inject a CGLIB proxy and resolve the real
+     * bean only when a method on it is called.
      */
-    @Lazy
-    private final MentorAssignmentService mentorAssignmentService;
+    @Autowired
+    public MentorPoolService(
+            CourseMentorRepository courseMentorRepository,
+            CourseRepository courseRepository,
+            UserRepository userRepository,
+            MentorAssignmentRepository mentorAssignmentRepository,
+            @Lazy MentorAssignmentService mentorAssignmentService) {
+        this.courseMentorRepository = courseMentorRepository;
+        this.courseRepository = courseRepository;
+        this.userRepository = userRepository;
+        this.mentorAssignmentRepository = mentorAssignmentRepository;
+        this.mentorAssignmentService = mentorAssignmentService;
+    }
 
     @Transactional
     public CourseMentorDTO addMentorToCourse(Long courseId, Long userId) {
