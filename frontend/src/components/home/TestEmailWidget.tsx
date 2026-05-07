@@ -7,17 +7,24 @@ import { API_BASE_URL } from "@/lib/api";
 /**
  * TODO: Remove this widget before production launch.
  *
- * Diagnostic block at the bottom of the homepage that pokes the
- * public /api/test/send-email endpoint. Designed to surface every
- * step (URL, status code, response body, network errors) in a
- * terminal-style log panel so misconfigured backends (wrong
- * NEXT_PUBLIC_API_URL, CORS, SMTP creds) are debuggable without
- * opening DevTools.
+ * Diagnostic block at the bottom of the homepage. Two paths:
  *
- * Builds the URL inline rather than going through apiFetch so the
- * exact string we're hitting is visible in the log — that was the
- * thing we couldn't see when the routing accidentally landed on
- * the Vercel origin instead of Railway.
+ *  1. "Test Direct" — POSTs straight to the Vercel relay
+ *     (/api/send-email). Bypasses the Spring backend entirely, so
+ *     a success here means SMTP creds + Nodemailer are wired up.
+ *
+ *  2. "Test via Backend" — hits the Railway-hosted backend at
+ *     /api/test/send-email, which then calls the Vercel relay.
+ *     Success here proves the full chain end-to-end.
+ *
+ * Run Test Direct first; if it fails, the issue is on Vercel/SMTP.
+ * If Test Direct succeeds but Test via Backend fails, the gap is
+ * in Railway's outbound HTTPS or the EMAIL_RELAY_* env vars.
+ *
+ * Note on the leaked secret in Test Direct: the
+ * EMAIL_RELAY_SECRET is necessarily inlined in client JS for this
+ * direct path, so reading the page source recovers it. Acceptable
+ * while the widget is dev-only and TODO-marked for removal.
  */
 
 type LogIcon = "⏳" | "📡" | "✅" | "❌" | "📬" | "💡";
@@ -37,9 +44,15 @@ const ICON_COLOR: Record<LogIcon, string> = {
   "💡": "text-yellow-300",
 };
 
+// Same value the Spring backend uses; baked in here so the direct
+// path can authenticate. Override at build time via
+// NEXT_PUBLIC_EMAIL_RELAY_SECRET if rotated.
+const RELAY_SECRET =
+  process.env.NEXT_PUBLIC_EMAIL_RELAY_SECRET || "SPIRE_EMAIL_SECRET_2026";
+
 export function TestEmailWidget() {
   const [email, setEmail] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<"direct" | "backend" | null>(null);
   const [logs, setLogs] = useState<LogLine[]>([]);
 
   const stamp = (): string =>
@@ -51,53 +64,81 @@ export function TestEmailWidget() {
       hour12: true,
     });
 
-  // Append a single log line. We pass the new array to the setter
-  // (rather than relying on the previous state) so consecutive calls
-  // inside one async handler don't drop entries due to stale closures.
   const appendLog = (icon: LogIcon, message: string) => {
     setLogs((prev) => [...prev, { time: stamp(), icon, message }]);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // ── Path 1: Vercel relay direct (skips Spring) ──────────────────
+  const testDirect = async () => {
     const to = email.trim();
     if (!to || submitting) return;
-    setSubmitting(true);
+    setSubmitting("direct");
+    setLogs([]);
+
+    const url = "/api/send-email";
+    appendLog("⏳", "Sending directly via Vercel relay…");
+    appendLog("📡", `URL: ${url} (same-origin)`);
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to,
+          subject: "Test Email from Spire Info Tech",
+          html:
+            "<div style='font-family:Arial,Helvetica,sans-serif; padding:24px; max-width:520px; margin:0 auto;'>"
+            + "<h2 style='color:#0F766E; margin:0 0 12px;'>It works!</h2>"
+            + "<p style='color:#374151;'>Email sent via Vercel + Nodemailer (direct path).</p>"
+            + "</div>",
+          secret: RELAY_SECRET,
+        }),
+      });
+      appendLog(res.ok ? "✅" : "❌", `Vercel responded: ${res.status} ${res.statusText || ""}`.trim());
+      const data = await res.json().catch(() => null);
+      if (data?.ok) {
+        appendLog("✅", `Email sent to ${to}`);
+        appendLog("📬", "Check your inbox (and spam folder)");
+      } else {
+        appendLog("❌", `Failed: ${data?.message ?? "no body"}`);
+      }
+    } catch (err) {
+      appendLog("❌", `Network error: ${err instanceof Error ? err.message : String(err)}`);
+      appendLog("💡", "Check: nodemailer installed and SMTP_* env vars set on Vercel?");
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  // ── Path 2: Railway backend → Vercel relay (full flow) ──────────
+  const testViaBackend = async () => {
+    const to = email.trim();
+    if (!to || submitting) return;
+    setSubmitting("backend");
     setLogs([]);
 
     const url = `${API_BASE_URL}/api/test/send-email?to=${encodeURIComponent(to)}`;
-    appendLog("⏳", "Sending request to backend…");
+    appendLog("⏳", "Sending via backend (Railway → Vercel relay)…");
     appendLog("📡", `URL: ${url}`);
 
     try {
-      const response = await fetch(url);
-      appendLog(
-        response.ok ? "✅" : "❌",
-        `Backend responded: ${response.status} ${response.statusText || ""}`.trim(),
-      );
-
-      let data: { success?: boolean; message?: string } | null = null;
-      try {
-        data = await response.json();
-      } catch {
-        appendLog("❌", "Response was not valid JSON");
-      }
-
+      const res = await fetch(url);
+      appendLog(res.ok ? "✅" : "❌", `Backend responded: ${res.status} ${res.statusText || ""}`.trim());
+      const data = await res.json().catch(() => null);
       if (data?.success) {
         appendLog("✅", `Email sent to ${to}`);
         appendLog("📬", "Check your inbox (and spam folder)");
       } else if (data?.message) {
         appendLog("❌", `Failed: ${data.message}`);
-      } else if (!response.ok) {
+      } else if (!res.ok) {
         appendLog("❌", "Request failed with no diagnostic message");
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      appendLog("❌", `Network error: ${msg}`);
+      appendLog("❌", `Network error: ${err instanceof Error ? err.message : String(err)}`);
       appendLog("💡", "Check: Is the backend running on Railway?");
-      appendLog("💡", "Check: Does CORS allow this origin?");
+      appendLog("💡", "Check: Are EMAIL_RELAY_URL + EMAIL_RELAY_SECRET set on Railway?");
     } finally {
-      setSubmitting(false);
+      setSubmitting(null);
     }
   };
 
@@ -111,7 +152,8 @@ export function TestEmailWidget() {
               Email test (temporary)
             </p>
           </div>
-          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
+
+          <div className="flex flex-col sm:flex-row gap-2 mb-2">
             <div className="relative flex-1">
               <Mail size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
@@ -123,15 +165,34 @@ export function TestEmailWidget() {
                 className="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-200 bg-white text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-[#0F766E]"
               />
             </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-2">
             <button
-              type="submit"
-              disabled={submitting}
-              className="inline-flex items-center justify-center gap-1.5 bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
+              type="button"
+              onClick={testDirect}
+              disabled={submitting !== null}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 bg-[#0F766E] hover:bg-[#0D9488] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
+              title="POST /api/send-email — skips Spring, tests SMTP only"
             >
-              {submitting && <Loader2 size={13} className="animate-spin" />}
-              {submitting ? "Sending…" : "Send Test Email"}
+              {submitting === "direct" && <Loader2 size={13} className="animate-spin" />}
+              Test Direct
             </button>
-          </form>
+            <button
+              type="button"
+              onClick={testViaBackend}
+              disabled={submitting !== null}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors disabled:opacity-60 cursor-pointer"
+              title="GET /api/test/send-email — exercises Railway -> Vercel -> SMTP"
+            >
+              {submitting === "backend" && <Loader2 size={13} className="animate-spin" />}
+              Test via Backend
+            </button>
+          </div>
+
+          <p className="mt-2 text-[11px] text-gray-400">
+            Test Direct hits Vercel only (proves SMTP works). Test via Backend goes through Railway (proves the full relay).
+          </p>
 
           {logs.length > 0 && (
             <div className="mt-3">

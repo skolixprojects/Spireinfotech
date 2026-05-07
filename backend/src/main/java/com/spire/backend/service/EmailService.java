@@ -1,79 +1,114 @@
 package com.spire.backend.service;
 
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
- * Low-level transactional email sender. Wraps Spring's
- * {@link JavaMailSender} with a graceful no-op when SMTP isn't
- * configured (no MAIL_USERNAME / MAIL_PASSWORD in env), so dev
- * environments and the first deploys never crash a signup just
- * because email isn't wired yet.
+ * Email relay client. Posts to a Vercel-hosted Next.js API route
+ * (see {@code frontend/src/app/api/send-email/route.ts}) which
+ * forwards to Gmail SMTP via Nodemailer.
  *
- * Sends are fire-and-forget {@code @Async} — a slow SMTP roundtrip
- * shouldn't block the request that triggered it. Any exception is
- * logged and swallowed; the user-facing operation already succeeded.
+ * Why the indirection: Railway's egress firewall blocks SMTP on
+ * every port (587, 465, 25) so the JavaMail-based path could never
+ * connect. Vercel's Node runtime can reach SMTP, so the backend
+ * formats the message and delegates the wire-level send.
  *
- * Templates are built by {@link EmailTemplateService}; this class
- * only knows how to put bytes on the wire.
+ * Authentication is a shared secret in the JSON body; the Vercel
+ * route refuses any request whose {@code secret} doesn't match.
+ *
+ * Sends are best-effort and synchronous — slow Vercel responses
+ * delay the calling request, but every callsite already wraps
+ * sendEmail in try/catch so an outage can't break signup,
+ * enrollment, etc.
  */
 @Service
 @Slf4j
 public class EmailService {
 
-    @Autowired(required = false)
-    private JavaMailSender mailSender;
+    @Value("${email.relay.url:}")
+    private String relayUrl;
 
-    @Value("${spring.mail.username:}")
-    private String smtpUsername;
+    @Value("${email.relay.secret:}")
+    private String relaySecret;
 
-    @Value("${spring.mail.from:noreply@spireinfotech.com}")
-    private String fromAddress;
+    private final RestTemplate restTemplate;
 
-    /**
-     * True when SMTP credentials and a custom from-address are
-     * configured. The default placeholder address is treated as
-     * "not configured" so a half-set env doesn't accidentally send.
-     */
-    public boolean isConfigured() {
-        return mailSender != null
-                && smtpUsername != null && !smtpUsername.isBlank();
+    public EmailService() {
+        // Tight timeouts so a hung Vercel deploy can't pin the calling
+        // thread for the default minutes-long fetch. 5s connect / 15s
+        // read is ample for a JSON POST + Gmail handoff.
+        // Configured via SimpleClientHttpRequestFactory for portability
+        // across Spring Boot versions where RestTemplateBuilder's
+        // timeout API differs.
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5_000);
+        factory.setReadTimeout(15_000);
+        this.restTemplate = new RestTemplate(factory);
     }
 
     /**
-     * Sends an HTML email to one recipient. Silently skips when not
-     * configured; logs and swallows on failure. Sync rather than
-     * async — Gmail SMTP responds in ~200ms and the auth/enrollment
-     * handlers we call from already run inside transactions; pulling
-     * in @EnableAsync just for this would force us to wire an
-     * executor and reason about transaction propagation.
+     * True when both the relay URL and shared secret are wired up.
+     * Used by the test endpoint and the inactive-nudge cron to bail
+     * out cleanly when email isn't configured for the environment.
+     */
+    public boolean isConfigured() {
+        return relayUrl != null && !relayUrl.isBlank()
+                && relaySecret != null && !relaySecret.isBlank();
+    }
+
+    /**
+     * Posts the message to the relay. Logs and swallows any
+     * exception — callers expect this to never throw.
      */
     public void sendEmail(String to, String subject, String htmlBody) {
         if (!isConfigured()) {
-            log.warn("Mail not configured — skipping send: subject='{}' to='{}'", subject, to);
+            log.warn("Email relay not configured — skipping send: subject='{}' to='{}'", subject, to);
             return;
         }
         try {
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            // Display name is hardcoded so MAIL_FROM can be a bare
-            // address (Gmail SMTP rejects "Name <addr@x>" passed via
-            // env vars — control characters in the local part error).
-            // The recipient sees: Spire Info Tech <noreply@…>
-            helper.setFrom(new InternetAddress(fromAddress, "Spire Info Tech", "UTF-8"));
-            helper.setTo(to);
-            helper.setSubject(subject);
-            helper.setText(htmlBody, true);
-            mailSender.send(message);
-            log.info("Sent email: subject='{}' to='{}'", subject, to);
+            Map<String, String> payload = new HashMap<>();
+            payload.put("to", to);
+            payload.put("subject", subject);
+            payload.put("html", htmlBody);
+            payload.put("secret", relaySecret);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, String>> request = new HttpEntity<>(payload, headers);
+
+            // Use LinkedHashMap so any future logging of the response
+            // body keeps a stable field order.
+            @SuppressWarnings("rawtypes")
+            ResponseEntity<LinkedHashMap> response = restTemplate.postForEntity(
+                    relayUrl, request, LinkedHashMap.class);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> body = response.getBody();
+            boolean ok = response.getStatusCode().is2xxSuccessful()
+                    && body != null
+                    && Boolean.TRUE.equals(body.get("ok"));
+
+            if (ok) {
+                log.info("Email relayed via Vercel: subject='{}' to='{}'", subject, to);
+            } else {
+                String detail = body != null && body.get("message") != null
+                        ? body.get("message").toString() : "no body";
+                log.error("Relay rejected send: subject='{}' to='{}': {}", subject, to, detail);
+            }
         } catch (Exception e) {
-            log.error("Email send failed: subject='{}' to='{}': {}", subject, to, e.getMessage());
+            log.error("Email relay call failed: subject='{}' to='{}': {}",
+                    subject, to, e.getMessage());
         }
     }
 }
