@@ -12,8 +12,22 @@ import { completeOnboarding } from "@/lib/api";
 
 interface OnboardingWizardProps {
   studentName: string;
+  /** Used to namespace the localStorage "dismissed" key so two
+   *  accounts on the same browser don't trample each other. */
+  userId?: number | string;
   onClose: () => void;
 }
+
+/**
+ * Local-storage key the dashboard reads to short-circuit the wizard
+ * across navigations. Without this the wizard re-renders every time
+ * the student returns to /dashboard because:
+ *   - useState `onboardingDismissed` resets to false on remount
+ *   - the cached user.onboardingCompleted from auth-context lags the
+ *     server flip until the next full page reload
+ */
+export const onboardingDismissedKey = (userId?: number | string) =>
+  userId ? `spire-onboarded-${userId}` : "spire-onboarded-anon";
 
 const TOTAL_STEPS = 3;
 
@@ -32,21 +46,30 @@ const CATEGORY_TILES: Array<{
   { label: "Career",    icon: Briefcase,   redirect: "/services",                            bg: "bg-emerald-50",  iconColor: "text-emerald-600" },
 ];
 
-export function OnboardingWizard({ studentName, onClose }: OnboardingWizardProps) {
+export function OnboardingWizard({ studentName, userId, onClose }: OnboardingWizardProps) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
 
   // Fire-and-forget completion. We optimistically close on success;
-  // network errors are silent — worst case the wizard shows again
-  // next refresh, which is recoverable.
+  // network errors are silent — but we still flip the localStorage
+  // flag so subsequent dashboard visits don't re-show the wizard
+  // even when the server save failed.
   const finish = async (then?: () => void) => {
     setBusy(true);
     try {
       await completeOnboarding();
     } catch {
-      // ignore
+      // ignore — the localStorage flag below still hides the wizard
     } finally {
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.setItem(onboardingDismissedKey(userId), "1");
+        }
+      } catch {
+        // localStorage unavailable (private mode) — accept the worst
+        // case where the wizard re-shows on the next reload.
+      }
       setBusy(false);
       onClose();
       then?.();

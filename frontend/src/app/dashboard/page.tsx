@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getEnrollments, requestInstructor, getMyCourses, getInstructorStudents,
+  getEnrollments, getMyCourses, getInstructorStudents,
   getAnalytics, deleteCourse, publishCourse, unpublishCourse, getMentorSessions,
   getNextAction, getDashboardSummary,
   type NextAction, type DashboardSummary,
@@ -24,7 +24,7 @@ import { PendingRequests } from "@/components/mentorship/PendingRequests";
 import { MentorSessionsList } from "@/components/mentorship/MentorSessionsList";
 import { NextActionHero } from "@/components/dashboard/NextActionHero";
 import { AnnouncementsBanner } from "@/components/dashboard/AnnouncementsBanner";
-import { OnboardingWizard } from "@/components/onboarding/OnboardingWizard";
+import { OnboardingWizard, onboardingDismissedKey } from "@/components/onboarding/OnboardingWizard";
 import { InstructorSalesInbox } from "@/components/sales/InstructorSalesInbox";
 import type { SessionRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -57,8 +57,6 @@ export default function DashboardPage() {
   const [enrollments, setEnrollments] = useState<unknown[]>([]);
   const [enrollLoading, setEnrollLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [requestStatus, setRequestStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [requestMsg, setRequestMsg] = useState("");
 
   // Instructor
   const [myCourses, setMyCourses] = useState<InstructorCourse[]>([]);
@@ -73,10 +71,26 @@ export default function DashboardPage() {
   const [nextAction, setNextAction] = useState<NextAction | null>(null);
   const [nextActionLoading, setNextActionLoading] = useState(false);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  // Initialize from localStorage so navigating away and back doesn't
+  // re-show the wizard. Reads after first render via useEffect to
+  // avoid SSR hydration mismatch.
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
   // Admin analytics
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+
+  // Hydrate the wizard-dismissed flag from localStorage once we know
+  // who the user is. Effect runs client-side only (avoids SSR
+  // hydration mismatch from reading window.localStorage on render).
+  useEffect(() => {
+    if (!user) return;
+    try {
+      const flag = window.localStorage.getItem(onboardingDismissedKey(user.id));
+      if (flag === "1") setOnboardingDismissed(true);
+    } catch {
+      // localStorage may be unavailable; fall back to in-memory state.
+    }
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -128,17 +142,7 @@ export default function DashboardPage() {
     }
   }, [user]);
 
-  const handleRequestInstructor = async () => {
-    setRequestStatus("loading");
-    try {
-      await requestInstructor();
-      setRequestStatus("success");
-      setRequestMsg("Request submitted! An admin will review it shortly.");
-    } catch (err: unknown) {
-      setRequestStatus("error");
-      setRequestMsg(err instanceof Error ? err.message : "Failed to submit request.");
-    }
-  };
+
 
   const handleDeleteCourse = async (courseId: number) => {
     if (!confirm("Delete this course?")) return;
@@ -218,6 +222,7 @@ export default function DashboardPage() {
       {showWizard && (
         <OnboardingWizard
           studentName={user.fullName ?? ""}
+          userId={user.id}
           onClose={() => setOnboardingDismissed(true)}
         />
       )}
@@ -419,32 +424,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── STUDENT: Request Instructor ─────────────────────────── */}
-        {role === "STUDENT" && (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
-            <GlassCard>
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-10 h-10 rounded-full bg-teal-100 flex items-center justify-center">
-                  <GraduationCap size={20} className="text-teal-600" />
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">Become an Instructor</p>
-                  <p className="text-xs text-gray-500">Share your knowledge</p>
-                </div>
-              </div>
-              {requestStatus === "success" ? (
-                <p className="text-xs text-teal-600 font-medium">{requestMsg}</p>
-              ) : requestStatus === "error" ? (
-                <p className="text-xs text-red-500 font-medium">{requestMsg}</p>
-              ) : (
-                <Button size="sm" onClick={handleRequestInstructor} disabled={requestStatus === "loading"} className="w-full">
-                  {requestStatus === "loading" && <Loader2 size={14} className="animate-spin mr-1" />}
-                  Request Instructor Status
-                </Button>
-              )}
-            </GlassCard>
-          </div>
-        )}
+        {/* "Become an Instructor" lives on the profile page now —
+            students who want to apply do it from there to keep the
+            dashboard focused on their active learning. */}
 
         {/* ── INSTRUCTOR: Mentorship sections (top — most urgent first) ── */}
         {isInstructor && (

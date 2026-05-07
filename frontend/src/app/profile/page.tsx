@@ -9,7 +9,7 @@ import {
   Flame, CheckCircle2, Clock,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { getProfile, updateProfile, type ProfileData } from "@/lib/api";
+import { getProfile, updateProfile, requestInstructor, type ProfileData } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 
 const BIO_LIMIT = 500;
@@ -65,6 +65,15 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
+  // Instructor-application state. Only meaningful for STUDENT users —
+  // the card is hidden for everyone else. "submitted" persists across
+  // a re-render but resets on full reload (intentional — admin
+  // approval flips role/instructorApproved server-side).
+  const [instructorRequestStatus, setInstructorRequestStatus] = useState<
+    "idle" | "loading" | "submitted" | "error"
+  >("idle");
+  const [instructorRequestMsg, setInstructorRequestMsg] = useState("");
+
   useEffect(() => {
     if (authLoading) return;
     setLoading(true);
@@ -89,6 +98,19 @@ export default function ProfilePage() {
   const handleCancel = () => {
     setEditing(false);
     setSaveError("");
+  };
+
+  const handleRequestInstructor = async () => {
+    setInstructorRequestStatus("loading");
+    setInstructorRequestMsg("");
+    try {
+      await requestInstructor();
+      setInstructorRequestStatus("submitted");
+      setInstructorRequestMsg("Request submitted — an admin will review it shortly.");
+    } catch (err) {
+      setInstructorRequestStatus("error");
+      setInstructorRequestMsg(err instanceof Error ? err.message : "Failed to submit request.");
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -211,6 +233,46 @@ export default function ProfilePage() {
                   </li>
                 </ul>
               </div>
+
+              {/* Become an Instructor — students only.
+                  Lives here (not on the dashboard) so the dashboard
+                  stays focused on active learning. Hidden once the
+                  user is already an instructor or admin. */}
+              {profile.role?.toUpperCase() === "STUDENT" && (
+                <>
+                  <hr className="my-6 border-gray-100" />
+                  <div>
+                    <div className="flex items-center gap-2.5 mb-2">
+                      <div className="w-8 h-8 rounded-lg bg-teal-50 text-teal-600 flex items-center justify-center">
+                        <GraduationCap size={16} />
+                      </div>
+                      <div>
+                        <h2 className="text-sm font-semibold text-gray-900">Become an Instructor</h2>
+                        <p className="text-[11px] text-gray-500">Share your knowledge — admin will review your application.</p>
+                      </div>
+                    </div>
+                    {instructorRequestStatus === "submitted" ? (
+                      <p className="text-xs text-teal-600 font-medium mt-3">
+                        {instructorRequestMsg}
+                      </p>
+                    ) : (
+                      <>
+                        <button
+                          onClick={handleRequestInstructor}
+                          disabled={instructorRequestStatus === "loading"}
+                          className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#0F766E] text-white text-xs font-semibold hover:bg-[#0D9488] disabled:opacity-50 transition cursor-pointer"
+                        >
+                          {instructorRequestStatus === "loading" && <Loader2 size={12} className="animate-spin" />}
+                          Request Instructor Status
+                        </button>
+                        {instructorRequestStatus === "error" && (
+                          <p className="text-xs text-red-600 mt-2">{instructorRequestMsg}</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* ─── RIGHT: Activity panel ─── */}
