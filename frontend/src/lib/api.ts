@@ -8,10 +8,17 @@
 //      either fail or be misread as "calling vercel.app").
 //   3. Localhost for `next dev` so the same code works locally
 //      against `./mvnw spring-boot:run` on :8080.
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL
+//
+// Exported so diagnostic widgets (e.g. TestEmailWidget) can display
+// the URL they're hitting — handy when debugging "is my call going
+// to Railway or Vercel?" without opening DevTools.
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
   || (process.env.NODE_ENV === "production"
       ? "https://spireinfotech-production.up.railway.app"
       : "http://localhost:8080");
+
+// Internal alias kept so existing in-file references don't churn.
+const BASE_URL = API_BASE_URL;
 
 // ─── Types ──────────────────────────────────────────────────────────
 

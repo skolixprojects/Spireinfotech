@@ -1,36 +1,101 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Mail, Wrench, CheckCircle2, XCircle } from "lucide-react";
-import { sendTestEmail } from "@/lib/api";
+import { Loader2, Mail, Wrench } from "lucide-react";
+import { API_BASE_URL } from "@/lib/api";
 
 /**
  * TODO: Remove this widget before production launch.
  *
- * Tiny diagnostic block at the bottom of the homepage that pokes
- * the public /api/test/send-email endpoint. Used during the email
- * rollout to confirm SMTP creds + From-header rendering without
- * needing to sign up. Styled deliberately small and muted so it
- * doesn't compete with the marketing content above it.
+ * Diagnostic block at the bottom of the homepage that pokes the
+ * public /api/test/send-email endpoint. Designed to surface every
+ * step (URL, status code, response body, network errors) in a
+ * terminal-style log panel so misconfigured backends (wrong
+ * NEXT_PUBLIC_API_URL, CORS, SMTP creds) are debuggable without
+ * opening DevTools.
+ *
+ * Builds the URL inline rather than going through apiFetch so the
+ * exact string we're hitting is visible in the log — that was the
+ * thing we couldn't see when the routing accidentally landed on
+ * the Vercel origin instead of Railway.
  */
+
+type LogIcon = "⏳" | "📡" | "✅" | "❌" | "📬" | "💡";
+
+interface LogLine {
+  time: string;
+  icon: LogIcon;
+  message: string;
+}
+
+const ICON_COLOR: Record<LogIcon, string> = {
+  "⏳": "text-yellow-400",
+  "📡": "text-cyan-400",
+  "✅": "text-green-400",
+  "❌": "text-red-400",
+  "📬": "text-green-400",
+  "💡": "text-yellow-300",
+};
+
 export function TestEmailWidget() {
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [logs, setLogs] = useState<LogLine[]>([]);
+
+  const stamp = (): string =>
+    new Date().toLocaleTimeString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+
+  // Append a single log line. We pass the new array to the setter
+  // (rather than relying on the previous state) so consecutive calls
+  // inside one async handler don't drop entries due to stale closures.
+  const appendLog = (icon: LogIcon, message: string) => {
+    setLogs((prev) => [...prev, { time: stamp(), icon, message }]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim() || submitting) return;
+    const to = email.trim();
+    if (!to || submitting) return;
     setSubmitting(true);
-    setResult(null);
+    setLogs([]);
+
+    const url = `${API_BASE_URL}/api/test/send-email?to=${encodeURIComponent(to)}`;
+    appendLog("⏳", "Sending request to backend…");
+    appendLog("📡", `URL: ${url}`);
+
     try {
-      const r = await sendTestEmail(email.trim());
-      setResult(r);
+      const response = await fetch(url);
+      appendLog(
+        response.ok ? "✅" : "❌",
+        `Backend responded: ${response.status} ${response.statusText || ""}`.trim(),
+      );
+
+      let data: { success?: boolean; message?: string } | null = null;
+      try {
+        data = await response.json();
+      } catch {
+        appendLog("❌", "Response was not valid JSON");
+      }
+
+      if (data?.success) {
+        appendLog("✅", `Email sent to ${to}`);
+        appendLog("📬", "Check your inbox (and spam folder)");
+      } else if (data?.message) {
+        appendLog("❌", `Failed: ${data.message}`);
+      } else if (!response.ok) {
+        appendLog("❌", "Request failed with no diagnostic message");
+      }
     } catch (err) {
-      setResult({
-        success: false,
-        message: err instanceof Error ? err.message : "Request failed",
-      });
+      const msg = err instanceof Error ? err.message : String(err);
+      appendLog("❌", `Network error: ${msg}`);
+      appendLog("💡", "Check: Is the backend running on Railway?");
+      appendLog("💡", "Check: Does CORS allow this origin?");
     } finally {
       setSubmitting(false);
     }
@@ -68,17 +133,25 @@ export function TestEmailWidget() {
             </button>
           </form>
 
-          {result && (
-            <div
-              className={
-                "mt-3 flex items-start gap-2 text-sm " +
-                (result.success ? "text-emerald-700" : "text-red-600")
-              }
-            >
-              {result.success
-                ? <CheckCircle2 size={15} className="mt-0.5 shrink-0" />
-                : <XCircle size={15} className="mt-0.5 shrink-0" />}
-              <span>{result.message}</span>
+          {logs.length > 0 && (
+            <div className="mt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-1.5">
+                ── Logs ──
+              </p>
+              <div
+                className="rounded-lg px-4 py-3 max-h-[200px] overflow-y-auto font-mono text-xs leading-relaxed"
+                style={{ background: "#111827" }}
+              >
+                {logs.map((line, i) => (
+                  <div key={i} className="flex gap-2 text-gray-300 break-all">
+                    <span className="text-gray-500 shrink-0">{line.time}</span>
+                    <span className={`shrink-0 ${ICON_COLOR[line.icon]}`}>
+                      {line.icon}
+                    </span>
+                    <span className={ICON_COLOR[line.icon]}>{line.message}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
