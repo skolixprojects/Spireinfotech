@@ -33,10 +33,11 @@ export function MentorCard({ mentorInfo, onRequestSession }: MentorCardProps) {
         <>
           <div className="flex items-center gap-2 text-amber-600 mb-3">
             <Clock size={16} />
-            <p className="text-sm font-semibold">Assignment in progress</p>
+            <p className="text-sm font-semibold">Mentor coming soon</p>
           </div>
           <p className="text-sm text-gray-600 leading-relaxed">
-            You can start learning — your mentor will be introduced shortly.
+            A mentor will be assigned to you shortly. You can start learning
+            while we match you with the right expert.
           </p>
         </>
       ) : (

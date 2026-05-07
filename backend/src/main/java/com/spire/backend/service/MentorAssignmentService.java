@@ -73,6 +73,46 @@ public class MentorAssignmentService {
     }
 
     /**
+     * Retroactively assigns mentors to existing PENDING_ASSIGNMENT
+     * enrollments for a course. Called from MentorPoolService after
+     * a new mentor is added to the pool — students who enrolled
+     * before any mentor existed get matched immediately instead of
+     * waiting for support to manually clean things up.
+     *
+     * Uses the same load-balancer as new enrollments
+     * (MentorPoolService.getAvailableMentor) so capacity rules and
+     * the "fewest current students wins" tiebreaker stay consistent.
+     *
+     * Returns the count of rows that were promoted to ACTIVE.
+     */
+    @Transactional
+    public int fillPendingAssignmentsForCourse(Long courseId) {
+        List<MentorAssignment> pending = mentorAssignmentRepository
+                .findByEnrollment_Course_IdAndStatus(courseId, STATUS_PENDING);
+        if (pending.isEmpty()) return 0;
+
+        int promoted = 0;
+        for (MentorAssignment assignment : pending) {
+            // Re-evaluate availability per row — a single mentor with
+            // capacity for 5 students shouldn't get assigned 50.
+            Optional<CourseMentor> available = mentorPoolService.getAvailableMentor(courseId);
+            if (available.isEmpty()) {
+                // No more capacity in the pool — leave the rest pending.
+                break;
+            }
+            assignment.setMentor(available.get().getUser());
+            assignment.setStatus(STATUS_ACTIVE);
+            mentorAssignmentRepository.save(assignment);
+            promoted++;
+        }
+        if (promoted > 0) {
+            log.info("Retroactively assigned mentors to {} pending enrollment(s) on course {}",
+                    promoted, courseId);
+        }
+        return promoted;
+    }
+
+    /**
      * Resolves "what's MY mentor for this course" in one call.
      * Throws if the user has no enrollment for the course (404),
      * or if the enrollment somehow has no mentor assignment row (shouldn't

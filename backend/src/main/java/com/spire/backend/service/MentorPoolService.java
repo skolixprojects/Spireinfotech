@@ -10,6 +10,9 @@ import com.spire.backend.repository.CourseRepository;
 import com.spire.backend.repository.MentorAssignmentRepository;
 import com.spire.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +26,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MentorPoolService {
 
+    private static final Logger log = LoggerFactory.getLogger(MentorPoolService.class);
+
     private static final String STATUS_ACTIVE = "ACTIVE";
 
     private final CourseMentorRepository courseMentorRepository;
@@ -30,6 +35,15 @@ public class MentorPoolService {
     private final UserRepository userRepository;
     // Needed for active-student counts (capacity checks + DTO mapping).
     private final MentorAssignmentRepository mentorAssignmentRepository;
+    /**
+     * @Lazy breaks the circular dependency:
+     *   MentorAssignmentService → MentorPoolService.getAvailableMentor
+     *   MentorPoolService       → MentorAssignmentService.fillPending…
+     * Spring injects a proxy and resolves on first call instead of at
+     * construction time.
+     */
+    @Lazy
+    private final MentorAssignmentService mentorAssignmentService;
 
     @Transactional
     public CourseMentorDTO addMentorToCourse(Long courseId, Long userId) {
@@ -53,6 +67,22 @@ public class MentorPoolService {
                 .course(course)
                 .user(user)
                 .build());
+
+        // Retroactive fill: any students who enrolled in this course
+        // before any mentor existed have a MentorAssignment row stuck
+        // at status=PENDING_ASSIGNMENT. Now that we have a mentor with
+        // capacity, walk those rows and promote as many as the pool
+        // can absorb. Failures here shouldn't roll back the pool add —
+        // wrap so a fill failure surfaces as a log line, not a 500.
+        try {
+            int promoted = mentorAssignmentService.fillPendingAssignmentsForCourse(courseId);
+            if (promoted > 0) {
+                log.info("Mentor {} added to course {} pool — retroactively assigned to {} pending enrollment(s)",
+                        user.getFullName(), courseId, promoted);
+            }
+        } catch (Exception e) {
+            log.error("Pool add succeeded but retroactive fill failed for course {}", courseId, e);
+        }
 
         return toDTO(saved);
     }
