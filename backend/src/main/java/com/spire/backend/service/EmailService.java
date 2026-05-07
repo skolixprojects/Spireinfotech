@@ -1,5 +1,6 @@
 package com.spire.backend.service;
 
+import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,7 +62,11 @@ public class EmailService {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(fromAddress);
+            // Display name is hardcoded so MAIL_FROM can be a bare
+            // address (Gmail SMTP rejects "Name <addr@x>" passed via
+            // env vars — control characters in the local part error).
+            // The recipient sees: Spire Info Tech <noreply@…>
+            helper.setFrom(new InternetAddress(fromAddress, "Spire Info Tech", "UTF-8"));
             helper.setTo(to);
             helper.setSubject(subject);
             helper.setText(htmlBody, true);
