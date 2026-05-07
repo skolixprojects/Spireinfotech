@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ChevronLeft, ChevronDown, Loader2, Plus, Edit3, Trash2, AlertCircle,
   Globe, GlobeLock, CheckCircle2, AlertTriangle, Upload, Play, X, Save,
-  ArrowUp, ArrowDown, Brain,
+  ArrowUp, ArrowDown, Brain, FolderUp,
 } from "lucide-react";
 import {
   getCourse, getCourseModules, getCourseLessons,
@@ -18,6 +18,7 @@ import {
 } from "@/lib/api";
 import { LessonVideoUploader } from "@/components/instructor/LessonVideoUploader";
 import { AddQuizModal } from "@/components/instructor/AddQuizModal";
+import { BulkUploadModal } from "@/components/instructor/BulkUploadModal";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
@@ -88,6 +89,10 @@ export default function ContentManagerPage({ params }: { params: { id: string } 
   // create/delete from the modal.
   const [quizzes, setQuizzes] = useState<QuizType[]>([]);
   const [showAddQuiz, setShowAddQuiz] = useState(false);
+
+  // Bulk-upload modal — opens an isolated workflow that may take
+  // minutes; doesn't share state with the inline forms.
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
 
   // Publish-readiness panel
   const [publishMissing, setPublishMissing] = useState<string[] | null>(null);
@@ -440,15 +445,24 @@ export default function ContentManagerPage({ params }: { params: { id: string } 
         </div>
       )}
 
-      {/* Add module CTA */}
-      <div className="mb-4">
+      {/* Add module CTA + bulk upload entry. Bulk upload is a separate
+          workflow — single-lesson upload still lives on each lesson row. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
         {!showAddModule ? (
-          <button
-            onClick={() => { setShowAddModule(true); setEditingModuleId(null); setModuleDraft({ title: "", description: "" }); }}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] transition cursor-pointer"
-          >
-            <Plus size={14} /> Add Module
-          </button>
+          <>
+            <button
+              onClick={() => { setShowAddModule(true); setEditingModuleId(null); setModuleDraft({ title: "", description: "" }); }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-[#0F766E] text-white hover:bg-[#0D9488] transition cursor-pointer"
+            >
+              <Plus size={14} /> Add Module
+            </button>
+            <button
+              onClick={() => setShowBulkUpload(true)}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border border-[#0F766E] text-[#0F766E] hover:bg-[#0F766E]/5 transition cursor-pointer"
+            >
+              <FolderUp size={14} /> Bulk Upload Videos
+            </button>
+          </>
         ) : (
           <ModuleForm
             draft={moduleDraft}
@@ -730,6 +744,13 @@ export default function ContentManagerPage({ params }: { params: { id: string } 
         modules={modules.map((m) => ({ id: m.id, title: m.title }))}
         lessons={lessons.map((l) => ({ id: l.id, title: l.title }))}
         onCreated={fetchAll}
+      />
+
+      <BulkUploadModal
+        isOpen={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
+        courseId={courseId}
+        onUploaded={fetchAll}
       />
 
       {/* Edit lesson modal */}

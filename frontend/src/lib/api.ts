@@ -912,6 +912,23 @@ export async function uploadCourseThumbnail(courseId: number, file: File) {
   return wrapper.data as { thumbnailUrl: string };
 }
 
+// ─── Cloudinary direct upload signature (instructor bulk upload) ──
+
+export interface CloudinarySignature {
+  cloudName: string;
+  apiKey: string;
+  timestamp: number;
+  folder: string;
+  signature: string;
+}
+
+export async function getCloudinarySignature() {
+  const wrapper = await apiFetch<ApiResponse<CloudinarySignature>>(
+    "/api/instructor/cloudinary-signature"
+  );
+  return wrapper.data;
+}
+
 // ─── Lessons ────────────────────────────────────────────────────
 
 export async function getCourseLessons(courseId: number | string) {
