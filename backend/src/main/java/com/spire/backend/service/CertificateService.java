@@ -52,6 +52,7 @@ public class CertificateService {
     private final SubmissionRepository submissionRepository;
     private final AssignmentRepository assignmentRepository;
     private final RecordService recordService;
+    private final EmailTemplateService emailTemplateService;
 
     /**
      * Strict generation — throws when prerequisites aren't met. Used
@@ -159,6 +160,9 @@ public class CertificateService {
                         "courseTitle", course.getTitle(),
                         "verificationUrl", "/verify/" + saved.getCertificateId()
                 ));
+
+        // Best-effort email — never blocks issuance.
+        try { emailTemplateService.sendCertificateEmail(user, course, saved); } catch (Exception ignored) {}
 
         log.info("Certificate {} generated for user {} course {}", saved.getCertificateId(), userId, courseId);
         return saved;

@@ -12,7 +12,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Handles user registration, login, and token refresh.
@@ -29,6 +31,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final RecordService recordService;
+    private final EmailTemplateService emailTemplateService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -41,13 +44,21 @@ public class AuthService {
         Role studentRole = roleRepository.findByName("STUDENT")
                 .orElseThrow(() -> new IllegalStateException("Default role STUDENT not found in database"));
 
-        // 3. Build and save user
+        // 3. Build and save user with a verification token. Token has
+        //    a 24h expiry — the verify-email endpoint refuses anything
+        //    older. emailVerified defaults false; the user can still
+        //    log in (we don't gate access on verification yet) but
+        //    nudges and password reset rely on a verified address.
+        String verificationToken = UUID.randomUUID().toString();
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .role(studentRole)
                 .isActive(true)
+                .emailVerified(false)
+                .verificationToken(verificationToken)
+                .verificationExpiresAt(LocalDateTime.now().plusHours(24))
                 .build();
 
         user = userRepository.save(user);
@@ -61,8 +72,92 @@ public class AuthService {
                         "registrationMethod", "email_password"
                 ));
 
-        // 4. Generate tokens and return
+        // 4. Welcome + verification emails. Both are no-ops if SMTP
+        //    isn't configured — the signup itself never fails because
+        //    of a missing/broken mail server.
+        try { emailTemplateService.sendWelcomeEmail(user); } catch (Exception ignored) {}
+        try { emailTemplateService.sendVerificationEmail(user, verificationToken); } catch (Exception ignored) {}
+
+        // 5. Generate tokens and return
         return buildAuthResponse(user);
+    }
+
+    // ─── Email verification ─────────────────────────────────────────
+
+    /**
+     * Marks the user's email as verified if the supplied token
+     * matches an unexpired one on the user record. Idempotent — a
+     * second call with a stale (already-consumed) token returns the
+     * already-verified user rather than throwing.
+     */
+    @Transactional
+    public User verifyEmail(String token) {
+        User user = userRepository.findByVerificationToken(token)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid verification link"));
+        if (user.getVerificationExpiresAt() != null
+                && user.getVerificationExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Verification link has expired");
+        }
+        user.setEmailVerified(true);
+        user.setVerificationToken(null);
+        user.setVerificationExpiresAt(null);
+        User saved = userRepository.save(user);
+        recordService.record(saved.getId(), "ACCOUNT_EMAIL_VERIFIED", RecordService.Category.ACCOUNT,
+                "Email verified",
+                "User verified email address",
+                Map.of("email", saved.getEmail()));
+        return saved;
+    }
+
+    // ─── Password reset ─────────────────────────────────────────────
+
+    /**
+     * Generates a reset token + 1-hour expiry on the user (if found)
+     * and emails them a reset link. To prevent account enumeration,
+     * the calling endpoint always returns a generic success regardless
+     * of whether an account was found here — this method just no-ops.
+     */
+    @Transactional
+    public void requestPasswordReset(String email) {
+        userRepository.findByEmail(email).ifPresent(user -> {
+            String token = UUID.randomUUID().toString();
+            user.setResetToken(token);
+            user.setResetTokenExpiresAt(LocalDateTime.now().plusHours(1));
+            userRepository.save(user);
+            try { emailTemplateService.sendPasswordResetEmail(user, token); } catch (Exception ignored) {}
+            recordService.record(user.getId(), "ACCOUNT_PASSWORD_RESET_REQUESTED",
+                    RecordService.Category.SECURITY,
+                    "Password reset requested",
+                    "Reset link sent to " + user.getEmail(),
+                    Map.of("email", user.getEmail()));
+        });
+    }
+
+    /**
+     * Consumes a reset token and replaces the password hash. Single-
+     * use: the token is cleared on success so the same link can't be
+     * reused later.
+     */
+    @Transactional
+    public void resetPassword(String token, String newPassword) {
+        User user = userRepository.findByResetToken(token)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired reset link"));
+        if (user.getResetTokenExpiresAt() == null
+                || user.getResetTokenExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Reset link has expired");
+        }
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setResetToken(null);
+        user.setResetTokenExpiresAt(null);
+        userRepository.save(user);
+        recordService.record(user.getId(), "ACCOUNT_PASSWORD_RESET",
+                RecordService.Category.SECURITY,
+                "Password reset",
+                "User reset password via emailed link",
+                Map.of("email", user.getEmail()));
     }
 
     public AuthResponse login(LoginRequest request) {

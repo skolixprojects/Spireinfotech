@@ -126,6 +126,42 @@ export function logout() {
   return Promise.resolve();
 }
 
+// ─── Email verification + password reset ────────────────────────────
+
+/**
+ * Hits the public /api/auth/verify-email endpoint. Returns the
+ * server payload — `valid: true` on success, `valid: false` (with a
+ * `reason` string) for expired/invalid tokens. Never throws on
+ * "valid: false"; the caller decides how to render.
+ */
+export async function verifyEmailToken(token: string) {
+  const wrapper = await apiFetch<ApiResponse<{ valid: boolean; reason?: string }>>(
+    `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
+  );
+  return wrapper.data;
+}
+
+/**
+ * Always reports success regardless of whether the email is on file
+ * (the backend deliberately doesn't reveal account existence). Caller
+ * shows a generic "if that email exists, a link is on the way" UI.
+ */
+export async function requestPasswordReset(email: string) {
+  const wrapper = await apiFetch<ApiResponse<{ message: string }>>(
+    "/api/auth/forgot-password",
+    { method: "POST", body: JSON.stringify({ email }) },
+  );
+  return wrapper.data;
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+  const wrapper = await apiFetch<ApiResponse<{ message: string }>>(
+    "/api/auth/reset-password",
+    { method: "POST", body: JSON.stringify({ token, newPassword }) },
+  );
+  return wrapper.data;
+}
+
 // ─── User / Profile ─────────────────────────────────────────────────
 
 export interface ProfileData extends UserDTO {

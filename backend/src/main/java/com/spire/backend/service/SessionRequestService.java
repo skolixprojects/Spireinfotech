@@ -43,6 +43,7 @@ public class SessionRequestService {
     private final MentorAssignmentRepository mentorAssignmentRepository;
     private final UserRepository userRepository;
     private final RecordService recordService;
+    private final EmailTemplateService emailTemplateService;
 
     @Transactional
     public SessionRequestDTO createRequest(Long userId, Long enrollmentId, String topic) {
@@ -138,6 +139,11 @@ public class SessionRequestService {
                             "scheduledAt", parsed.toString(),
                             "meetingUrl", meetingUrl != null ? meetingUrl : ""
                     ));
+
+            // Confirmation email — best-effort.
+            try {
+                emailTemplateService.sendSessionScheduledEmail(request.getRequestedBy(), saved);
+            } catch (Exception ignored) {}
         }
 
         return toDTO(saved);

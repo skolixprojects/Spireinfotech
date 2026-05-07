@@ -35,6 +35,7 @@ public class MentorAssignmentService {
     private final CourseMentorRepository courseMentorRepository;
     private final UserRepository userRepository;
     private final EnrollmentRepository enrollmentRepository;
+    private final EmailTemplateService emailTemplateService;
 
     /**
      * Called from EnrollmentService after a new enrollment is saved.
@@ -64,7 +65,18 @@ public class MentorAssignmentService {
                     .status(STATUS_PENDING)
                     .build();
         }
-        return mentorAssignmentRepository.save(assignment);
+        MentorAssignment saved = mentorAssignmentRepository.save(assignment);
+
+        // "Meet your mentor" email — only when a real mentor was
+        // assigned. PENDING_ASSIGNMENT slots get the email later
+        // when MentorPoolService back-fills via promotePending().
+        if (saved.getMentor() != null) {
+            try {
+                emailTemplateService.sendMentorAssignedEmail(
+                        enrollment.getUser(), saved.getMentor(), enrollment.getCourse());
+            } catch (Exception ignored) {}
+        }
+        return saved;
     }
 
     @Transactional(readOnly = true)
@@ -112,6 +124,15 @@ public class MentorAssignmentService {
             assignment.setMentor(available.get().getUser());
             assignment.setStatus(STATUS_ACTIVE);
             mentorAssignmentRepository.save(assignment);
+            // Newly-matched student finally gets their "meet your mentor"
+            // notice — same email the auto-assign path sends, just on a
+            // delayed trigger.
+            try {
+                emailTemplateService.sendMentorAssignedEmail(
+                        assignment.getEnrollment().getUser(),
+                        assignment.getMentor(),
+                        assignment.getEnrollment().getCourse());
+            } catch (Exception ignored) {}
             promoted++;
         }
 
@@ -132,7 +153,15 @@ public class MentorAssignmentService {
                     .status(available.isPresent() ? STATUS_ACTIVE : STATUS_PENDING)
                     .build();
             mentorAssignmentRepository.save(fresh);
-            if (available.isPresent()) promoted++;
+            if (available.isPresent()) {
+                try {
+                    emailTemplateService.sendMentorAssignedEmail(
+                            enrollment.getUser(),
+                            available.get().getUser(),
+                            enrollment.getCourse());
+                } catch (Exception ignored) {}
+                promoted++;
+            }
         }
 
         if (promoted > 0) {

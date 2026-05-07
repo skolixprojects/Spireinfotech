@@ -8,6 +8,8 @@ import com.spire.backend.entity.User;
 import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.repository.CourseRepository;
 import com.spire.backend.repository.EnrollmentRepository;
+import com.spire.backend.repository.LessonRepository;
+import com.spire.backend.repository.ModuleRepository;
 import com.spire.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -25,8 +27,11 @@ public class EnrollmentService {
     private final EnrollmentRepository enrollmentRepository;
     private final UserRepository userRepository;
     private final CourseRepository courseRepository;
+    private final ModuleRepository moduleRepository;
+    private final LessonRepository lessonRepository;
     private final MentorAssignmentService mentorAssignmentService;
     private final RecordService recordService;
+    private final EmailTemplateService emailTemplateService;
 
     @Transactional
     public void enrollUser(Long userId, Long courseId) {
@@ -78,6 +83,23 @@ public class EnrollmentService {
                 "Enrolled in " + course.getTitle(),
                 "Enrolled in course '" + course.getTitle() + "' (ID: " + course.getId() + ")",
                 details);
+
+        // Confirmation email — best-effort. Mentor name is left blank
+        // when no mentor has capacity yet (assignment row still gets
+        // created with mentor=null, and the mentor-assigned email
+        // fires later when MentorPoolService back-fills).
+        try {
+            int lessonCount = lessonRepository.findByCourseIdOrderByOrderIndex(course.getId()).size();
+            int moduleCount = moduleRepository.findByCourseIdOrderByOrderIndexAsc(course.getId()).size();
+            String mentorName = null;
+            if (!course.isService()) {
+                var assignment = mentorAssignmentService.getAssignmentForEnrollment(savedEnrollment.getId());
+                if (assignment.isPresent() && assignment.get().getMentor() != null) {
+                    mentorName = assignment.get().getMentor().getFullName();
+                }
+            }
+            emailTemplateService.sendEnrollmentEmail(user, course, lessonCount, moduleCount, mentorName);
+        } catch (Exception ignored) {}
     }
 
     public List<CourseDTO> getUserEnrollments(Long userId) {

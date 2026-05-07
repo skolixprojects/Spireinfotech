@@ -47,6 +47,7 @@ public class SalesService {
     private final UserRepository userRepository;
     private final EnrollmentService enrollmentService;
     private final ObjectMapper objectMapper;
+    private final EmailTemplateService emailTemplateService;
 
     // ─── Student: create inquiry ─────────────────────────────────
 
@@ -113,6 +114,23 @@ public class SalesService {
             inquiry.setStatus(STATUS_IN_PROGRESS);
             inquiryRepository.save(inquiry);
         }
+
+        // Notify the *student* when an instructor or admin replies. We
+        // skip the email when the sender is the student themselves
+        // (they don't need an inbox ping for their own outgoing
+        // message). The "instructor" name is the actual sender — admin
+        // replies show as the admin's name, which matches the in-app
+        // attribution.
+        try {
+            User student = inquiry.getUser();
+            if (student != null && !student.getId().equals(senderId)) {
+                String courseTitle = inquiry.getCourse() != null
+                        ? inquiry.getCourse().getTitle() : "your inquiry";
+                emailTemplateService.sendSalesReplyEmail(
+                        student, sender.getFullName(), courseTitle,
+                        body.trim(), inquiry.getId());
+            }
+        } catch (Exception ignored) {}
 
         return getInquiryDetail(inquiryId, senderId);
     }

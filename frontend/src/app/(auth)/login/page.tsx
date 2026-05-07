@@ -25,6 +25,12 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
+  // Banner cues from email-confirmation flows. ?verified=true after
+  // a fresh email-verification click; ?reset=true after a password
+  // reset succeeds. Both are positive — render as a green note above
+  // the form so the user knows their action landed.
+  const verified = searchParams.get("verified") === "true";
+  const resetDone = searchParams.get("reset") === "true";
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -79,6 +85,18 @@ function LoginForm() {
         </div>
       )}
 
+      {verified && (
+        <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">
+          Email verified. You can now sign in.
+        </div>
+      )}
+
+      {resetDone && (
+        <div className="mb-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm">
+          Password reset. Sign in with your new password.
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
@@ -94,7 +112,7 @@ function LoginForm() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-sm font-medium text-gray-700">Password</label>
-            <Link href="#" className="text-xs text-[#0D9488] hover:text-[#0F766E] font-medium transition-colors">
+            <Link href="/forgot-password" className="text-xs text-[#0D9488] hover:text-[#0F766E] font-medium transition-colors">
               Forgot password?
             </Link>
           </div>
