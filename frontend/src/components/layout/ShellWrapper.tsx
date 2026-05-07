@@ -5,8 +5,11 @@ import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
 
 const AUTH_ROUTES = ["/login", "/signup"];
-// Focused course player provides its own minimal top bar — no global nav/footer.
-const FULLSCREEN_ROUTES = ["/learn"];
+// Routes that own their full chrome (or none). The course player has
+// its own dark top bar; the certificate verify page has its own
+// public-facing header so a recruiter doesn't see a logged-in user's
+// nav when they paste the link. Both opt out of the global Navbar/Footer.
+const FULLSCREEN_ROUTES = ["/learn", "/verify"];
 
 export function ShellWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

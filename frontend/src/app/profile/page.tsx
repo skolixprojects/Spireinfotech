@@ -6,11 +6,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   User as UserIcon, Mail, Phone, MapPin, Calendar, Lock,
   Edit2, Save, X, Loader2, AlertCircle, BookOpen, GraduationCap, Award,
-  Flame, CheckCircle2, Clock,
+  Flame, CheckCircle2, Clock, Download, Share2, ExternalLink, Trophy,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
-import { getProfile, updateProfile, requestInstructor, type ProfileData } from "@/lib/api";
+import {
+  getProfile, updateProfile, requestInstructor, getMyCertificates,
+  type ProfileData, type CertificateListItem,
+} from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 const BIO_LIMIT = 500;
 
@@ -52,6 +57,7 @@ export default function ProfilePage() {
   const { isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [profile, setProfile] = useState<ProfileData | null>(null);
+  const [certificates, setCertificates] = useState<CertificateListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
@@ -77,9 +83,12 @@ export default function ProfilePage() {
   useEffect(() => {
     if (authLoading) return;
     setLoading(true);
-    getProfile()
-      .then((p) => setProfile(p))
-      .catch((err) => setError(err instanceof Error ? err.message : "Failed to load profile"))
+    Promise.allSettled([getProfile(), getMyCertificates()])
+      .then(([p, c]) => {
+        if (p.status === "fulfilled") setProfile(p.value);
+        else setError(p.reason instanceof Error ? p.reason.message : "Failed to load profile");
+        if (c.status === "fulfilled") setCertificates(c.value ?? []);
+      })
       .finally(() => setLoading(false));
   }, [authLoading]);
 
@@ -336,6 +345,11 @@ export default function ProfilePage() {
 
               <hr className="my-6 border-gray-100" />
 
+              {/* Certificates earned */}
+              <CertificatesSection certificates={certificates} />
+
+              <hr className="my-6 border-gray-100" />
+
               {/* Contribution heatmap */}
               <ContributionGraph contributions={profile.contributions ?? {}} />
             </div>
@@ -476,6 +490,113 @@ export default function ProfilePage() {
         )}
       </AnimatePresence>
     </section>
+  );
+}
+
+// ─── Certificates section ──────────────────────────────────────────
+
+function CertificatesSection({ certificates }: { certificates: CertificateListItem[] }) {
+  return (
+    <div>
+      <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+        <Award size={18} className="text-[#0F766E]" />
+        My Certificates
+      </h2>
+      {certificates.length === 0 ? (
+        <div className="text-center py-8 bg-gray-50 rounded-2xl border border-gray-100">
+          <Trophy size={28} className="text-gray-300 mx-auto mb-2" />
+          <p className="text-sm font-semibold text-gray-700">No certificates yet</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Complete a course to earn your first certificate.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {certificates.map((c) => (
+            <CertificateCard key={c.id} cert={c} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CertificateCard({ cert }: { cert: CertificateListItem }) {
+  const issued = new Date(cert.issuedAt);
+  const downloadHref = cert.certificateUrl?.startsWith("http")
+    ? cert.certificateUrl
+    : `${API_BASE}${cert.certificateUrl}`;
+  const verifyHref = `/verify/${cert.certificateId}`;
+
+  // Build absolute verification URL for sharing — copying just `/verify/X`
+  // is useless when the recipient isn't already on the site.
+  const shareUrl = (() => {
+    if (typeof window === "undefined") return verifyHref;
+    return `${window.location.origin}${verifyHref}`;
+  })();
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      // Lightweight feedback — caller's parent owns the toast hook.
+      // Falling back to alert keeps this card self-contained.
+      const ok = document.querySelector<HTMLDivElement>("[data-share-toast]");
+      if (ok) {
+        ok.textContent = "Verification link copied!";
+        ok.classList.remove("opacity-0");
+        setTimeout(() => ok.classList.add("opacity-0"), 1500);
+      }
+    } catch {
+      window.prompt("Copy this verification link:", shareUrl);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-all duration-200">
+      <div className="flex items-start gap-3">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#0F766E] to-[#0D9488] flex items-center justify-center shadow-md shrink-0">
+          <Trophy size={20} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h3 className="text-base font-bold text-gray-900 truncate">{cert.courseTitle}</h3>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Issued {issued.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+            {cert.finalScore != null && ` · Score ${Math.round(cert.finalScore)}%`}
+          </p>
+          <p className="text-xs font-mono text-[#0F766E] mt-1 truncate">
+            ID: {cert.certificateId}
+          </p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <a
+          href={downloadHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 bg-[#0F766E] hover:bg-[#0D9488] text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all duration-200"
+        >
+          <Download size={14} /> Download PDF
+        </a>
+        <button
+          onClick={handleShare}
+          className="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg transition-all duration-200"
+        >
+          <Share2 size={14} /> Share
+        </button>
+        <Link
+          href={verifyHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg transition-all duration-200"
+        >
+          <ExternalLink size={14} /> Verify link
+        </Link>
+      </div>
+      <div
+        data-share-toast
+        className="mt-2 text-xs text-[#0F766E] font-semibold opacity-0 transition-opacity duration-200"
+      />
+    </div>
   );
 }
 

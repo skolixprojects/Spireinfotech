@@ -1250,18 +1250,75 @@ export async function getMyQuizAttempts(quizId: number) {
 
 // ─── Certificates ───────────────────────────────────────────────
 
+export interface CertificateDTO {
+  id: number;
+  certificateId: string;
+  certificateUrl: string;
+  issuedAt: string;
+  finalScore: number | null;
+  courseTitle: string;
+  verificationUrl: string;
+}
+
+export interface CertificateCheck {
+  exists: boolean;
+  certificateId?: string;
+  certificateUrl?: string;
+  issuedAt?: string;
+  finalScore?: number | null;
+  courseTitle?: string;
+  verificationUrl?: string;
+}
+
+export interface CertificateListItem {
+  id: number;
+  certificateId: string;
+  courseId: number;
+  courseTitle: string;
+  certificateUrl: string;
+  issuedAt: string;
+  finalScore: number | null;
+}
+
+export interface CertificateVerification {
+  valid: boolean;
+  certificateId?: string;
+  studentName?: string;
+  courseTitle?: string;
+  issuedAt?: string;
+  finalScore?: number | null;
+}
+
 export async function generateCertificate(courseId: number | string) {
-  const wrapper = await apiFetch<ApiResponse<{ id: number; certificateUrl: string; issuedAt: string }>>(`/api/certificates/generate/${courseId}`, { method: "POST" });
+  const wrapper = await apiFetch<ApiResponse<CertificateDTO>>(
+    `/api/certificates/generate/${courseId}`,
+    { method: "POST" }
+  );
   return wrapper.data;
 }
 
 export async function checkCertificate(courseId: number | string) {
-  const wrapper = await apiFetch<ApiResponse<{ exists: boolean; certificateUrl?: string; issuedAt?: string }>>(`/api/certificates/check/${courseId}`);
+  const wrapper = await apiFetch<ApiResponse<CertificateCheck>>(
+    `/api/certificates/check/${courseId}`
+  );
   return wrapper.data;
 }
 
 export async function getMyCertificates() {
-  const wrapper = await apiFetch<ApiResponse<Array<{ id: number; courseTitle: string; certificateUrl: string; issuedAt: string }>>>("/api/certificates/my");
+  const wrapper = await apiFetch<ApiResponse<CertificateListItem[]>>("/api/certificates/my");
+  return wrapper.data;
+}
+
+/**
+ * Public verification — no auth required. Used by the /verify/[id]
+ * page so anyone with a certificate ID can confirm its authenticity.
+ */
+export async function verifyCertificate(certificateId: string) {
+  const wrapper = await apiFetch<ApiResponse<CertificateVerification>>(
+    `/api/certificates/verify/${encodeURIComponent(certificateId)}`,
+    // No-auth path — apiFetch attaches token if present, server doesn't
+    // require it. Marking explicitly here keeps intent visible.
+  );
   return wrapper.data;
 }
 

@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -34,12 +35,7 @@ public class CertificateController {
         Long userId = Long.parseLong(auth.getPrincipal().toString());
         Certificate cert = certificateService.generateCertificate(courseId, userId);
 
-        return ResponseEntity.ok(ApiResponse.success("Certificate generated", Map.of(
-                "id", cert.getId(),
-                "certificateId", cert.getCertificateId(),
-                "certificateUrl", cert.getCertificateUrl(),
-                "issuedAt", cert.getIssuedAt().toString()
-        )));
+        return ResponseEntity.ok(ApiResponse.success("Certificate generated", toFullDto(cert)));
     }
 
     // ─── Check if certificate exists ────────────────────────────────
@@ -56,12 +52,9 @@ public class CertificateController {
             return ResponseEntity.ok(ApiResponse.success(Map.of("exists", false)));
         }
 
-        return ResponseEntity.ok(ApiResponse.success(Map.of(
-                "exists", true,
-                "certificateId", cert.getCertificateId(),
-                "certificateUrl", cert.getCertificateUrl(),
-                "issuedAt", cert.getIssuedAt().toString()
-        )));
+        Map<String, Object> data = new HashMap<>(toFullDto(cert));
+        data.put("exists", true);
+        return ResponseEntity.ok(ApiResponse.success(data));
     }
 
     // ─── Get all user certificates ──────────────────────────────────
@@ -73,11 +66,14 @@ public class CertificateController {
         List<Certificate> certs = certificateService.getUserCertificates(userId);
 
         List<Map<String, Object>> data = certs.stream().map(c -> {
-            Map<String, Object> m = new java.util.HashMap<>();
+            Map<String, Object> m = new HashMap<>();
             m.put("id", c.getId());
+            m.put("certificateId", c.getCertificateId());
+            m.put("courseId", c.getCourse().getId());
             m.put("courseTitle", c.getCourse().getTitle());
             m.put("certificateUrl", c.getCertificateUrl());
             m.put("issuedAt", c.getIssuedAt().toString());
+            m.put("finalScore", c.getFinalScore());
             return m;
         }).toList();
 
@@ -85,18 +81,23 @@ public class CertificateController {
     }
 
     // ─── Public verification ───────────────────────────────────────
+    // Two paths to the same handler: /api/certificates/verify/{id} (the
+    // legacy URL) and /api/verify/{id} (the cleaner public URL the
+    // verification page links to). Both stay in security's permitAll
+    // list.
 
-    @GetMapping("/verify/{certificateId}")
+    @GetMapping({"/verify/{certificateId}"})
     public ResponseEntity<ApiResponse<Map<String, Object>>> verifyCertificate(
             @PathVariable String certificateId) {
         return certificateService.findByCertificateId(certificateId)
                 .map(cert -> {
-                    Map<String, Object> data = new java.util.HashMap<>();
+                    Map<String, Object> data = new HashMap<>();
                     data.put("valid", true);
+                    data.put("certificateId", cert.getCertificateId());
                     data.put("studentName", cert.getUser().getFullName());
                     data.put("courseTitle", cert.getCourse().getTitle());
                     data.put("issuedAt", cert.getIssuedAt().toString());
-                    data.put("certificateId", cert.getCertificateId());
+                    data.put("finalScore", cert.getFinalScore());
                     return ResponseEntity.ok(ApiResponse.success(data));
                 })
                 .orElse(ResponseEntity.ok(ApiResponse.success(Map.of("valid", false))));
@@ -117,5 +118,22 @@ public class CertificateController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
                 .body(resource);
+    }
+
+    /**
+     * Single shape used by both POST /generate and GET /check so the
+     * frontend doesn't have to switch on the source. Includes only
+     * fields the owner is allowed to see (no email / user id).
+     */
+    private static Map<String, Object> toFullDto(Certificate cert) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("id", cert.getId());
+        m.put("certificateId", cert.getCertificateId());
+        m.put("certificateUrl", cert.getCertificateUrl());
+        m.put("issuedAt", cert.getIssuedAt().toString());
+        m.put("finalScore", cert.getFinalScore());
+        m.put("courseTitle", cert.getCourse().getTitle());
+        m.put("verificationUrl", "/verify/" + cert.getCertificateId());
+        return m;
     }
 }

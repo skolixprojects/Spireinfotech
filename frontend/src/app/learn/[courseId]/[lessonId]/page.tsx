@@ -9,13 +9,14 @@ import {
   X, Menu, Search, Settings as SettingsIcon, Maximize2, Minimize2,
   ChevronLeft, ChevronRight, ChevronDown, Check, Play,
   Loader2, GraduationCap, FileQuestion, Brain,
-  Keyboard, Sparkles, ArrowRight, Trophy, Folder,
+  Keyboard, Sparkles, ArrowRight, Trophy, Folder, Download, Share2,
+  PartyPopper,
 } from "lucide-react";
 import {
   getCourse, getCourseProgress, getCourseLessons, getMyMentorForCourse,
-  completeLesson, saveLessonPosition, listCourseQuizzes,
+  completeLesson, saveLessonPosition, listCourseQuizzes, checkCertificate,
   type CourseProgress, type LessonProgress as LessonProgressDTO,
-  type Quiz,
+  type Quiz, type CertificateCheck,
 } from "@/lib/api";
 import type { MentorInfo } from "@/lib/types";
 import { useToast } from "@/components/ui/Toast";
@@ -91,10 +92,17 @@ export default function LearnPage({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState<number>(1);
   const [pageFullscreen, setPageFullscreen] = useState(false);
+  // Course-completion celebration: surfaced once per session when the
+  // student transitions from <100% → 100% complete. Cert may or may
+  // not be ready (auto-gen can be blocked by pending quizzes); the
+  // modal handles both states.
+  const [celebrationCert, setCelebrationCert] = useState<CertificateCheck | null>(null);
+  const [showCelebration, setShowCelebration] = useState(false);
 
   // Refs
   const positionSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playerWrapperRef = useRef<HTMLDivElement>(null);
+  const celebrationFiredRef = useRef(false);
 
   // ── Data load ────────────────────────────────────────────────────
   useEffect(() => {
@@ -232,6 +240,35 @@ export default function LearnPage({
       await completeLesson(currentLesson.lessonId);
       await refetchProgress();
       toast("success", "Lesson marked complete");
+
+      // Re-read progress directly to detect course completion (the
+      // setProgress in refetch is async — the local var is fresh).
+      // The backend has already attempted auto-cert-gen at this point,
+      // so checkCertificate may return the freshly-issued cert.
+      try {
+        const p = await getCourseProgress(params.courseId);
+        setProgress(p);
+        if (
+          !celebrationFiredRef.current &&
+          p.totalLessons > 0 &&
+          p.completedLessons >= p.totalLessons
+        ) {
+          celebrationFiredRef.current = true;
+          // Small delay so the backend's auto-gen transaction commits
+          // before we ask for the certificate. 500ms is plenty given
+          // we're on the same DB.
+          setTimeout(async () => {
+            try {
+              const cert = await checkCertificate(courseIdNum);
+              setCelebrationCert(cert);
+            } catch {
+              setCelebrationCert({ exists: false });
+            }
+            setShowCelebration(true);
+          }, 500);
+        }
+      } catch {}
+
       if (autoAdvance && nextLesson) {
         router.push(`/learn/${courseIdNum}/${nextLesson.lessonId}`);
       }
@@ -240,7 +277,7 @@ export default function LearnPage({
     } finally {
       setMarking(false);
     }
-  }, [currentLesson, marking, nextLesson, courseIdNum, router, refetchProgress, toast]);
+  }, [currentLesson, marking, nextLesson, courseIdNum, router, refetchProgress, toast, params.courseId]);
 
   const handleVideoEnded = useCallback(async () => {
     if (currentLesson && !currentLesson.completed) {
@@ -571,6 +608,14 @@ export default function LearnPage({
       <ShortcutsOverlay
         isOpen={showShortcuts}
         onClose={() => setShowShortcuts(false)}
+      />
+
+      <CelebrationModal
+        isOpen={showCelebration}
+        cert={celebrationCert}
+        courseTitle={course?.title ?? "this course"}
+        courseId={courseIdNum}
+        onClose={() => setShowCelebration(false)}
       />
     </div>
   );
@@ -1222,6 +1267,188 @@ function LessonQuizCard({ quiz, courseId }: { quiz: Quiz; courseId: number }) {
           {attemptCount > 0 ? "Retake quiz" : "Start quiz"} <ArrowRight size={14} />
         </Link>
       </div>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────
+// CELEBRATION MODAL — shown once when a student finishes their last
+// lesson. Three states: certificate ready (download/share), still
+// pending (backend auto-gen blocked by quizzes), or just plain done.
+// ───────────────────────────────────────────────────────────────────
+
+function CelebrationModal({
+  isOpen, cert, courseTitle, courseId, onClose,
+}: {
+  isOpen: boolean;
+  cert: CertificateCheck | null;
+  courseTitle: string;
+  courseId: number;
+  onClose: () => void;
+}) {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const certReady = !!(cert?.exists && cert.certificateUrl);
+  const downloadHref = certReady && cert!.certificateUrl!.startsWith("http")
+    ? cert!.certificateUrl
+    : certReady ? `${apiBase}${cert!.certificateUrl}` : "#";
+
+  const linkedInShareUrl = (() => {
+    if (typeof window === "undefined" || !cert?.certificateId) return null;
+    const verifyUrl = `${window.location.origin}/verify/${cert.certificateId}`;
+    return `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(verifyUrl)}`;
+  })();
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[70] bg-black/70 flex items-center justify-center p-6"
+          onClick={onClose}
+        >
+          {/* Decorative confetti — pure CSS so we don't pull a deps. */}
+          <ConfettiBurst />
+
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 250, damping: 22 }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden"
+          >
+            <button
+              onClick={onClose}
+              className="absolute top-3 right-3 p-1.5 rounded-md hover:bg-gray-100 text-gray-400 z-10"
+              aria-label="Close"
+            >
+              <X size={18} />
+            </button>
+
+            <div
+              className="px-8 pt-10 pb-6 text-center"
+              style={{ background: "linear-gradient(135deg, #f0fdf9 0%, #ffffff 100%)" }}
+            >
+              <motion.div
+                initial={{ scale: 0, rotate: -12 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ delay: 0.1, type: "spring", stiffness: 200 }}
+                className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#0F766E] to-[#0D9488] shadow-lg mb-4"
+              >
+                <PartyPopper size={32} className="text-white" />
+              </motion.div>
+              <h2 className="text-3xl font-bold text-gray-900">Congratulations!</h2>
+              <p className="text-base text-gray-600 mt-2 leading-relaxed">
+                You&apos;ve completed{" "}
+                <span className="font-bold text-[#0F766E]">{courseTitle}</span>!
+              </p>
+            </div>
+
+            <div className="px-8 pb-7 pt-2">
+              {certReady ? (
+                <>
+                  <p className="text-sm text-gray-600 text-center mb-4">
+                    Your certificate has been generated and is ready to download.
+                  </p>
+                  {cert?.certificateId && (
+                    <p className="text-xs font-mono text-center text-[#0F766E] mb-4">
+                      ID: {cert.certificateId}
+                    </p>
+                  )}
+                  <div className="space-y-2">
+                    <a
+                      href={downloadHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full inline-flex items-center justify-center gap-2 bg-[#0F766E] hover:bg-[#0D9488] text-white text-base font-bold px-5 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
+                    >
+                      <Download size={16} /> Download Certificate
+                    </a>
+                    {linkedInShareUrl && (
+                      <a
+                        href={linkedInShareUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full inline-flex items-center justify-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-base font-semibold px-5 py-3 rounded-xl transition-all duration-200"
+                      >
+                        <Share2 size={16} /> Share on LinkedIn
+                      </a>
+                    )}
+                    <Link
+                      href="/dashboard"
+                      onClick={onClose}
+                      className="w-full inline-flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700 text-sm font-semibold px-5 py-2.5 transition-colors"
+                    >
+                      Back to Dashboard
+                    </Link>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-gray-600 text-center mb-4 leading-relaxed">
+                    Almost there! Complete the remaining quiz or assignment
+                    requirements on the course page to unlock your certificate.
+                  </p>
+                  <div className="space-y-2">
+                    <Link
+                      href={`/courses/${courseId}`}
+                      onClick={onClose}
+                      className="w-full inline-flex items-center justify-center gap-2 bg-[#0F766E] hover:bg-[#0D9488] text-white text-base font-bold px-5 py-3 rounded-xl shadow-md hover:shadow-lg transition-all duration-200"
+                    >
+                      <ArrowRight size={16} /> Open course page
+                    </Link>
+                    <Link
+                      href="/dashboard"
+                      onClick={onClose}
+                      className="w-full inline-flex items-center justify-center gap-2 text-gray-500 hover:text-gray-700 text-sm font-semibold px-5 py-2.5 transition-colors"
+                    >
+                      Back to Dashboard
+                    </Link>
+                  </div>
+                </>
+              )}
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/**
+ * Pure-CSS confetti — 30 colored squares falling from the top with
+ * staggered delays. Avoids pulling a JS confetti dep for one moment.
+ */
+function ConfettiBurst() {
+  const COLORS = ["#0F766E", "#0D9488", "#5eead4", "#fbbf24", "#f472b6", "#60a5fa"];
+  const PIECES = Array.from({ length: 36 });
+  return (
+    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+      {PIECES.map((_, i) => {
+        const left = Math.random() * 100;
+        const delay = Math.random() * 0.8;
+        const duration = 2.5 + Math.random() * 1.5;
+        const color = COLORS[i % COLORS.length];
+        const size = 6 + Math.random() * 6;
+        const rotation = Math.random() * 360;
+        return (
+          <motion.span
+            key={i}
+            initial={{ y: -40, x: 0, rotate: 0, opacity: 1 }}
+            animate={{ y: "100vh", rotate: rotation + 540, opacity: [1, 1, 0] }}
+            transition={{ duration, delay, ease: "linear" }}
+            className="absolute block rounded-sm"
+            style={{
+              left: `${left}%`,
+              width: size,
+              height: size,
+              background: color,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

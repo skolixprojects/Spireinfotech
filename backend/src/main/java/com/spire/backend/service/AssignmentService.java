@@ -30,6 +30,7 @@ public class AssignmentService {
     private final EnrollmentRepository enrollmentRepository;
     private final ProgressRepository progressRepository;
     private final RecordService recordService;
+    private final CertificateService certificateService;
 
     // ─── Create Assignment ──────────────────────────────────────────
 
@@ -182,6 +183,9 @@ public class AssignmentService {
 
         // Course completion milestone — emit a record once the final
         // lesson clicks over so the audit trail captures graduation.
+        // Then attempt cert auto-generation; the lenient sibling never
+        // throws — if quizzes / assignments are still pending the
+        // student can issue manually from the course page.
         long totalLessons = lessonRepository.findByCourseIdOrderByOrderIndex(courseId).size();
         long completedLessons = progressRepository.countCompletedLessons(userId, courseId);
         if (totalLessons > 0 && completedLessons >= totalLessons) {
@@ -193,6 +197,7 @@ public class AssignmentService {
                     "Completed course: " + lesson.getCourse().getTitle(),
                     "Completed all " + totalLessons + " lessons in '" + lesson.getCourse().getTitle() + "'",
                     done);
+            certificateService.tryAutoGenerate(courseId, userId);
         }
 
         log.info("Lesson {} completed by user {}", lessonId, userId);
