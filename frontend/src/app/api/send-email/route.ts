@@ -86,8 +86,12 @@ export async function POST(req: NextRequest) {
       auth: { user, pass },
     });
 
+    // Display name hardcoded in code rather than read from env so an
+    // SMTP_FROM that's just a bare address (or one with stray quotes)
+    // can't make Gmail render the "From" as the local-part of the
+    // mailbox. The name + address quoting follows RFC 5322.
     const result = await transporter.sendMail({
-      from: process.env.SMTP_FROM || user,
+      from: `"Spire Info Tech" <${user}>`,
       to,
       subject,
       html,
