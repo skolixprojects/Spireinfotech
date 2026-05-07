@@ -1,4 +1,17 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+// API base URL — preference order:
+//   1. NEXT_PUBLIC_API_URL from build env (set on Vercel to the
+//      Railway domain; can be overridden per-environment for staging).
+//   2. Production fallback to the Railway URL — guards against a
+//      missing env var on a Vercel build silently shipping with
+//      `localhost:8080` baked in (the test email widget caught this:
+//      the browser would try localhost from a vercel.app page and
+//      either fail or be misread as "calling vercel.app").
+//   3. Localhost for `next dev` so the same code works locally
+//      against `./mvnw spring-boot:run` on :8080.
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL
+  || (process.env.NODE_ENV === "production"
+      ? "https://spireinfotech-production.up.railway.app"
+      : "http://localhost:8080");
 
 // ─── Types ──────────────────────────────────────────────────────────
 
