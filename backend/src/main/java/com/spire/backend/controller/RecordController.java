@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -41,6 +43,11 @@ public class RecordController {
     private final UserRecordRepository recordRepository;
     private final UserRepository userRepository;
 
+    // CSV timestamps render in IST. The DB stores LocalDateTime as
+    // server-local (UTC on Railway) so we rebase UTC→IST before
+    // splitting into the Date / Time columns. Header carries the
+    // "(IST)" suffix so the recipient knows the zone unambiguously.
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
     private static final DateTimeFormatter CSV_TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     // Sentinel values for the "no filter" case — see UserRecordRepository
@@ -114,9 +121,19 @@ public class RecordController {
                 "attachment; filename=" + safeName + "_complete_records_" + LocalDate.now() + ".csv");
 
         PrintWriter w = response.getWriter();
-        w.println("Date,Time,Category,Type,Title,Description,IP,Device,Browser,OS,City");
+        w.println("Date (IST),Time (IST),Category,Type,Title,Description,IP,Device,Browser,OS,City");
         for (UserRecord r : recordRepository.findByUserIdOrderByCreatedAtDesc(userId)) {
-            String ts = r.getCreatedAt() != null ? r.getCreatedAt().format(CSV_TS) : "";
+            // Rebase the stored UTC wall-clock into IST before
+            // splitting — without this the file would group records
+            // under the wrong calendar day for anything past 18:30 UTC.
+            String ts = "";
+            if (r.getCreatedAt() != null) {
+                LocalDateTime istTs = r.getCreatedAt()
+                        .atOffset(ZoneOffset.UTC)
+                        .atZoneSameInstant(IST)
+                        .toLocalDateTime();
+                ts = istTs.format(CSV_TS);
+            }
             String date = ts.length() >= 10 ? ts.substring(0, 10) : ts;
             String time = ts.length() >= 19 ? ts.substring(11, 19) : "";
             w.println(String.join(",",

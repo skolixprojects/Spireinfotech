@@ -24,6 +24,9 @@ import org.springframework.web.bind.annotation.*;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +43,11 @@ public class AdminController {
     private final ProfileService profileService;
     private final AdminRevenueService adminRevenueService;
 
+    // CSV timestamps render in IST. The DB stores LocalDateTime
+    // (timezone-naive, server-local = UTC on Railway) so we rebase
+    // UTC→IST before formatting. Headers carry an "(IST)" suffix so
+    // a recipient downloading the file knows what the column is in.
+    private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
     private static final DateTimeFormatter CSV_TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @GetMapping("/analytics")
@@ -147,7 +155,7 @@ public class AdminController {
     public void exportUsers(HttpServletResponse response) throws IOException {
         prepareCsv(response, "users");
         PrintWriter w = response.getWriter();
-        w.println("ID,FullName,Email,Role,Active,InstructorApproved,CreatedAt");
+        w.println("ID,FullName,Email,Role,Active,InstructorApproved,CreatedAt (IST)");
         for (UserDTO u : adminService.getAllUsers()) {
             w.println(String.join(",",
                     csv(u.getId()),
@@ -165,7 +173,7 @@ public class AdminController {
     public void exportEnrollments(HttpServletResponse response) throws IOException {
         prepareCsv(response, "enrollments");
         PrintWriter w = response.getWriter();
-        w.println("EnrollmentID,StudentName,StudentEmail,CourseTitle,Type,EnrolledAt,Progress%,Completed,Mentor,MentorStatus");
+        w.println("EnrollmentID,StudentName,StudentEmail,CourseTitle,Type,EnrolledAt (IST),Progress%,Completed,Mentor,MentorStatus");
         for (AdminEnrollmentRow r : adminService.getAllEnrollments()) {
             w.println(String.join(",",
                     csv(r.getEnrollmentId()),
@@ -186,7 +194,7 @@ public class AdminController {
     public void exportSessions(HttpServletResponse response) throws IOException {
         prepareCsv(response, "sessions");
         PrintWriter w = response.getWriter();
-        w.println("SessionID,StudentName,StudentEmail,Mentor,CourseTitle,Status,Topic,RequestedAt,ScheduledAt,CompletedAt,MeetingURL");
+        w.println("SessionID,StudentName,StudentEmail,Mentor,CourseTitle,Status,Topic,RequestedAt (IST),ScheduledAt (IST),CompletedAt (IST),MeetingURL");
         for (AdminSessionRow r : adminService.getAllSessions()) {
             w.println(String.join(",",
                     csv(r.getSessionId()),
@@ -208,7 +216,7 @@ public class AdminController {
     public void exportRevenue(HttpServletResponse response) throws IOException {
         prepareCsv(response, "revenue");
         PrintWriter w = response.getWriter();
-        w.println("PaymentID,StudentName,StudentEmail,Amount,Currency,Status,RazorpayPaymentID,RazorpayOrderID,CreatedAt");
+        w.println("PaymentID,StudentName,StudentEmail,Amount,Currency,Status,RazorpayPaymentID,RazorpayOrderID,CreatedAt (IST)");
         for (Payment p : adminRevenueService.getAllPaymentsRaw()) {
             w.println(String.join(",",
                     csv(p.getId()),
@@ -232,8 +240,12 @@ public class AdminController {
 
     private String csv(Object value) {
         if (value == null) return "";
-        String s = value instanceof java.time.LocalDateTime
-                ? ((java.time.LocalDateTime) value).format(CSV_TS)
+        String s = value instanceof LocalDateTime
+                ? ((LocalDateTime) value)
+                        .atOffset(ZoneOffset.UTC)
+                        .atZoneSameInstant(IST)
+                        .toLocalDateTime()
+                        .format(CSV_TS)
                 : value.toString();
         boolean needsQuote = s.contains(",") || s.contains("\"") || s.contains("\n") || s.contains("\r");
         if (needsQuote) {
