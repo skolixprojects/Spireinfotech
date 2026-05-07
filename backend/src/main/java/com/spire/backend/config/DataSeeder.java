@@ -601,6 +601,11 @@ public class DataSeeder implements CommandLineRunner {
                 {"email_verified BOOLEAN NOT NULL DEFAULT FALSE", "email_verified"},
                 {"verification_token VARCHAR(64)", "verification_token"},
                 {"verification_expires_at TIMESTAMP", "verification_expires_at"},
+                {"verification_code VARCHAR(6)", "verification_code"},
+                {"verification_code_expires_at TIMESTAMP", "verification_code_expires_at"},
+                {"verification_failed_attempts INT NOT NULL DEFAULT 0", "verification_failed_attempts"},
+                {"verification_locked_until TIMESTAMP", "verification_locked_until"},
+                {"last_verification_resend_at TIMESTAMP", "last_verification_resend_at"},
                 {"reset_token VARCHAR(64)", "reset_token"},
                 {"reset_token_expires_at TIMESTAMP", "reset_token_expires_at"},
                 {"last_nudge_sent_at TIMESTAMP", "last_nudge_sent_at"},
@@ -613,6 +618,22 @@ public class DataSeeder implements CommandLineRunner {
                 log.debug("Couldn't add users.{} (likely already present or unsupported dialect): {}",
                         col[1], e.getMessage());
             }
+        }
+
+        // Grandfather pre-OTP accounts. Any existing user that was
+        // unverified under the old token-based flow (no verification_code
+        // populated) is marked verified so the OTP gate doesn't lock
+        // them out on the day this ships. New post-OTP signups always
+        // have a verification_code set, so they're not touched.
+        try {
+            int updated = jdbcTemplate.update(
+                    "UPDATE users SET email_verified = TRUE " +
+                    "WHERE email_verified = FALSE AND verification_code IS NULL");
+            if (updated > 0) {
+                log.info("Grandfathered {} pre-OTP users to email_verified=true", updated);
+            }
+        } catch (Exception e) {
+            log.debug("Couldn't grandfather pre-OTP users: {}", e.getMessage());
         }
     }
 

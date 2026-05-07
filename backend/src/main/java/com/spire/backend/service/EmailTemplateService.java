@@ -63,7 +63,41 @@ public class EmailTemplateService {
         );
     }
 
-    // ── 2. Email verification ───────────────────────────────────────
+    // ── 2. Email verification (6-digit OTP) ─────────────────────────
+    public void sendVerificationCodeEmail(User user, String code) {
+        // Big, centered code block — built inline rather than reusing
+        // button() because the styling is intentionally distinct
+        // (huge letter-spaced number on a teal-tinted card) so the
+        // recipient's eye lands on the code immediately.
+        String codeBlock =
+                "<div style=\"text-align:center; margin:24px 0;\">"
+                        + "<span style=\"display:inline-block; font-size:32px; font-weight:bold; "
+                        + "letter-spacing:8px; color:#0F766E; background:#f0fdf9; "
+                        + "padding:12px 24px; border-radius:8px; "
+                        + "border:1px solid rgba(15,118,110,0.2); font-family:'Courier New',monospace;\">"
+                        + escape(code)
+                        + "</span>"
+                        + "</div>";
+
+        String body = p("Hi " + firstName(user) + ",")
+                + p("Your verification code is:")
+                + codeBlock
+                + p("This code expires in 10 minutes.")
+                + muted("If you didn't create an account on Spire Info Tech, you can safely ignore this email.");
+        emailService.sendEmail(
+                user.getEmail(),
+                "Your verification code: " + code,
+                wrap("Verify your email", body)
+        );
+    }
+
+    /**
+     * @deprecated Legacy magic-link flow. Kept compiling so any
+     * straggling callers don't break, but unused under the OTP gate;
+     * remove after the next deploy when the call sites are confirmed
+     * gone from staging.
+     */
+    @Deprecated
     public void sendVerificationEmail(User user, String token) {
         String url = appUrl + "/verify-email?token=" + token;
         String body = p("Hi " + firstName(user) + ",")

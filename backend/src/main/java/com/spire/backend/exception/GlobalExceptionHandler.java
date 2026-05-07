@@ -28,6 +28,23 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    // 403 — Email not verified. Returns a structured payload so the
+    // frontend can route the user to /verify-email?email=… without
+    // having to parse the message string. The shape is
+    // { success: false, message: "EMAIL_NOT_VERIFIED",
+    //   data: { email: "..." } } which the login page reads.
+    @ExceptionHandler(EmailNotVerifiedException.class)
+    public ResponseEntity<ApiResponse<Map<String, String>>> handleEmailNotVerified(EmailNotVerifiedException ex) {
+        Map<String, String> data = new HashMap<>();
+        data.put("email", ex.getEmail());
+        ApiResponse<Map<String, String>> body = ApiResponse.<Map<String, String>>builder()
+                .success(false)
+                .message("EMAIL_NOT_VERIFIED")
+                .data(data)
+                .build();
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
     // 401 — Authentication failed
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnauthorized(UnauthorizedException ex) {

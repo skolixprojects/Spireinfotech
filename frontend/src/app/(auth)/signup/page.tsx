@@ -43,8 +43,14 @@ export default function SignupPage() {
   const onSubmit = async (data: SignupValues) => {
     setError("");
     try {
-      await registerUser(data.name, data.email, data.password);
-      window.location.href = "/dashboard";
+      // Backend issues no JWT until OTP is verified — route to the
+      // verify page with the email pre-populated so the user just
+      // pastes the code from their inbox.
+      const result = await registerUser(data.name, data.email, data.password);
+      const target = result?.requiresVerification
+        ? `/verify-email?email=${encodeURIComponent(data.email)}`
+        : "/dashboard";
+      window.location.href = target;
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Registration failed. Please try again.");
     }

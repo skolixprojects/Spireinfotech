@@ -17,10 +17,17 @@ public class AuthController {
 
     private final AuthService authService;
 
+    /**
+     * Returns a {@link RegistrationResponse} (no JWT) — the frontend
+     * reads {@code requiresVerification} and routes to /verify-email.
+     * Tokens are only handed out after the OTP is consumed.
+     */
     @PostMapping("/register")
-    public ResponseEntity<ApiResponse<AuthResponse>> register(@Valid @RequestBody RegisterRequest request) {
-        AuthResponse response = authService.register(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Registration successful", response));
+    public ResponseEntity<ApiResponse<RegistrationResponse>> register(
+            @Valid @RequestBody RegisterRequest request) {
+        RegistrationResponse response = authService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Registration successful — check your email for a verification code", response));
     }
 
     @PostMapping("/login")
@@ -37,20 +44,41 @@ public class AuthController {
     }
 
     /**
-     * Email verification — public, idempotent. Frontend hits this on
-     * page load when the user clicks the link in the verification
-     * email. Returns valid:true on success, valid:false (200) for any
-     * invalid/expired token so the client can render a friendly error
-     * without parsing exceptions.
+     * OTP verification. Body: {@code { email, code }}. On success,
+     * returns the same {@link AuthResponse} login does, so the
+     * frontend can store the token and continue straight to
+     * /dashboard. On failure (wrong code / expired / locked out),
+     * the message string carries enough detail for the verify page
+     * to render the right error.
      */
-    @GetMapping("/verify-email")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyEmail(@RequestParam String token) {
-        try {
-            authService.verifyEmail(token);
-            return ResponseEntity.ok(ApiResponse.success("Email verified", Map.of("valid", true)));
-        } catch (Exception e) {
-            return ResponseEntity.ok(ApiResponse.success(Map.of("valid", false, "reason", e.getMessage())));
+    @PostMapping("/verify-code")
+    public ResponseEntity<ApiResponse<AuthResponse>> verifyCode(@RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        String code = body.get("code");
+        if (email == null || email.isBlank() || code == null || code.isBlank()) {
+            throw new IllegalArgumentException("Email and code are required");
         }
+        AuthResponse response = authService.verifyCode(email, code);
+        return ResponseEntity.ok(ApiResponse.success("Email verified", response));
+    }
+
+    /**
+     * Issues a fresh OTP. Subject to a 60-second per-user cooldown
+     * enforced server-side; the frontend countdown is just UX.
+     * Returns 200 even when the email isn't on file so the response
+     * can't be used to enumerate accounts.
+     */
+    @PostMapping("/resend-code")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> resendCode(
+            @RequestBody Map<String, String> body) {
+        String email = body.get("email");
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        authService.resendVerificationCode(email);
+        return ResponseEntity.ok(ApiResponse.success("Verification code sent", Map.of(
+                "cooldownSeconds", 60
+        )));
     }
 
     /**

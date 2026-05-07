@@ -3,6 +3,8 @@ package com.spire.backend.service;
 import com.spire.backend.dto.*;
 import com.spire.backend.entity.Role;
 import com.spire.backend.entity.User;
+import com.spire.backend.exception.EmailNotVerifiedException;
+import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.exception.UnauthorizedException;
 import com.spire.backend.repository.RoleRepository;
 import com.spire.backend.repository.UserRepository;
@@ -12,6 +14,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -26,6 +29,13 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AuthService {
 
+    private static final int CODE_TTL_MINUTES = 10;
+    private static final int RESEND_COOLDOWN_SECONDS = 60;
+    private static final int LOCKOUT_THRESHOLD = 5;
+    private static final int LOCKOUT_MINUTES = 15;
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
@@ -34,7 +44,7 @@ public class AuthService {
     private final EmailTemplateService emailTemplateService;
 
     @Transactional
-    public AuthResponse register(RegisterRequest request) {
+    public RegistrationResponse register(RegisterRequest request) {
         // 1. Check duplicate email
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Email already registered");
@@ -44,12 +54,10 @@ public class AuthService {
         Role studentRole = roleRepository.findByName("STUDENT")
                 .orElseThrow(() -> new IllegalStateException("Default role STUDENT not found in database"));
 
-        // 3. Build and save user with a verification token. Token has
-        //    a 24h expiry — the verify-email endpoint refuses anything
-        //    older. emailVerified defaults false; the user can still
-        //    log in (we don't gate access on verification yet) but
-        //    nudges and password reset rely on a verified address.
-        String verificationToken = UUID.randomUUID().toString();
+        // 3. Build and save user with a 6-digit OTP. Code is valid for
+        //    CODE_TTL_MINUTES; verifyCode rejects anything older.
+        //    emailVerified=false locks login until the OTP is consumed.
+        String code = generateCode();
         User user = User.builder()
                 .email(request.getEmail())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
@@ -57,8 +65,10 @@ public class AuthService {
                 .role(studentRole)
                 .isActive(true)
                 .emailVerified(false)
-                .verificationToken(verificationToken)
-                .verificationExpiresAt(LocalDateTime.now().plusHours(24))
+                .verificationCode(code)
+                .verificationCodeExpiresAt(LocalDateTime.now().plusMinutes(CODE_TTL_MINUTES))
+                .verificationFailedAttempts(0)
+                .lastVerificationResendAt(LocalDateTime.now())
                 .build();
 
         user = userRepository.save(user);
@@ -72,41 +82,140 @@ public class AuthService {
                         "registrationMethod", "email_password"
                 ));
 
-        // 4. Welcome + verification emails. Both are no-ops if SMTP
-        //    isn't configured — the signup itself never fails because
-        //    of a missing/broken mail server.
+        // 4. Welcome + verification-code emails. Best-effort — signup
+        //    never fails because of a broken/unconfigured mailer.
         try { emailTemplateService.sendWelcomeEmail(user); } catch (Exception ignored) {}
-        try { emailTemplateService.sendVerificationEmail(user, verificationToken); } catch (Exception ignored) {}
+        try { emailTemplateService.sendVerificationCodeEmail(user, code); } catch (Exception ignored) {}
 
-        // 5. Generate tokens and return
-        return buildAuthResponse(user);
+        // 5. No JWT yet — frontend reads requiresVerification=true
+        //    and routes to /verify-email?email=…
+        return RegistrationResponse.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .requiresVerification(true)
+                .build();
     }
 
-    // ─── Email verification ─────────────────────────────────────────
+    // ─── 6-digit OTP verification ───────────────────────────────────
 
     /**
-     * Marks the user's email as verified if the supplied token
-     * matches an unexpired one on the user record. Idempotent — a
-     * second call with a stale (already-consumed) token returns the
-     * already-verified user rather than throwing.
+     * Validates the OTP against the user record. On success: marks
+     * the email verified, clears the code/lock state, and returns a
+     * full AuthResponse so the frontend can store the JWT and head
+     * to the dashboard. On failure: increments the attempt counter
+     * and triggers a 15-minute lockout after LOCKOUT_THRESHOLD wrong
+     * tries to defeat brute force on a 6-digit code (1M space).
      */
     @Transactional
-    public User verifyEmail(String token) {
-        User user = userRepository.findByVerificationToken(token)
-                .orElseThrow(() -> new IllegalArgumentException("Invalid verification link"));
-        if (user.getVerificationExpiresAt() != null
-                && user.getVerificationExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Verification link has expired");
+    public AuthResponse verifyCode(String email, String code) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+
+        if (Boolean.TRUE.equals(user.getEmailVerified())) {
+            // Idempotent — user is already in. Hand them a fresh token.
+            return buildAuthResponse(user);
         }
+
+        // Lockout window in effect?
+        if (user.getVerificationLockedUntil() != null
+                && user.getVerificationLockedUntil().isAfter(LocalDateTime.now())) {
+            long minutes = java.time.Duration
+                    .between(LocalDateTime.now(), user.getVerificationLockedUntil())
+                    .toMinutes() + 1;
+            throw new IllegalArgumentException(
+                    "Too many wrong attempts. Try again in about " + minutes + " minute"
+                            + (minutes == 1 ? "" : "s") + ".");
+        }
+
+        if (user.getVerificationCode() == null) {
+            throw new IllegalArgumentException("No verification code on file. Click \"Resend code\" to get a new one.");
+        }
+
+        if (user.getVerificationCodeExpiresAt() == null
+                || user.getVerificationCodeExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("Code expired. Please request a new one.");
+        }
+
+        if (!user.getVerificationCode().equals(code == null ? "" : code.trim())) {
+            int attempts = (user.getVerificationFailedAttempts() == null ? 0 : user.getVerificationFailedAttempts()) + 1;
+            user.setVerificationFailedAttempts(attempts);
+            if (attempts >= LOCKOUT_THRESHOLD) {
+                user.setVerificationLockedUntil(LocalDateTime.now().plusMinutes(LOCKOUT_MINUTES));
+                userRepository.save(user);
+                recordService.record(user.getId(), "ACCOUNT_VERIFICATION_LOCKED",
+                        RecordService.Category.SECURITY,
+                        "Verification locked",
+                        "User locked out after " + attempts + " wrong codes",
+                        Map.of("email", user.getEmail()));
+                throw new IllegalArgumentException(
+                        "Too many wrong attempts. Try again in " + LOCKOUT_MINUTES + " minutes.");
+            }
+            userRepository.save(user);
+            int remaining = LOCKOUT_THRESHOLD - attempts;
+            throw new IllegalArgumentException(
+                    "Invalid verification code. " + remaining + " attempt" + (remaining == 1 ? "" : "s")
+                            + " remaining before lockout.");
+        }
+
+        // Success — promote.
         user.setEmailVerified(true);
+        user.setVerificationCode(null);
+        user.setVerificationCodeExpiresAt(null);
+        user.setVerificationFailedAttempts(0);
+        user.setVerificationLockedUntil(null);
+        // Drop the legacy token state too — they're not needed anymore.
         user.setVerificationToken(null);
         user.setVerificationExpiresAt(null);
         User saved = userRepository.save(user);
+
         recordService.record(saved.getId(), "ACCOUNT_EMAIL_VERIFIED", RecordService.Category.ACCOUNT,
                 "Email verified",
-                "User verified email address",
+                "User verified email via 6-digit code",
                 Map.of("email", saved.getEmail()));
-        return saved;
+
+        return buildAuthResponse(saved);
+    }
+
+    /**
+     * Issues a fresh OTP, subject to a 60-second cooldown. Returns
+     * silently for already-verified accounts so a malicious caller
+     * can't enumerate verification status. Never throws on missing
+     * email — same reason.
+     */
+    @Transactional
+    public void resendVerificationCode(String email) {
+        var found = userRepository.findByEmail(email);
+        if (found.isEmpty()) return;
+        User user = found.get();
+        if (Boolean.TRUE.equals(user.getEmailVerified())) return;
+
+        if (user.getLastVerificationResendAt() != null) {
+            long secondsSince = java.time.Duration
+                    .between(user.getLastVerificationResendAt(), LocalDateTime.now())
+                    .getSeconds();
+            if (secondsSince < RESEND_COOLDOWN_SECONDS) {
+                long wait = RESEND_COOLDOWN_SECONDS - secondsSince;
+                throw new IllegalArgumentException(
+                        "Please wait " + wait + " more second" + (wait == 1 ? "" : "s") + " before requesting another code.");
+            }
+        }
+
+        String code = generateCode();
+        user.setVerificationCode(code);
+        user.setVerificationCodeExpiresAt(LocalDateTime.now().plusMinutes(CODE_TTL_MINUTES));
+        // Resend resets the failed-attempt counter — they're starting
+        // a fresh attempt with a brand-new code.
+        user.setVerificationFailedAttempts(0);
+        user.setVerificationLockedUntil(null);
+        user.setLastVerificationResendAt(LocalDateTime.now());
+        userRepository.save(user);
+
+        try { emailTemplateService.sendVerificationCodeEmail(user, code); } catch (Exception ignored) {}
+    }
+
+    /** Six-digit OTP (always padded), backed by SecureRandom. */
+    private static String generateCode() {
+        return String.format("%06d", RANDOM.nextInt(1_000_000));
     }
 
     // ─── Password reset ─────────────────────────────────────────────
@@ -178,6 +287,15 @@ public class AuthService {
         if (!user.getIsActive()) {
             recordLoginFailed(user.getId(), user.getEmail(), "account_deactivated");
             throw new UnauthorizedException("Account is deactivated");
+        }
+
+        // 4. OTP gate — login is blocked until the email is verified.
+        //    Throws a typed exception the controller turns into a
+        //    structured 403 with the email so the frontend can route
+        //    to /verify-email?email=… without a second lookup.
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            recordLoginFailed(user.getId(), user.getEmail(), "email_not_verified");
+            throw new EmailNotVerifiedException(user.getEmail());
         }
 
         recordService.record(user.getId(), "ACCOUNT_LOGIN", RecordService.Category.ACCOUNT,

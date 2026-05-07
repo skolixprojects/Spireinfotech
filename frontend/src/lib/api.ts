@@ -121,20 +121,86 @@ async function tryRefresh(): Promise<boolean> {
 
 // ─── Auth ───────────────────────────────────────────────────────────
 
-export async function register(data: { fullName: string; email: string; password: string }): Promise<AuthResponse> {
-  const wrapper = await apiFetch<ApiResponse<AuthResponse>>("/api/auth/register", {
+export interface RegistrationResponse {
+  userId: number;
+  email: string;
+  requiresVerification: boolean;
+}
+
+/**
+ * Thrown by {@link login} when the backend rejects the credentials
+ * with a 403 carrying {@code message: "EMAIL_NOT_VERIFIED"} and the
+ * user's email in {@code data.email}. The login page catches this
+ * specifically to surface a "Verify Now" link instead of the
+ * generic "wrong password" message.
+ */
+export class EmailNotVerifiedError extends Error {
+  email: string;
+  constructor(email: string) {
+    super("EMAIL_NOT_VERIFIED");
+    this.email = email;
+    this.name = "EmailNotVerifiedError";
+  }
+}
+
+export async function register(data: { fullName: string; email: string; password: string }): Promise<RegistrationResponse> {
+  const wrapper = await apiFetch<ApiResponse<RegistrationResponse>>("/api/auth/register", {
     method: "POST",
     body: JSON.stringify(data),
   });
   return wrapper.data;
 }
 
+/**
+ * Login. Bypasses {@link apiFetch} so a 403 EMAIL_NOT_VERIFIED can
+ * be surfaced as a typed error (apiFetch flattens the response body
+ * into a generic Error, which would lose the email payload the
+ * verify page needs).
+ */
 export async function login(data: { email: string; password: string }): Promise<AuthResponse> {
-  const wrapper = await apiFetch<ApiResponse<AuthResponse>>("/api/auth/login", {
+  const res = await fetch(`${BASE_URL}/api/auth/login`, {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
+  // Try to parse the body for both success and error paths so we
+  // can pluck the email out of the EMAIL_NOT_VERIFIED payload.
+  const body = (await res.json().catch(() => ({}))) as ApiResponse<AuthResponse> & {
+    data?: { email?: string };
+  };
+  if (res.status === 403 && body?.message === "EMAIL_NOT_VERIFIED") {
+    throw new EmailNotVerifiedError(body.data?.email ?? data.email);
+  }
+  if (!res.ok) {
+    throw new Error(body?.message || `Login failed (${res.status})`);
+  }
+  return body.data as AuthResponse;
+}
+
+/**
+ * Submits the 6-digit OTP. On success the backend hands back a full
+ * {@link AuthResponse} (same shape as login) so the caller can store
+ * the JWT and continue to /dashboard.
+ */
+export async function verifyCode(email: string, code: string): Promise<AuthResponse> {
+  const wrapper = await apiFetch<ApiResponse<AuthResponse>>("/api/auth/verify-code", {
+    method: "POST",
+    body: JSON.stringify({ email, code }),
+  });
   return wrapper.data;
+}
+
+/**
+ * Asks the backend to issue a fresh OTP (and email it). Server-side
+ * cooldown is 60 seconds; the frontend countdown is just UX. Returns
+ * the configured cooldown so the page can sync its timer.
+ */
+export async function resendVerificationCode(email: string): Promise<{ cooldownSeconds: number }> {
+  const wrapper = await apiFetch<ApiResponse<{ cooldownSeconds: number }>>("/api/auth/resend-code", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+  return wrapper.data ?? { cooldownSeconds: 60 };
 }
 
 export function logout() {
@@ -143,20 +209,7 @@ export function logout() {
   return Promise.resolve();
 }
 
-// ─── Email verification + password reset ────────────────────────────
-
-/**
- * Hits the public /api/auth/verify-email endpoint. Returns the
- * server payload — `valid: true` on success, `valid: false` (with a
- * `reason` string) for expired/invalid tokens. Never throws on
- * "valid: false"; the caller decides how to render.
- */
-export async function verifyEmailToken(token: string) {
-  const wrapper = await apiFetch<ApiResponse<{ valid: boolean; reason?: string }>>(
-    `/api/auth/verify-email?token=${encodeURIComponent(token)}`,
-  );
-  return wrapper.data;
-}
+// ─── Password reset ─────────────────────────────────────────────────
 
 /**
  * Always reports success regardless of whether the email is on file

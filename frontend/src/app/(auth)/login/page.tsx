@@ -7,9 +7,10 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Loader2, MailWarning } from "lucide-react";
 import { useState, useEffect, Suspense } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { EmailNotVerifiedError } from "@/lib/api";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -21,6 +22,10 @@ type LoginValues = z.infer<typeof loginSchema>;
 function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  // Set when login is rejected because the account isn't verified.
+  // Carries the email so we can render a "Verify Now" link that
+  // routes straight to /verify-email with the address pre-filled.
+  const [needsVerification, setNeedsVerification] = useState<string | null>(null);
   const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -48,10 +53,18 @@ function LoginForm() {
 
   const onSubmit = async (data: LoginValues) => {
     setError("");
+    setNeedsVerification(null);
     try {
       await login(data.email, data.password);
       window.location.href = redirect;
     } catch (err: unknown) {
+      if (err instanceof EmailNotVerifiedError) {
+        // Stash the email so the banner below can render a deep link
+        // to /verify-email with it pre-filled. No "wrong password"
+        // copy in this case — credentials are fine, account isn't.
+        setNeedsVerification(err.email);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Invalid email or password");
     }
   };
@@ -82,6 +95,25 @@ function LoginForm() {
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
           {error}
+        </div>
+      )}
+
+      {needsVerification && (
+        <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200 flex items-start gap-2.5">
+          <MailWarning size={18} className="text-amber-600 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-amber-800">Your email isn&apos;t verified yet.</p>
+            <p className="text-xs text-amber-700 mt-1 leading-relaxed">
+              Check your inbox for the 6-digit code we sent when you signed up,
+              then verify your account before logging in.
+            </p>
+            <Link
+              href={`/verify-email?email=${encodeURIComponent(needsVerification)}`}
+              className="mt-2 inline-flex items-center gap-1 text-sm font-bold text-[#0F766E] hover:text-[#0D9488]"
+            >
+              Verify Now →
+            </Link>
+          </div>
         </div>
       )}
 

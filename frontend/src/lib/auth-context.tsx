@@ -14,6 +14,7 @@ import {
   logout as apiLogout,
   getProfile,
   type AuthResponse,
+  type RegistrationResponse,
   type UserDTO,
 } from "./api";
 
@@ -25,7 +26,13 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  // Register no longer establishes a session — the backend now
+  // requires OTP verification first. Returns the registration
+  // metadata so the signup page can route to /verify-email.
+  register: (name: string, email: string, password: string) => Promise<RegistrationResponse>;
+  // Establishes a session from an AuthResponse. Used by the verify
+  // page after a successful OTP submission.
+  setSession: (data: AuthResponse) => void;
   logout: () => void;
 }
 
@@ -82,13 +89,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     storeTokens(data);
   }, []);
 
+  // Register no longer auto-logs-in. The backend response carries
+  // requiresVerification=true; the signup page routes the user to
+  // /verify-email?email=… to enter the OTP that completes signup.
   const register = useCallback(
     async (name: string, email: string, password: string) => {
-      const data = await apiRegister({ fullName: name, email, password });
-      storeTokens(data);
+      return apiRegister({ fullName: name, email, password });
     },
     []
   );
+
+  // Hands a session to the caller — used by the verify page after
+  // a successful OTP submission to flip the UI into authenticated
+  // state without forcing a full reload.
+  const setSession = useCallback((data: AuthResponse) => {
+    storeTokens(data);
+  }, []);
 
   const logout = useCallback(() => {
     apiLogout();
@@ -98,7 +114,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, isLoading, login, register, logout }}
+      value={{ user, isAuthenticated: !!user, isLoading, login, register, setSession, logout }}
     >
       {children}
     </AuthContext.Provider>
