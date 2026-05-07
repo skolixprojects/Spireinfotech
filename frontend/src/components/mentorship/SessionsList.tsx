@@ -6,6 +6,7 @@ import { MessageCircle, Loader2, Calendar, ExternalLink, Clock, X, CheckCircle }
 import { getMySessions, cancelSession } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import type { SessionRequest } from "@/lib/types";
+import { formatIST, formatISTDate } from "@/lib/datetime";
 
 
 const STATUS_PRIORITY: Record<string, number> = {
@@ -24,14 +25,7 @@ const STATUS_BADGE: Record<string, { label: string; className: string }> = {
 
 function formatScheduledAt(iso: string | null): string {
   if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatIST(iso);
 }
 
 export function SessionsList() {
@@ -142,13 +136,13 @@ export function SessionsList() {
             {s.status === "COMPLETED" && s.completedAt && (
               <div className="flex items-center gap-2 text-xs text-gray-500 mt-3">
                 <CheckCircle size={12} />
-                Completed {new Date(s.completedAt).toLocaleDateString()}
+                Completed {formatISTDate(s.completedAt)}
               </div>
             )}
 
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
               <span className="text-xs text-gray-400 inline-flex items-center gap-1">
-                <Clock size={11} /> Requested {new Date(s.requestedAt).toLocaleDateString()}
+                <Clock size={11} /> Requested {formatISTDate(s.requestedAt)}
               </span>
               {canCancel && (
                 <button

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { QuizCard } from "@/components/quiz/QuizCard";
 import { cn } from "@/lib/utils";
+import { formatIST, formatISTDate } from "@/lib/datetime";
 import type { CourseProgress, Quiz } from "@/lib/api";
 import type { MentorInfo, SessionRequest } from "@/lib/types";
 
@@ -627,7 +628,7 @@ function AssignmentRow({ assignment: a }: { assignment: LearningAssignment }) {
           <span className="uppercase tracking-wide font-semibold">{a.assignmentType}</span>
           {a.dueDate && (
             <span className="inline-flex items-center gap-1">
-              <Calendar size={11} /> Due {new Date(a.dueDate).toLocaleDateString()}
+              <Calendar size={11} /> Due {formatISTDate(a.dueDate)}
             </span>
           )}
         </div>
@@ -638,7 +639,6 @@ function AssignmentRow({ assignment: a }: { assignment: LearningAssignment }) {
 
 function SessionRow({ session: s }: { session: SessionRequest }) {
   const style = SESSION_STATUS[s.status] ?? SESSION_STATUS.PENDING;
-  const scheduled = s.scheduledAt ? new Date(s.scheduledAt) : null;
 
   return (
     <div className={cn(
@@ -659,11 +659,11 @@ function SessionRow({ session: s }: { session: SessionRequest }) {
           </span>
         </div>
         <p className="text-sm text-gray-500 mt-0.5">
-          With {s.mentorName} · Requested {new Date(s.requestedAt).toLocaleDateString()}
+          With {s.mentorName} · Requested {formatISTDate(s.requestedAt)}
         </p>
-        {scheduled && (
+        {s.scheduledAt && (
           <p className="text-sm text-[#0F766E] font-semibold mt-1 inline-flex items-center gap-1">
-            <Calendar size={12} /> {scheduled.toLocaleString()}
+            <Calendar size={12} /> {formatIST(s.scheduledAt)}
           </p>
         )}
       </div>

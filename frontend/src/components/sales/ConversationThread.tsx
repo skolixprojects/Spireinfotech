@@ -5,6 +5,7 @@ import { Loader2, Send } from "lucide-react";
 import { postSalesMessage, type SalesInquiry } from "@/lib/api";
 import { QuoteCard } from "@/components/sales/QuoteCard";
 import { cn } from "@/lib/utils";
+import { formatISTContextual } from "@/lib/datetime";
 
 interface Props {
   inquiry: SalesInquiry;
@@ -88,9 +89,7 @@ export function ConversationThread({ inquiry, currentUserId, onUpdated, readOnly
                   )}>
                     {mine ? "YOU" : (m.senderName ?? "User").toUpperCase()}
                     <span className="ml-2 text-[10px] font-normal text-gray-400">
-                      {m.createdAt ? new Date(m.createdAt).toLocaleString(undefined, {
-                        month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-                      }) : ""}
+                      {m.createdAt ? formatISTContextual(m.createdAt) : ""}
                     </span>
                   </p>
                   <div className={cn(

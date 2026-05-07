@@ -7,6 +7,7 @@ import { getMentorPendingRequests } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import type { SessionRequest } from "@/lib/types";
 import { AcceptSessionForm } from "./AcceptSessionForm";
+import { formatISTDate } from "@/lib/datetime";
 
 interface PendingRequestsProps {
   // Optional: parent dashboard can react to accepts (e.g. to refresh other lists)
@@ -94,7 +95,7 @@ export function PendingRequests({ onAccepted }: PendingRequestsProps) {
 
               <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                 <span className="text-xs text-gray-400 inline-flex items-center gap-1">
-                  <Clock size={11} /> Requested {new Date(r.requestedAt).toLocaleDateString()}
+                  <Clock size={11} /> Requested {formatISTDate(r.requestedAt)}
                 </span>
                 {!isFormOpen && (
                   <button

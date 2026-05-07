@@ -16,6 +16,7 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { UserRecordsPanel } from "@/components/admin/UserRecordsPanel";
 import { cn } from "@/lib/utils";
+import { formatISTDate } from "@/lib/datetime";
 
 const ROLES = ["STUDENT", "INSTRUCTOR", "TRAINER", "ADMIN"] as const;
 
@@ -28,7 +29,11 @@ function initialsOf(name: string | null | undefined): string {
 
 function formatJoined(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return new Date(iso).toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function formatRelativeDay(iso: string | null): string {
@@ -41,7 +46,7 @@ function formatRelativeDay(iso: string | null): string {
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays} days ago`;
   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", month: "short", day: "numeric" });
 }
 
 function formatLearningTime(minutes: number): string {
@@ -438,7 +443,7 @@ export default function AdminUserDetailPage({
                       </p>
                       <p className="text-xs text-gray-500 truncate">
                         {cert.issuedAt
-                          ? `Issued ${new Date(cert.issuedAt).toLocaleDateString()}`
+                          ? `Issued ${formatISTDate(cert.issuedAt)}`
                           : ""}
                         {cert.certificateId && (
                           <>

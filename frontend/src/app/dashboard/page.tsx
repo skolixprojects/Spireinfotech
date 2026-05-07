@@ -29,6 +29,7 @@ import { OnboardingWizard, onboardingDismissedKey } from "@/components/onboardin
 import { InstructorSalesInbox } from "@/components/sales/InstructorSalesInbox";
 import type { SessionRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { formatISTDate } from "@/lib/datetime";
 
 const fadeUp = {
   initial: { opacity: 0, y: 16 },
@@ -496,7 +497,7 @@ export default function DashboardPage() {
                             <td className="px-6 py-3"><div className="flex items-center gap-2"><div className="w-7 h-7 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{s.studentName?.charAt(0)?.toUpperCase()}</div><span className="font-medium text-gray-900">{s.studentName}</span></div></td>
                             <td className="px-6 py-3 text-gray-500">{s.email}</td>
                             <td className="px-6 py-3"><span className="text-xs font-medium px-2 py-0.5 rounded-full bg-violet-50 text-violet-700">{s.courseTitle}</span></td>
-                            <td className="px-6 py-3 text-gray-400 text-xs">{new Date(s.enrolledAt).toLocaleDateString()}</td>
+                            <td className="px-6 py-3 text-gray-400 text-xs">{formatISTDate(s.enrolledAt)}</td>
                             <td className="px-6 py-3 text-gray-700 text-xs">
                               {sessionsCount > 0 ? (
                                 <span className="font-semibold">{sessionsCount}</span>
@@ -505,7 +506,7 @@ export default function DashboardPage() {
                               )}
                             </td>
                             <td className="px-6 py-3 text-gray-400 text-xs">
-                              {lastAt ? new Date(lastAt).toLocaleDateString() : <span className="text-gray-300">—</span>}
+                              {lastAt ? formatISTDate(lastAt) : <span className="text-gray-300">—</span>}
                             </td>
                           </motion.tr>
                         );

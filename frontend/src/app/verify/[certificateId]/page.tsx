@@ -9,6 +9,7 @@ import {
   BookOpen, Shield, ExternalLink,
 } from "lucide-react";
 import { verifyCertificate, type CertificateVerification } from "@/lib/api";
+import { formatISTDate } from "@/lib/datetime";
 
 /**
  * Public certificate verification page. Reachable without auth so a
@@ -98,7 +99,6 @@ export default function VerifyCertificatePage({
 }
 
 function ValidCard({ data }: { data: CertificateVerification }) {
-  const issued = data.issuedAt ? new Date(data.issuedAt) : null;
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
@@ -126,13 +126,11 @@ function ValidCard({ data }: { data: CertificateVerification }) {
             value={`${Math.round(data.finalScore)}%`}
           />
         )}
-        {issued && (
+        {data.issuedAt && (
           <DetailRow
             icon={Calendar}
             label="Issued"
-            value={issued.toLocaleDateString(undefined, {
-              month: "long", day: "numeric", year: "numeric",
-            })}
+            value={formatISTDate(data.issuedAt)}
           />
         )}
         <DetailRow

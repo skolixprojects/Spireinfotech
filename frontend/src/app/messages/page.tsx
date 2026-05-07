@@ -7,6 +7,7 @@ import { Loader2, MessageSquare, ChevronRight } from "lucide-react";
 import { getMySalesInquiries, type SalesInquiry } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
+import { timeAgoIST } from "@/lib/datetime";
 
 const STATUS_STYLES: Record<string, string> = {
   NEW: "bg-amber-100 text-amber-700",
@@ -19,15 +20,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 function relative(ts: string | null | undefined) {
   if (!ts) return "";
-  const diffMs = Date.now() - new Date(ts).getTime();
-  const mins = Math.round(diffMs / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.round(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(ts).toLocaleDateString();
+  return timeAgoIST(ts);
 }
 
 export default function MessagesPage() {

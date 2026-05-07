@@ -5,6 +5,7 @@ import { motion } from "framer-motion";
 import { FileText, Lock, CheckCircle, Loader2 } from "lucide-react";
 import { submitAssignment } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { formatISTDate } from "@/lib/datetime";
 
 interface AssignmentItemProps {
   id: number;
@@ -73,7 +74,7 @@ export function AssignmentItem({ id, title, description, assignmentType, dueDate
           </div>
 
           {description && <p className="text-xs text-gray-500 mb-2">{description}</p>}
-          {dueDate && <p className="text-xs text-gray-400">Due: {new Date(dueDate).toLocaleDateString()}</p>}
+          {dueDate && <p className="text-xs text-gray-400">Due: {formatISTDate(dueDate)}</p>}
 
           {!unlocked && (
             <p className="text-xs text-gray-400 mt-2 flex items-center gap-1">

@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { getProfile, type DashboardSummary, type NextAction, type ProfileData } from "@/lib/api";
 import type { UserDTO } from "@/lib/api";
+import { formatIST, formatISTDate, timeAgoIST } from "@/lib/datetime";
 
 interface Props {
   user: UserDTO;
@@ -30,28 +31,16 @@ function firstName(fullName: string | null | undefined): string {
   return fullName.split(" ")[0];
 }
 
+// Activity-row "X ago" — delegates to the IST-aware helper. Empty
+// input maps to empty string (the row hides the timestamp entirely
+// rather than showing the em-dash placeholder).
 function relativeTime(iso: string | null | undefined): string {
   if (!iso) return "";
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.round(diff / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins} min${mins === 1 ? "" : "s"} ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
-  const days = Math.round(hrs / 24);
-  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
-  return new Date(iso).toLocaleDateString();
+  return timeAgoIST(iso);
 }
 
 function formatSessionDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+  return formatIST(iso);
 }
 
 // Maps a recent-activity row to an icon + color tile. Strings come
@@ -165,7 +154,7 @@ export function StudentDashboard({ user, summary, nextAction, loading }: Props) 
         return nextAction.mentorName ? `Your mentor: ${nextAction.mentorName}` : "";
       case "ASSIGNMENT_DUE":
         return nextAction.dueDate
-          ? `Due ${new Date(nextAction.dueDate).toLocaleDateString()}` : "";
+          ? `Due ${formatISTDate(nextAction.dueDate)}` : "";
       case "ALL_COMPLETE":
         return `${nextAction.completedCount ?? 0} courses done · ${nextAction.certificateCount ?? 0} certificates earned`;
       default:

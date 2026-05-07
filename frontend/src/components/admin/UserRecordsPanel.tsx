@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
+import { formatISTDate, formatISTTime } from "@/lib/datetime";
 
 const CATEGORIES = ["ALL", "ACCOUNT", "LEARNING", "ASSESSMENT", "MENTORSHIP", "PAYMENT", "CERTIFICATE", "SECURITY"] as const;
 type Category = typeof CATEGORIES[number];
@@ -27,20 +28,21 @@ const CATEGORY_STYLE: Record<string, { bg: string; text: string; Icon: typeof Ke
   SECURITY: { bg: "bg-red-100", text: "text-red-700", Icon: Lock },
 };
 
+// Date headers group records by day (IST). The dayKey below uses the
+// IST calendar boundary so a record at 11:30 PM IST and one at 1 AM
+// IST the next day land in different groups (instead of being lumped
+// together because their UTC clocks were both on the same day).
 function formatDateHeader(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    month: "long", day: "numeric", year: "numeric",
-  });
+  return formatISTDate(iso);
 }
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: "numeric", minute: "2-digit",
-  });
+  return formatISTTime(iso);
 }
 
 function dayKey(iso: string): string {
-  return new Date(iso).toISOString().slice(0, 10);
+  // YYYY-MM-DD in IST. en-CA gives ISO order which sorts lexically.
+  return new Date(iso).toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 }
 
 interface Props {

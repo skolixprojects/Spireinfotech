@@ -14,6 +14,7 @@ import {
   type ProfileData, type CertificateListItem,
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
+import { formatISTDate } from "@/lib/datetime";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -28,7 +29,12 @@ function initialsOf(name: string | null | undefined): string {
 
 function formatJoined(iso: string | null): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  // "Member since May 2026" — month + year only.
+  return new Date(iso).toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function formatRelativeDay(iso: string | null): string {
@@ -41,7 +47,7 @@ function formatRelativeDay(iso: string | null): string {
   if (diffDays === 1) return "Yesterday";
   if (diffDays < 7) return `${diffDays} days ago`;
   if (diffDays < 30) return `${Math.floor(diffDays / 7)}w ago`;
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", month: "short", day: "numeric" });
 }
 
 function formatLearningTime(minutes: number): string {
@@ -522,7 +528,6 @@ function CertificatesSection({ certificates }: { certificates: CertificateListIt
 }
 
 function CertificateCard({ cert }: { cert: CertificateListItem }) {
-  const issued = new Date(cert.issuedAt);
   const downloadHref = cert.certificateUrl?.startsWith("http")
     ? cert.certificateUrl
     : `${API_BASE}${cert.certificateUrl}`;
@@ -560,7 +565,7 @@ function CertificateCard({ cert }: { cert: CertificateListItem }) {
         <div className="flex-1 min-w-0">
           <h3 className="text-base font-bold text-gray-900 truncate">{cert.courseTitle}</h3>
           <p className="text-sm text-gray-500 mt-0.5">
-            Issued {issued.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}
+            Issued {formatISTDate(cert.issuedAt)}
             {cert.finalScore != null && ` · Score ${Math.round(cert.finalScore)}%`}
           </p>
           <p className="text-xs font-mono text-[#0F766E] mt-1 truncate">

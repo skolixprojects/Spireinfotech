@@ -23,8 +23,14 @@ function formatScheduledShort(iso: string | null | undefined): string {
   const dayLabel =
     d.toDateString() === now.toDateString()
       ? "Today"
-      : d.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
-  const time = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      : d.toLocaleDateString("en-IN", {
+          timeZone: "Asia/Kolkata",
+          weekday: "long", month: "short", day: "numeric",
+        });
+  const time = d.toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric", minute: "2-digit",
+  });
   if (diffH <= 0) return `${dayLabel} at ${time}`;
   if (diffH < 24) return `In ${diffH} hour${diffH === 1 ? "" : "s"} — ${dayLabel} at ${time}`;
   return `${dayLabel} at ${time}`;

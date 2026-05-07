@@ -73,6 +73,7 @@ import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink } 
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { cn } from "@/lib/utils";
+import { formatIST, formatISTDate } from "@/lib/datetime";
 
 const sidebarLinks = [
   { label: "Overview", icon: LayoutDashboard },
@@ -1040,7 +1041,7 @@ function AdminContent() {
                               </span>
                             </td>
                             <td className="py-3 text-xs text-gray-400">
-                              {r.enrolledAt ? new Date(r.enrolledAt).toLocaleDateString() : "—"}
+                              {formatISTDate(r.enrolledAt)}
                             </td>
                           </tr>
                         ))}
@@ -1132,11 +1133,9 @@ function AdminContent() {
                             </td>
                             <td className="py-3 text-xs text-gray-500">
                               {s.scheduledAt
-                                ? new Date(s.scheduledAt).toLocaleString(undefined, {
-                                    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-                                  })
+                                ? formatIST(s.scheduledAt)
                                 : s.requestedAt
-                                  ? `Requested ${new Date(s.requestedAt).toLocaleDateString()}`
+                                  ? `Requested ${formatISTDate(s.requestedAt)}`
                                   : "—"}
                             </td>
                             <td className="py-3">
@@ -1349,10 +1348,7 @@ function AdminContent() {
                                   {t.razorpayPaymentId ?? t.razorpayOrderId ?? "—"}
                                 </td>
                                 <td className="py-3 text-xs text-gray-500">
-                                  {t.createdAt ? new Date(t.createdAt).toLocaleString(undefined, {
-                                    month: "short", day: "numeric", year: "numeric",
-                                    hour: "numeric", minute: "2-digit",
-                                  }) : "—"}
+                                  {formatIST(t.createdAt)}
                                 </td>
                               </tr>
                             ))}
@@ -1519,10 +1515,10 @@ function AdminContent() {
                             </div>
                             <p className="text-sm text-gray-600 whitespace-pre-wrap">{a.message}</p>
                             <div className="flex items-center gap-3 mt-2 text-xs text-gray-400 flex-wrap">
-                              <span>Created {new Date(a.createdAt).toLocaleDateString()}</span>
+                              <span>Created {formatISTDate(a.createdAt)}</span>
                               {a.createdByName && <span>by {a.createdByName}</span>}
                               {a.expiresAt && (
-                                <span>Expires {new Date(a.expiresAt).toLocaleDateString()}</span>
+                                <span>Expires {formatISTDate(a.expiresAt)}</span>
                               )}
                             </div>
                           </div>
@@ -1667,9 +1663,7 @@ function AdminContent() {
                                 </td>
                                 <td className="py-3 text-xs text-gray-500">{s.budgetRange ?? "—"}</td>
                                 <td className="py-3 text-xs text-gray-500">
-                                  {s.lastMessageAt ? new Date(s.lastMessageAt).toLocaleString(undefined, {
-                                    month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-                                  }) : "—"}
+                                  {formatIST(s.lastMessageAt)}
                                 </td>
                               </tr>
                             ))}
@@ -1892,7 +1886,7 @@ function AdminContent() {
                               {c.usesCount}{c.maxUses != null ? ` / ${c.maxUses}` : ""}
                             </td>
                             <td className="py-3 text-xs text-gray-500">
-                              {c.expiresAt ? new Date(c.expiresAt).toLocaleDateString() : "—"}
+                              {formatISTDate(c.expiresAt)}
                             </td>
                             <td className="py-3">
                               <span className={cn(
@@ -2176,7 +2170,7 @@ function AdminContent() {
                           <p className="text-sm text-gray-500">{req.userEmail}</p>
                           <div className="flex items-center gap-3 mt-2">
                             <span className="text-xs text-gray-400">
-                              {new Date(req.createdAt).toLocaleDateString()}
+                              {formatISTDate(req.createdAt)}
                             </span>
                             <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-700">
                               PENDING
