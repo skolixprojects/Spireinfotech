@@ -41,6 +41,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/webhooks/**").permitAll()
                         .requestMatchers("/api/certificates/verify/**").permitAll()
                         .requestMatchers("/api/certificates/download/**").permitAll()
+                        .requestMatchers("/api/verify/**").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )

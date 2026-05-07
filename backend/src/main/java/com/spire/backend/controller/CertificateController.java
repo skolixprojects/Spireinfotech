@@ -103,7 +103,8 @@ public class CertificateController {
                 .orElse(ResponseEntity.ok(ApiResponse.success(Map.of("valid", false))));
     }
 
-    // ─── Download PDF ───────────────────────────────────────────────
+    // ─── Download PDF (legacy path-based URL — kept for backward
+    //     compat with cert URLs already saved on existing rows) ─────
 
     @GetMapping("/download/{courseId}/{fileName}")
     public ResponseEntity<Resource> downloadCertificate(
@@ -118,6 +119,68 @@ public class CertificateController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
                 .body(resource);
+    }
+
+    // ─── By-cert-number lookups ─────────────────────────────────────
+    // These live AFTER the literal-prefix routes (/my, /check, /verify,
+    // /generate, /download) — Spring's path-matching prefers literal
+    // segments over path variables, so /api/certificates/my still
+    // hits getMyCertificates() rather than this catch-all.
+
+    /**
+     * Fetch a single certificate by its public number. Owner or admin
+     * only — verification by the public uses /api/verify/{number}.
+     */
+    @GetMapping("/{certificateNumber}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getByNumber(
+            @PathVariable String certificateNumber,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return certificateService.findByCertificateId(certificateNumber)
+                .filter(c -> c.getUser().getId().equals(userId)
+                        || auth.getAuthorities().stream()
+                                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority())))
+                .map(c -> ResponseEntity.ok(ApiResponse.success(toFullDto(c))))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * Cleaner download URL keyed on the public cert number rather
+     * than the underlying file path. Resolves the cert, then streams
+     * the same file the legacy /download/{courseId}/{fileName}
+     * endpoint serves.
+     */
+    @GetMapping("/{certificateNumber}/download")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Resource> downloadByNumber(
+            @PathVariable String certificateNumber,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return certificateService.findByCertificateId(certificateNumber)
+                .filter(c -> c.getUser().getId().equals(userId)
+                        || auth.getAuthorities().stream()
+                                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority())))
+                .map(c -> {
+                    String url = c.getCertificateUrl();
+                    // certificateUrl is stored as "/api/certificates/download/{courseId}/{fileName}".
+                    // Strip the prefix to recover the on-disk file.
+                    String prefix = "/api/certificates/download/";
+                    if (url == null || !url.startsWith(prefix)) {
+                        return ResponseEntity.notFound().<Resource>build();
+                    }
+                    File file = new File("certificates/" + url.substring(prefix.length()));
+                    if (!file.exists()) {
+                        return ResponseEntity.notFound().<Resource>build();
+                    }
+                    Resource resource = new FileSystemResource(file);
+                    return ResponseEntity.ok()
+                            .contentType(MediaType.APPLICATION_PDF)
+                            .header(HttpHeaders.CONTENT_DISPOSITION,
+                                    "attachment; filename=\"" + certificateNumber + ".pdf\"")
+                            .<Resource>body(resource);
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
     /**

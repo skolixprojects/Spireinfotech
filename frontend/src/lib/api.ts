@@ -1312,12 +1312,14 @@ export async function getMyCertificates() {
 /**
  * Public verification — no auth required. Used by the /verify/[id]
  * page so anyone with a certificate ID can confirm its authenticity.
+ *
+ * Hits the cleaner /api/verify/{number} endpoint (the URL printed on
+ * physical certificates). The legacy /api/certificates/verify/{id}
+ * route also works but is undocumented for new callers.
  */
 export async function verifyCertificate(certificateId: string) {
   const wrapper = await apiFetch<ApiResponse<CertificateVerification>>(
-    `/api/certificates/verify/${encodeURIComponent(certificateId)}`,
-    // No-auth path — apiFetch attaches token if present, server doesn't
-    // require it. Marking explicitly here keeps intent visible.
+    `/api/verify/${encodeURIComponent(certificateId)}`,
   );
   return wrapper.data;
 }
