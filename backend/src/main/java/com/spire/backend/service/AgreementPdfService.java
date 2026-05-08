@@ -3,6 +3,8 @@ package com.spire.backend.service;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.PdfContentByte;
 import com.lowagie.text.pdf.PdfImportedPage;
+import com.lowagie.text.pdf.PdfPCell;
+import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfReader;
 import com.lowagie.text.pdf.PdfStamper;
 import com.lowagie.text.pdf.PdfWriter;
@@ -132,32 +134,15 @@ public class AgreementPdfService {
                     ? "—"
                     : row.getAcceptedAt().atZone(IST).format(DATE_TIME_FMT);
 
-            // ── Title + intro ───────────────────────────────────────
+            // ── Page 1+ : Title + acceptance confirmations + full terms
             document.add(centered("SIGNED AGREEMENT",
                     new Font(Font.HELVETICA, 11, Font.BOLD, MUTED), 16));
-            document.add(centered("Terms of Service Acceptance Record",
-                    new Font(Font.TIMES_ROMAN, 22, Font.BOLD, TEAL_DARK), 8));
-            document.add(centered("This document certifies the digital acceptance of the "
-                            + doc.platform() + " Terms of Service by the named user below.",
-                    new Font(Font.TIMES_ROMAN, 11, Font.ITALIC, MUTED), 18));
-
-            // ── User details panel ──────────────────────────────────
-            document.add(detailRow("Legal name", row.getLegalName()));
-            document.add(detailRow("Email", user.getEmail()));
-            document.add(detailRow("Agreement version", doc.version()
-                    + (doc.effectiveDate() == null || doc.effectiveDate().isBlank()
-                            ? "" : "  (effective " + doc.effectiveDate() + ")")));
-            document.add(detailRow("Date of acceptance", acceptedAt));
-            document.add(detailRow("Acceptance code", row.getAcceptanceCode() == null
-                    ? "—" : row.getAcceptanceCode()));
-            document.add(detailRow("Reply received", row.getUserReplyReceivedAt() == null
-                    ? "—"
-                    : row.getUserReplyReceivedAt().atZone(IST).format(DATE_TIME_FMT)
-                            + "  ('" + safe(row.getUserReplyContent()) + "')"));
-            document.add(detailRow("IP address", safe(row.getIpAddress())));
-            document.add(detailRow("Browser / OS",
-                    safe(row.getBrowser()) + " on " + safe(row.getOs())));
-            document.add(spacer(18));
+            document.add(centered("Terms of Service",
+                    new Font(Font.TIMES_ROMAN, 24, Font.BOLD, TEAL_DARK), 8));
+            document.add(centered(doc.version()
+                            + (doc.effectiveDate() == null || doc.effectiveDate().isBlank()
+                                    ? "" : "  •  effective " + doc.effectiveDate()),
+                    new Font(Font.HELVETICA, 10, Font.ITALIC, MUTED), 18));
 
             // ── Acceptance confirmations ────────────────────────────
             document.add(sectionHeader("By accepting, the user confirmed:"));
@@ -182,33 +167,44 @@ public class AgreementPdfService {
                 document.add(content);
             }
 
-            // ── Signature block ─────────────────────────────────────
-            document.add(spacer(20));
-            document.add(sectionHeader("Digital Signature"));
-            document.add(new Paragraph(
-                    "This agreement has been digitally signed and verified through "
-                            + "a multi-factor process: legal name typed by the user, "
-                            + "email reply confirmation, and a one-time verification code "
-                            + "delivered to and entered from the user's registered email "
-                            + "address. The acceptance is recorded as legal evidence and "
-                            + "constitutes binding consent equivalent to a handwritten signature.",
-                    new Font(Font.TIMES_ROMAN, 10.5f, Font.NORMAL, INK)));
-            document.add(spacer(16));
+            // ── Final page : Personalized acceptance record ─────────
+            // Forced to its own page so the framed signature block
+            // always reads as a clean, dedicated artifact regardless
+            // of where the terms text happens to break.
+            document.newPage();
 
+            document.add(spacer(8));
+            document.add(centered("AGREEMENT ACCEPTANCE RECORD",
+                    new Font(Font.HELVETICA, 13, Font.BOLD, TEAL_DARK), 4));
+            document.add(centered("Personalized signature page",
+                    new Font(Font.HELVETICA, 10, Font.ITALIC, MUTED), 18));
+
+            // The framed-table layout is rendered via PdfPTable so the
+            // borders sit consistently regardless of font metrics.
+            document.add(buildAcceptanceRecordTable(row, user, doc, acceptedAt));
+
+            document.add(spacer(20));
+            document.add(new Paragraph(
+                    "This document was generated by " + doc.platform() + " and constitutes "
+                            + "a record of the User's acceptance of the Terms of Service. "
+                            + "The acceptance was verified through email reply confirmation "
+                            + "and OTP code verification, and is recorded as binding legal "
+                            + "evidence equivalent to a handwritten signature.",
+                    new Font(Font.TIMES_ROMAN, 10.5f, Font.NORMAL, INK)));
+
+            document.add(spacer(20));
             Paragraph signedAs = new Paragraph();
-            signedAs.add(new Chunk("Signed as: ",
+            signedAs.add(new Chunk("Signed as:  ",
                     new Font(Font.HELVETICA, 11, Font.NORMAL, MUTED)));
             signedAs.add(new Chunk(row.getLegalName(),
-                    new Font(Font.HELVETICA, 13, Font.BOLD, INK)));
+                    new Font(Font.HELVETICA, 14, Font.BOLD, INK)));
             document.add(signedAs);
-
-            Paragraph signedOn = new Paragraph(
+            document.add(new Paragraph(
                     "Signed on " + acceptedAt,
-                    new Font(Font.HELVETICA, 10, Font.ITALIC, MUTED));
-            document.add(signedOn);
+                    new Font(Font.HELVETICA, 10, Font.ITALIC, MUTED)));
 
             // ── Contact / jurisdiction footer ───────────────────────
-            document.add(spacer(18));
+            document.add(spacer(20));
             document.add(new Paragraph(
                     "For verification or questions: " + doc.contactEmail()
                             + "  |  " + doc.supportUrl(),
@@ -275,16 +271,6 @@ public class AgreementPdfService {
         return p;
     }
 
-    private static Paragraph detailRow(String label, String value) {
-        Paragraph p = new Paragraph();
-        p.add(new Chunk(label + ":  ",
-                new Font(Font.HELVETICA, 10, Font.BOLD, MUTED)));
-        p.add(new Chunk(value == null || value.isBlank() ? "—" : value,
-                new Font(Font.HELVETICA, 10, Font.NORMAL, INK)));
-        p.setLeading(14);
-        return p;
-    }
-
     private static Paragraph bullet(String text) {
         Paragraph p = new Paragraph("•  " + text,
                 new Font(Font.TIMES_ROMAN, 10.5f, Font.NORMAL, INK));
@@ -296,6 +282,59 @@ public class AgreementPdfService {
 
     private static String safe(String s) {
         return s == null || s.isBlank() ? "—" : s;
+    }
+
+    /**
+     * Two-column framed table containing the personalized acceptance
+     * record on the final page. Rendered as a {@link PdfPTable} so
+     * the borders and column widths stay consistent regardless of
+     * label/value font metrics.
+     */
+    private static PdfPTable buildAcceptanceRecordTable(
+            AgreementAcceptance row, User user, TermsDocument doc, String acceptedAt
+    ) {
+        PdfPTable table = new PdfPTable(new float[]{ 1.4f, 3.6f });
+        table.setWidthPercentage(100);
+        table.setSpacingBefore(8);
+        table.setSpacingAfter(8);
+
+        addRecordRow(table, "Full legal name",
+                safe(row.getLegalName()));
+        addRecordRow(table, "Email address",
+                safe(user.getEmail()) + "  (verified)");
+        addRecordRow(table, "Date of acceptance", acceptedAt);
+        addRecordRow(table, "Agreement version", safe(doc.version()));
+        addRecordRow(table, "Acceptance code",
+                (row.getAcceptanceCode() == null ? "—" : row.getAcceptanceCode())
+                        + "  (verified)");
+        addRecordRow(table, "IP address", safe(row.getIpAddress()));
+        addRecordRow(table, "Browser",
+                safe(row.getBrowser()) + " on " + safe(row.getOs()));
+        addRecordRow(table, "Reply received",
+                row.getUserReplyReceivedAt() == null
+                        ? "—"
+                        : row.getUserReplyReceivedAt().atZone(IST).format(DATE_TIME_FMT)
+                                + "   (\"" + safe(row.getUserReplyContent()) + "\")");
+
+        return table;
+    }
+
+    private static void addRecordRow(PdfPTable table, String label, String value) {
+        PdfPCell labelCell = new PdfPCell(new Phrase(label,
+                new Font(Font.HELVETICA, 10, Font.BOLD, MUTED)));
+        labelCell.setBorderColor(LIGHT_BG);
+        labelCell.setBorderWidth(0.5f);
+        labelCell.setPadding(8);
+        labelCell.setBackgroundColor(LIGHT_BG);
+
+        PdfPCell valueCell = new PdfPCell(new Phrase(value,
+                new Font(Font.HELVETICA, 10, Font.NORMAL, INK)));
+        valueCell.setBorderColor(LIGHT_BG);
+        valueCell.setBorderWidth(0.5f);
+        valueCell.setPadding(8);
+
+        table.addCell(labelCell);
+        table.addCell(valueCell);
     }
 
     /**

@@ -82,9 +82,10 @@ public class AuthService {
                         "registrationMethod", "email_password"
                 ));
 
-        // 4. Welcome + verification-code emails. Best-effort — signup
-        //    never fails because of a broken/unconfigured mailer.
-        try { emailTemplateService.sendWelcomeEmail(user); } catch (Exception ignored) {}
+        // 4. Verification-code email only — best-effort. The welcome
+        //    email no longer fires here; it's deferred to the very end
+        //    of onboarding (post-agreement) so the user only gets it
+        //    once they're truly all set up.
         try { emailTemplateService.sendVerificationCodeEmail(user, code); } catch (Exception ignored) {}
 
         // 5. No JWT yet — frontend reads requiresVerification=true

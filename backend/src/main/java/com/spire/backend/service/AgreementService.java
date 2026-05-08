@@ -291,6 +291,14 @@ public class AgreementService {
         // back the verification, since the legal evidence trail is
         // already complete in the row.
         generateAndDeliverSignedPdf(row);
+
+        // Final onboarding step: now that they're fully set up
+        // (email verified + agreement accepted), send the welcome
+        // email. This is intentionally the LAST email — the welcome
+        // would have been premature during signup since the user
+        // couldn't actually use the platform until the agreement
+        // was on file.
+        try { emailTemplateService.sendWelcomeEmail(user); } catch (Exception ignored) {}
     }
 
     /**

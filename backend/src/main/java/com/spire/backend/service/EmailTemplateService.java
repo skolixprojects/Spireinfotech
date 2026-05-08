@@ -47,19 +47,30 @@ public class EmailTemplateService {
     @Value("${app.url:https://spireinfotech.vercel.app}")
     private String appUrl;
 
-    // ── 1. Welcome ──────────────────────────────────────────────────
+    // ── 1. Welcome (sent LAST, after agreement is fully accepted) ───
+    /**
+     * Final onboarding email. Fires after the user has completed
+     * email verification and the OTP-confirmed agreement acceptance,
+     * so by the time this lands they're fully set up. Not sent
+     * during signup — the welcome would otherwise be premature
+     * (account exists but they can't actually use the platform yet).
+     */
     public void sendWelcomeEmail(User user) {
-        String body = p("You've joined a learning platform where every course comes with personal mentorship.")
-                + p("Here's what you can do:")
-                + bullet("Browse self-paced courses in tech, design, and data science")
-                + bullet("Get matched with a personal mentor")
-                + bullet("Earn verified certificates")
+        String body = p("Hi " + firstName(user) + ",")
+                + p("You're all set! Your account is verified and your agreement is on file.")
+                + p("You've joined a learning platform where every course comes with personal "
+                        + "mentorship, career services, and verified certificates.")
+                + p("Here's what to do next:")
+                + bullet("Browse courses and find your first one")
+                + bullet("Each course includes a dedicated mentor")
+                + bullet("Complete courses to earn verified certificates")
                 + button("Browse Courses", appUrl + "/courses")
-                + p("Need help? Reply to this email or visit our support page.");
+                + p("Welcome aboard!")
+                + muted("— The Spire Info Tech Team");
         emailService.sendEmail(
                 user.getEmail(),
-                "Welcome to Spire Info Tech!",
-                wrap("Welcome, " + firstName(user) + "!", body)
+                "Welcome to Spire Info Tech, " + firstName(user) + "!",
+                wrap("You're all set, " + firstName(user) + "!", body)
         );
     }
 
@@ -216,19 +227,19 @@ public class EmailTemplateService {
             String version, String recordId, byte[] pdfBytes
     ) {
         String filename = "Spire-Agreement-" + (recordId == null ? "signed" : recordId) + ".pdf";
+        // legalName + version are kept on the signature for audit
+        // logging on the caller side; the user-facing body shows
+        // only the acceptance ID + timestamp per spec.
 
         String body = p("Hi " + firstName(user) + ",")
-                + p("Thank you for accepting the <strong>Spire Info Tech</strong> Terms of Service.")
-                + p("Your signed agreement is attached to this email as a PDF for your records.")
+                + p("Your agreement with <strong>Spire Info Tech</strong> has been confirmed.")
+                + p("Attached is your signed copy of the Terms of Service. Please keep this for your records.")
                 + receipt(
                         "Agreement ID: " + (recordId == null ? "—" : recordId),
-                        "Signed by: " + legalName,
-                        "Version: " + version,
-                        "Accepted: " + acceptedAtIst
+                        "Accepted on: " + acceptedAtIst
                 )
-                + p("You can also re-download the signed copy from your profile at any time.")
-                + button("Continue to Dashboard", appUrl + "/dashboard")
-                + muted("Keep this email as a record. The attached PDF is your binding signed agreement.");
+                + button("View on Platform", appUrl + "/dashboard")
+                + muted("— Spire Info Tech");
 
         java.util.List<EmailService.Attachment> attachments =
                 pdfBytes == null || pdfBytes.length == 0
@@ -239,7 +250,7 @@ public class EmailTemplateService {
         emailService.sendEmail(
                 user.getEmail(),
                 "Your signed agreement — Spire Info Tech",
-                wrap("Agreement signed", body),
+                wrap("Agreement confirmed", body),
                 attachments
         );
     }
