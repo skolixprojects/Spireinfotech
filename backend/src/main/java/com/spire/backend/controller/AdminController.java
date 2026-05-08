@@ -56,8 +56,36 @@ public class AdminController {
     }
 
     @GetMapping("/users")
-    public ResponseEntity<ApiResponse<List<UserDTO>>> getAllUsers() {
-        return ResponseEntity.ok(ApiResponse.success(adminService.getAllUsers()));
+    public ResponseEntity<ApiResponse<List<UserDTO>>> getAllUsers(
+            @RequestParam(value = "status", required = false) String status) {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAllUsers(status)));
+    }
+
+    /**
+     * Active / inactive / total user counts. Drives the count badges
+     * on the admin Users tab pills (Active users (15) / Deactivated
+     * users (3)).
+     */
+    @GetMapping("/users/counts")
+    public ResponseEntity<ApiResponse<Map<String, Long>>> getUserCounts() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getUserCounts()));
+    }
+
+    /**
+     * Reactivates a previously soft-deactivated account. Sugar over
+     * {@link #updateUserStatus} with active=true; exists as its own
+     * verb so the admin UI's "Reactivate" button has a clean,
+     * intent-revealing URL and so we can later add reactivate-only
+     * side-effects (welcome-back email, etc.) without touching the
+     * generic toggle.
+     */
+    @PutMapping("/users/{id}/reactivate")
+    public ResponseEntity<ApiResponse<UserDTO>> reactivateUser(
+            @PathVariable Long id,
+            Authentication authentication) {
+        Long currentAdminId = Long.parseLong(authentication.getPrincipal().toString());
+        UserDTO user = adminService.updateUserStatus(id, currentAdminId, true);
+        return ResponseEntity.ok(ApiResponse.success("User reactivated", user));
     }
 
     // Admin oversight: full profile of any user — name, contact, learning

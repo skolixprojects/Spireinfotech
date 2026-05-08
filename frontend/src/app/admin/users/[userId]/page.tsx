@@ -13,6 +13,7 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import {
   getUserProfileAsAdmin, updateUserRoleAsAdmin, softDeleteUserAsAdmin,
+  reactivateUserAsAdmin,
   downloadSignedAgreementPdf,
   type ProfileData,
 } from "@/lib/api";
@@ -77,6 +78,7 @@ export default function AdminUserDetailPage({
   // Soft-delete UI state — confirm modal + in-flight flag.
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
 
   useEffect(() => {
     if (authLoading) return;
@@ -107,6 +109,22 @@ export default function AdminUserDetailPage({
       toast("error", err instanceof Error ? err.message : "Failed to update role");
     } finally {
       setRoleSaving(false);
+    }
+  };
+
+  const handleReactivate = async () => {
+    if (!profile || reactivating) return;
+    if (!confirm("Reactivate this account? The user will be able to log in again.")) return;
+    setReactivating(true);
+    try {
+      await reactivateUserAsAdmin(profile.id);
+      const fresh = await getUserProfileAsAdmin(params.userId);
+      setProfile(fresh);
+      toast("success", "User reactivated");
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : "Failed to reactivate user");
+    } finally {
+      setReactivating(false);
     }
   };
 
@@ -165,6 +183,36 @@ export default function AdminUserDetailPage({
           <ShieldCheck size={12} /> Admin View
         </span>
       </div>
+
+      {/* Deactivation banner — only when this user is currently
+           inactive. Audit data (records, certs, enrollments) below
+           stays visible regardless. */}
+      {profile.isActive === false && (
+        <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-5 flex items-start gap-3">
+          <AlertCircle size={20} className="text-red-600 mt-0.5 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold text-red-800">
+              This account has been deactivated
+            </p>
+            {profile.deactivatedAt && (
+              <p className="text-xs text-red-700 mt-0.5">
+                Deactivated on {formatISTDate(profile.deactivatedAt)}
+              </p>
+            )}
+            <p className="text-xs text-red-700 mt-1">
+              Personal data has been anonymized. The audit trail below remains visible.
+            </p>
+          </div>
+          <button
+            onClick={handleReactivate}
+            disabled={reactivating}
+            className="shrink-0 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm hover:shadow-md transition-all disabled:opacity-60 cursor-pointer"
+          >
+            {reactivating ? <Loader2 size={14} className="animate-spin" /> : null}
+            Reactivate
+          </button>
+        </div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 8 }}
@@ -508,12 +556,13 @@ export default function AdminUserDetailPage({
           </div>
 
           {/* Danger zone — soft-delete. Hidden when viewing own
-              profile or another admin's profile (the backend
-              enforces the same guards, but suppressing the button
-              avoids tempting the click). Inactive users still show
-              the button so an admin can re-deactivate after a
-              re-activation reverted the anonymization (rare). */}
-          {me?.id !== profile.id && profile.role?.toUpperCase() !== "ADMIN" && (
+              profile, another admin's profile, OR a row that's
+              already deactivated (the banner at top of the page
+              handles reactivation; deactivating again would just
+              re-stamp deactivatedAt, which is wasted UX). */}
+          {me?.id !== profile.id
+              && profile.role?.toUpperCase() !== "ADMIN"
+              && profile.isActive !== false && (
             <div className="mt-8">
               <hr className="my-6 border-gray-100" />
               <h2 className="text-sm font-semibold text-red-700 mb-3 flex items-center gap-1.5">

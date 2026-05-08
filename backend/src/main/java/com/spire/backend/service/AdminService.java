@@ -116,9 +116,50 @@ public class AdminService {
     }
 
     public List<UserDTO> getAllUsers() {
+        return getAllUsers(null);
+    }
+
+    /**
+     * Filtered admin list. {@code status} accepts:
+     *   - "active"   → only is_active = true rows
+     *   - "inactive" → only is_active = false rows
+     *   - null / "all" / anything else → every row (default)
+     *
+     * Powers the Active / Deactivated tabs in the admin Users panel.
+     * Sorted by user id desc so newly-deactivated rows surface first
+     * on the Deactivated tab.
+     */
+    public List<UserDTO> getAllUsers(String status) {
+        boolean wantActive = "active".equalsIgnoreCase(status);
+        boolean wantInactive = "inactive".equalsIgnoreCase(status);
         return userRepository.findAll().stream()
+                .filter(u -> {
+                    boolean active = !Boolean.FALSE.equals(u.getIsActive());
+                    if (wantActive) return active;
+                    if (wantInactive) return !active;
+                    return true;
+                })
+                .sorted(Comparator.comparing(User::getId,
+                        Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(UserDTO::from)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * Returns active / inactive / total counts for the admin users
+     * tab labels. Computed in a single repository round-trip.
+     */
+    public Map<String, Long> getUserCounts() {
+        long active = 0, inactive = 0;
+        for (User u : userRepository.findAll()) {
+            if (Boolean.FALSE.equals(u.getIsActive())) inactive++;
+            else active++;
+        }
+        Map<String, Long> out = new LinkedHashMap<>();
+        out.put("active", active);
+        out.put("inactive", inactive);
+        out.put("total", active + inactive);
+        return out;
     }
 
     @Transactional(readOnly = true)
@@ -264,6 +305,7 @@ public class AdminService {
         String originalName = user.getFullName();
 
         user.setIsActive(false);
+        user.setDeactivatedAt(java.time.LocalDateTime.now());
         user.setEmail("deleted_" + user.getId() + "@removed.com");
         user.setFullName("Deleted User");
         user.setPhone(null);
@@ -303,6 +345,11 @@ public class AdminService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
         user.setIsActive(active);
+        // Stamp / clear the deactivation timestamp in lockstep with
+        // the boolean so the admin UI's "Deactivated on …" column has
+        // an accurate value for every inactive row, and reactivated
+        // users don't carry a stale timestamp.
+        user.setDeactivatedAt(active ? null : java.time.LocalDateTime.now());
         UserDTO saved = UserDTO.from(userRepository.save(user));
 
         if (active) {

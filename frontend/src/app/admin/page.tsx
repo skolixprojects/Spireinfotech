@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -67,7 +67,10 @@ import {
   getAdminSalesInquiry,
   type SalesInquiry,
   type SalesStats,
+  getUserCountsAsAdmin,
+  reactivateUserAsAdmin,
 } from "@/lib/api";
+import { useToast } from "@/components/ui/Toast";
 import { ConversationThread } from "@/components/sales/ConversationThread";
 import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink } from "lucide-react";
 import Link from "next/link";
@@ -118,6 +121,9 @@ interface User {
   // by the soft-delete or status-toggle endpoints). Optional here
   // so older payloads without the field still parse.
   isActive?: boolean;
+  // Stamped when the account is deactivated; null for active rows.
+  // Drives the "Deactivated on …" column on the Deactivated tab.
+  deactivatedAt?: string | null;
 }
 
 interface CourseItem {
@@ -160,14 +166,19 @@ function AdminContent() {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") || "Overview";
   const [activeTab, setActiveTab] = useState(initialTab);
+  const { toast } = useToast();
 
   // Data states
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [users, setUsers] = useState<User[]>([]);
-  // Active/inactive filter on the Users tab. Defaults to "all" so
-  // an admin coming from a deactivation immediately sees the row
-  // they just changed.
-  const [userStatusFilter, setUserStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  // Sub-tab on the Users panel: Active or Deactivated. Each tab
+  // queries the backend with its own status filter so the row count
+  // matches what the user actually sees.
+  const [usersSubTab, setUsersSubTab] = useState<"active" | "inactive">("active");
+  const [userCounts, setUserCounts] = useState<{ active: number; inactive: number; total: number }>(
+    { active: 0, inactive: 0, total: 0 },
+  );
+  const [reactivatingId, setReactivatingId] = useState<number | null>(null);
   const [requests, setRequests] = useState<InstructorRequest[]>([]);
   const [courses, setCourses] = useState<CourseItem[]>([]);
 
@@ -440,14 +451,52 @@ function AdminContent() {
       .finally(() => setLoadingAnalytics(false));
   }, []);
 
-  // Fetch users
+  // Fetch users — re-runs whenever the sub-tab flips so the table
+  // reflects the active/inactive segment without a client-side
+  // filter pass.
   useEffect(() => {
     setLoadingUsers(true);
-    getUsers()
+    getUsers(usersSubTab)
       .then((data) => setUsers(data as User[]))
       .catch((err) => setError(err.message))
       .finally(() => setLoadingUsers(false));
-  }, []);
+  }, [usersSubTab]);
+
+  // Fetch counts — drives the count badges on the sub-tab pills.
+  // Re-fetched alongside the user list so the badge stays consistent
+  // with the rows.
+  useEffect(() => {
+    getUserCountsAsAdmin()
+      .then(setUserCounts)
+      .catch(() => { /* leave stale; non-blocking */ });
+  }, [usersSubTab]);
+
+  const refreshUserList = useCallback(async () => {
+    try {
+      const [list, counts] = await Promise.all([
+        getUsers(usersSubTab),
+        getUserCountsAsAdmin(),
+      ]);
+      setUsers(list as User[]);
+      setUserCounts(counts);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to refresh users");
+    }
+  }, [usersSubTab]);
+
+  const handleReactivateUser = useCallback(async (userId: number) => {
+    if (!confirm("Reactivate this account? The user will be able to log in again.")) return;
+    setReactivatingId(userId);
+    try {
+      await reactivateUserAsAdmin(userId);
+      toast("success", "User reactivated");
+      await refreshUserList();
+    } catch (err) {
+      toast("error", err instanceof Error ? err.message : "Failed to reactivate user");
+    } finally {
+      setReactivatingId(null);
+    }
+  }, [refreshUserList, toast]);
 
   // Pagination
   const [coursePage, setCoursePage] = useState(1);
@@ -776,17 +825,6 @@ function AdminContent() {
                 <h1 className="text-2xl font-bold text-[#0F766E]">All Users</h1>
                 <div className="flex items-center gap-3">
                   <p className="text-xs text-gray-400 hidden sm:block">Click any row to view full profile + activity</p>
-                  <select
-                    value={userStatusFilter}
-                    onChange={(e) =>
-                      setUserStatusFilter(e.target.value as "all" | "active" | "inactive")
-                    }
-                    className="px-3 py-2 rounded-lg text-xs font-semibold bg-white border border-gray-200 text-gray-700 hover:border-[#0F766E] cursor-pointer focus:outline-none focus:border-[#0F766E]"
-                  >
-                    <option value="all">All</option>
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
                   <button
                     onClick={() => handleExport("users")}
                     disabled={exportingKind === "users"}
@@ -797,9 +835,37 @@ function AdminContent() {
                   </button>
                 </div>
               </div>
+
+              {/* Sub-tabs: Active / Deactivated. Each pill carries the
+                   live count from /api/admin/users/counts. */}
+              <div className="flex items-center gap-2 mb-5">
+                <button
+                  onClick={() => setUsersSubTab("active")}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer",
+                    usersSubTab === "active"
+                      ? "bg-[#0F766E] text-white shadow-sm"
+                      : "bg-white border border-gray-200 text-gray-600 hover:border-[#0F766E] hover:text-[#0F766E]"
+                  )}
+                >
+                  Active users ({userCounts.active})
+                </button>
+                <button
+                  onClick={() => setUsersSubTab("inactive")}
+                  className={cn(
+                    "px-4 py-2 rounded-lg text-sm font-semibold transition cursor-pointer",
+                    usersSubTab === "inactive"
+                      ? "bg-red-600 text-white shadow-sm"
+                      : "bg-white border border-gray-200 text-gray-600 hover:border-red-400 hover:text-red-600"
+                  )}
+                >
+                  Deactivated users ({userCounts.inactive})
+                </button>
+              </div>
+
               {loadingUsers ? (
                 <Spinner />
-              ) : (
+              ) : usersSubTab === "active" ? (
                 <GlassCard className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
@@ -812,52 +878,112 @@ function AdminContent() {
                       </tr>
                     </thead>
                     <tbody>
-                      {users
-                        .filter((u) => {
-                          // `isActive` is optional on the type to keep
-                          // older payloads parsing — treat undefined as
-                          // active so legacy seed users aren't hidden.
-                          const active = u.isActive !== false;
-                          if (userStatusFilter === "active") return active;
-                          if (userStatusFilter === "inactive") return !active;
-                          return true;
-                        })
-                        .map((user) => {
-                          const active = user.isActive !== false;
-                          return (
-                            <tr
-                              key={user.id}
-                              onClick={() => router.push(`/admin/users/${user.id}`)}
-                              className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-[#0F766E]/5 transition-colors"
-                            >
-                              <td className="py-3 text-gray-400">#{user.id}</td>
-                              <td className={`py-3 font-medium ${active ? "text-[#1a1a1a]" : "text-gray-400"}`}>{user.fullName}</td>
-                              <td className="py-3 text-gray-500">{user.email}</td>
-                              <td className="py-3">
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeColor(user.role)}`}>
-                                  {user.role}
-                                </span>
-                              </td>
-                              <td className="py-3">
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  active
-                                    ? "bg-emerald-50 text-emerald-700"
-                                    : "bg-gray-100 text-gray-500"
-                                }`}>
-                                  {active ? "Active" : "Inactive"}
-                                </span>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      {users.filter((u) => {
-                        const active = u.isActive !== false;
-                        if (userStatusFilter === "active") return active;
-                        if (userStatusFilter === "inactive") return !active;
-                        return true;
-                      }).length === 0 && (
+                      {users.map((user) => (
+                        <tr
+                          key={user.id}
+                          onClick={() => router.push(`/admin/users/${user.id}`)}
+                          className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-[#0F766E]/5 transition-colors"
+                        >
+                          <td className="py-3 text-gray-400">#{user.id}</td>
+                          <td className="py-3 font-medium text-[#1a1a1a]">{user.fullName}</td>
+                          <td className="py-3 text-gray-500">{user.email}</td>
+                          <td className="py-3">
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeColor(user.role)}`}>
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="py-3">
+                            <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700">
+                              Active
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {users.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="py-6 text-center text-gray-400">No users found.</td>
+                          <td colSpan={5} className="py-6 text-center text-gray-400">
+                            No active users found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </GlassCard>
+              ) : (
+                <GlassCard className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-gray-500 border-b border-gray-100">
+                        <th className="pb-3 font-medium">ID</th>
+                        <th className="pb-3 font-medium">Name</th>
+                        <th className="pb-3 font-medium">Email</th>
+                        <th className="pb-3 font-medium">Role</th>
+                        <th className="pb-3 font-medium">Deactivated on</th>
+                        <th className="pb-3 font-medium text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {users.map((user) => (
+                        <tr
+                          key={user.id}
+                          className="border-b border-gray-50 last:border-0 bg-red-50/40 hover:bg-red-50/70 transition-colors"
+                        >
+                          <td
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                            className="py-3 text-gray-400 cursor-pointer"
+                          >
+                            #{user.id}
+                          </td>
+                          <td
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                            className="py-3 font-medium text-gray-400 cursor-pointer"
+                          >
+                            {user.fullName}
+                          </td>
+                          <td
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                            className="py-3 text-gray-400 cursor-pointer"
+                          >
+                            {user.email}
+                          </td>
+                          <td
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                            className="py-3 cursor-pointer"
+                          >
+                            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${roleBadgeColor(user.role)} opacity-60`}>
+                              {user.role}
+                            </span>
+                          </td>
+                          <td
+                            onClick={() => router.push(`/admin/users/${user.id}`)}
+                            className="py-3 text-gray-500 cursor-pointer"
+                          >
+                            {user.deactivatedAt
+                              ? formatISTDate(user.deactivatedAt)
+                              : <span className="text-gray-400">—</span>}
+                          </td>
+                          <td className="py-3 text-right">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleReactivateUser(user.id);
+                              }}
+                              disabled={reactivatingId === user.id}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 cursor-pointer"
+                            >
+                              {reactivatingId === user.id ? (
+                                <Loader2 size={12} className="animate-spin" />
+                              ) : null}
+                              Reactivate
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {users.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="py-6 text-center text-gray-400">
+                            No deactivated users.
+                          </td>
                         </tr>
                       )}
                     </tbody>

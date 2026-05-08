@@ -610,6 +610,7 @@ public class DataSeeder implements CommandLineRunner {
                 {"reset_token_expires_at TIMESTAMP", "reset_token_expires_at"},
                 {"last_nudge_sent_at TIMESTAMP", "last_nudge_sent_at"},
                 {"agreement_accepted BOOLEAN NOT NULL DEFAULT FALSE", "agreement_accepted"},
+                {"deactivated_at TIMESTAMP", "deactivated_at"},
         };
         for (String[] col : columns) {
             try {

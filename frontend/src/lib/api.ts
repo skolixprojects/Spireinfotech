@@ -40,6 +40,10 @@ export interface UserDTO {
   // Service flow. Optional so older payloads still parse.
   agreementAccepted?: boolean;
   createdAt?: string | null;
+  // Stamped when an admin deactivates the account; cleared on
+  // reactivate. Drives the "Deactivated on …" column on the admin
+  // Deactivated Users tab.
+  deactivatedAt?: string | null;
 }
 
 export interface AuthResponse {
@@ -744,8 +748,40 @@ export async function getAnalytics() {
   return wrapper.data;
 }
 
-export async function getUsers() {
-  const wrapper = await apiFetch<ApiResponse<unknown[]>>("/api/admin/users");
+/**
+ * Admin user list. {@code status} narrows to `active` / `inactive`
+ * rows (server-side); omit for all users. Returns the raw payload
+ * for legacy callers that still cast to `User[]`; new callers should
+ * use {@link UserDTO}.
+ */
+export async function getUsers(status?: "active" | "inactive") {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const wrapper = await apiFetch<ApiResponse<unknown[]>>(`/api/admin/users${qs}`);
+  return wrapper.data;
+}
+
+export interface AdminUserCounts {
+  active: number;
+  inactive: number;
+  total: number;
+}
+
+export async function getUserCountsAsAdmin(): Promise<AdminUserCounts> {
+  const wrapper = await apiFetch<ApiResponse<AdminUserCounts>>("/api/admin/users/counts");
+  return wrapper.data ?? { active: 0, inactive: 0, total: 0 };
+}
+
+/**
+ * Flips a soft-deactivated account back to active. Distinct from
+ * {@link updateUserStatusAsAdmin} so the call site reads as the
+ * specific admin verb the UI surfaces (the Reactivate button on the
+ * Deactivated Users tab).
+ */
+export async function reactivateUserAsAdmin(userId: number | string) {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/admin/users/${userId}/reactivate`,
+    { method: "PUT" },
+  );
   return wrapper.data;
 }
 

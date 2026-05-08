@@ -31,6 +31,12 @@ public class UserDTO {
      */
     private Boolean agreementAccepted;
     private LocalDateTime createdAt;
+    /**
+     * When the account was deactivated. Null for active accounts;
+     * powers the "Deactivated on …" column on the admin Deactivated
+     * Users tab and the deactivation banner on the user detail page.
+     */
+    private LocalDateTime deactivatedAt;
 
     public static UserDTO from(User user) {
         return UserDTO.builder()
@@ -45,6 +51,7 @@ public class UserDTO {
                 .instructorApproved(Boolean.TRUE.equals(user.getInstructorApproved()))
                 .agreementAccepted(Boolean.TRUE.equals(user.getAgreementAccepted()))
                 .createdAt(user.getCreatedAt())
+                .deactivatedAt(user.getDeactivatedAt())
                 .build();
     }
 }

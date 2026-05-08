@@ -72,6 +72,15 @@ public class User {
     @Builder.Default
     private Boolean isActive = true;
 
+    /**
+     * Stamped when an admin flips {@code isActive} to false (either
+     * via /status with active=false or the soft-delete endpoint).
+     * Cleared when an admin reactivates the account. Drives the
+     * "Deactivated on …" column + banner in the admin UI.
+     */
+    @Column(name = "deactivated_at")
+    private LocalDateTime deactivatedAt;
+
     // ─── Email verification ─────────────────────────────────────────
     // Default false on signup — flipped true after the user enters
     // the 6-digit code we email them. Code + expiry are cleared once
