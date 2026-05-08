@@ -8,11 +8,12 @@ import {
   ArrowLeft, Phone, MapPin, Calendar, Loader2, AlertCircle,
   BookOpen, GraduationCap, Award, Flame, CheckCircle2, Clock,
   ShieldCheck, ExternalLink, Briefcase, Activity, FileText,
-  Trash2, X, Globe, Monitor,
+  Trash2, X, Globe, Monitor, Download,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
   getUserProfileAsAdmin, updateUserRoleAsAdmin, softDeleteUserAsAdmin,
+  downloadSignedAgreementPdf,
   type ProfileData,
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
@@ -674,6 +675,25 @@ function AgreementStatusCard({
         <AgreementField label="Record ID"
           value={<code className="font-mono text-[#0F766E]">{agreement.recordId}</code>} />
       </dl>
+
+      {agreement.signedAgreementPdfUrl ? (
+        <button
+          type="button"
+          onClick={() => {
+            void downloadSignedAgreementPdf(
+              agreement.signedAgreementPdfUrl!,
+              `Spire-Agreement-${agreement.recordId}.pdf`,
+            );
+          }}
+          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-800 active:scale-[0.99] transition-all cursor-pointer"
+        >
+          <Download size={14} /> Download Signed Agreement
+        </button>
+      ) : (
+        <p className="mt-4 text-xs text-gray-500 italic">
+          Signed PDF not available for this acceptance.
+        </p>
+      )}
     </div>
   );
 }

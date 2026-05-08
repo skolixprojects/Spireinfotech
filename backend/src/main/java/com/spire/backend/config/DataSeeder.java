@@ -654,6 +654,20 @@ public class DataSeeder implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("Couldn't grandfather pre-agreement users: {}", e.getMessage());
         }
+
+        // Backfill the signed-PDF URL column on agreement_acceptances.
+        // Set when the post-OTP PDF generator successfully writes the
+        // personalized signed agreement; nullable so historic rows
+        // (accepted before this flow shipped) stay valid.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE agreement_acceptances ADD COLUMN IF NOT EXISTS "
+                            + "signed_agreement_pdf_url VARCHAR(512)");
+            log.info("Ensured agreement_acceptances.signed_agreement_pdf_url exists");
+        } catch (Exception e) {
+            log.debug("Couldn't add agreement_acceptances.signed_agreement_pdf_url "
+                    + "(likely already present, or table not yet created): {}", e.getMessage());
+        }
     }
 
     /**

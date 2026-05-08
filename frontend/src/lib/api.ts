@@ -305,6 +305,39 @@ export async function resendAgreementCode(): Promise<{ cooldownSeconds: number }
   return wrapper.data ?? { cooldownSeconds: 60 };
 }
 
+/**
+ * Fetches the signed-agreement PDF as a blob with the user's JWT
+ * attached, then triggers a browser download. Used by both the
+ * student profile and the admin user-detail panel; the backend
+ * gates the call to the owning user or any admin.
+ */
+export async function downloadSignedAgreementPdf(
+  relativePath: string,
+  filename = "Spire-Agreement.pdf",
+): Promise<void> {
+  const token = typeof window === "undefined"
+    ? null
+    : localStorage.getItem("access_token");
+  const url = relativePath.startsWith("http")
+    ? relativePath
+    : `${API_BASE_URL}${relativePath}`;
+  const res = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    throw new Error(`Download failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = objectUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 // ─── Password reset ─────────────────────────────────────────────────
 
 /**
@@ -346,6 +379,9 @@ export interface ProfileAgreementSummary {
   browser: string | null;
   os: string | null;
   recordId: string;
+  // Personalized signed-agreement PDF download URL (relative to API_BASE_URL).
+  // Null for legacy verified rows that pre-date the PDF flow.
+  signedAgreementPdfUrl?: string | null;
 }
 
 export interface ProfileData extends UserDTO {

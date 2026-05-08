@@ -27,11 +27,18 @@ import nodemailer from "nodemailer";
 // `net` for the raw SMTP socket).
 export const runtime = "nodejs";
 
+interface AttachmentBody {
+  filename?: string;
+  contentType?: string;
+  contentBase64?: string;
+}
+
 interface SendEmailBody {
   to?: string;
   subject?: string;
   html?: string;
   secret?: string;
+  attachments?: AttachmentBody[];
 }
 
 export async function POST(req: NextRequest) {
@@ -45,7 +52,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { to, subject, html, secret } = body;
+  const { to, subject, html, secret, attachments } = body;
 
   // Auth gate — rejected before any validation so a probe can't
   // distinguish "missing field" vs "wrong secret".
@@ -86,6 +93,19 @@ export async function POST(req: NextRequest) {
       auth: { user, pass },
     });
 
+    // Decode the base64 attachments shipped by the backend relay.
+    // Nodemailer accepts a Buffer for the `content` field; we
+    // ignore malformed entries silently so a single broken
+    // attachment can't fail the whole send.
+    const mailAttachments = (attachments ?? [])
+      .filter((a): a is Required<Pick<AttachmentBody, "filename" | "contentBase64">> & AttachmentBody =>
+        typeof a?.filename === "string" && typeof a?.contentBase64 === "string")
+      .map((a) => ({
+        filename: a.filename,
+        content: Buffer.from(a.contentBase64, "base64"),
+        contentType: a.contentType ?? "application/octet-stream",
+      }));
+
     // Display name hardcoded in code rather than read from env so an
     // SMTP_FROM that's just a bare address (or one with stray quotes)
     // can't make Gmail render the "From" as the local-part of the
@@ -95,6 +115,7 @@ export async function POST(req: NextRequest) {
       to,
       subject,
       html,
+      ...(mailAttachments.length > 0 ? { attachments: mailAttachments } : {}),
     });
 
     console.log("[SMTP] Email sent:", result.messageId);

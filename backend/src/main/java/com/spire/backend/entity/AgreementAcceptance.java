@@ -150,4 +150,13 @@ public class AgreementAcceptance {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    /**
+     * Public download URL of the personalized signed agreement PDF
+     * generated after the OTP verification completes. Populated by
+     * {@code AgreementPdfService}; null until the PDF is written
+     * (or for legacy rows accepted before the PDF flow shipped).
+     */
+    @Column(name = "signed_agreement_pdf_url", length = 512)
+    private String signedAgreementPdfUrl;
 }

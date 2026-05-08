@@ -66,6 +66,7 @@ public class AgreementService {
     private final UserRepository userRepository;
     private final EmailTemplateService emailTemplateService;
     private final RecordService recordService;
+    private final AgreementPdfService agreementPdfService;
 
     // ─── Status read ────────────────────────────────────────────────
 
@@ -284,6 +285,62 @@ public class AgreementService {
                         "os", row.getOs() != null ? row.getOs() : "",
                         "replyContent", row.getUserReplyContent() != null ? row.getUserReplyContent() : ""
                 ));
+
+        // Generate the personalized signed PDF + email it as an
+        // attachment. Best-effort — a PDF / SMTP outage must not roll
+        // back the verification, since the legal evidence trail is
+        // already complete in the row.
+        generateAndDeliverSignedPdf(row);
+    }
+
+    /**
+     * Renders the personalized signed-agreement PDF for a verified
+     * row, persists its public download URL, and emails the user a
+     * copy as an attachment. All failures are swallowed and logged —
+     * the row is already verified at this point and the PDF is a
+     * post-acceptance artifact, not a precondition.
+     */
+    private void generateAndDeliverSignedPdf(AgreementAcceptance row) {
+        String fileName = null;
+        try {
+            fileName = agreementPdfService.generate(row);
+            row.setSignedAgreementPdfUrl(
+                    "/api/agreement/signed-pdf/" + row.getUser().getId() + "/" + fileName);
+            agreementRepository.save(row);
+        } catch (Exception e) {
+            log.error("Signed agreement PDF generation failed for user {}: {}",
+                    row.getUser().getId(), e.getMessage());
+        }
+
+        // Email — read bytes off disk so the relay payload is the
+        // exact file we'll later serve from the download endpoint.
+        try {
+            byte[] pdfBytes = null;
+            if (fileName != null) {
+                java.nio.file.Path p = java.nio.file.Paths.get(
+                        "signed-agreements/" + fileName);
+                if (java.nio.file.Files.exists(p)) {
+                    pdfBytes = java.nio.file.Files.readAllBytes(p);
+                }
+            }
+            String acceptedAt = row.getAcceptedAt() == null ? ""
+                    : row.getAcceptedAt()
+                            .atZone(java.time.ZoneId.of("Asia/Kolkata"))
+                            .format(java.time.format.DateTimeFormatter
+                                    .ofPattern("d MMMM yyyy, h:mm a 'IST'"));
+            String recordId = String.format("AGR-%d-%05d",
+                    row.getCreatedAt() == null
+                            ? java.time.LocalDate.now().getYear()
+                            : row.getCreatedAt().getYear(),
+                    row.getId());
+
+            emailTemplateService.sendSignedAgreementEmail(
+                    row.getUser(), row.getLegalName(), acceptedAt,
+                    row.getAgreementVersion(), recordId, pdfBytes);
+        } catch (Exception e) {
+            log.error("Signed agreement email failed for user {}: {}",
+                    row.getUser().getId(), e.getMessage());
+        }
     }
 
     // ─── Resend agreement-request email ─────────────────────────────

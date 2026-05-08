@@ -148,6 +148,7 @@ public class ProfileService {
                     .browser(a.getBrowser())
                     .os(a.getOs())
                     .recordId(recordId)
+                    .signedAgreementPdfUrl(a.getSignedAgreementPdfUrl())
                     .build());
         });
 

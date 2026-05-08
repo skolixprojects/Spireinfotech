@@ -1,17 +1,24 @@
 package com.spire.backend.controller;
 
 import com.spire.backend.dto.ApiResponse;
+import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.exception.UnauthorizedException;
+import com.spire.backend.repository.AgreementAcceptanceRepository;
 import com.spire.backend.service.AgreementService;
+import com.spire.backend.service.TermsContentService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.io.File;
 import java.util.Map;
 
 /**
@@ -29,12 +36,20 @@ import java.util.Map;
  * Mounted under /api/auth/* so they're exempt from the agreement
  * gate (otherwise users could never reach the flow that lets them
  * satisfy it).
+ *
+ * Terms content lives in a single JSON file
+ * ({@code resources/terms/v1.0.json}) loaded by
+ * {@link TermsContentService}. Both this endpoint and the personalized
+ * signed-agreement PDF generator render from that one file, so the
+ * website terms and the PDF are always identical.
  */
 @RestController
 @RequiredArgsConstructor
 public class AgreementController {
 
     private final AgreementService agreementService;
+    private final TermsContentService termsContentService;
+    private final AgreementAcceptanceRepository agreementRepository;
 
     @Value("${agreement.cron.secret:}")
     private String cronSecret;
@@ -142,13 +157,63 @@ public class AgreementController {
 
     // ─── Public: current terms text ─────────────────────────────────
 
+    /**
+     * Public terms read. Renders directly from the v1.0.json file
+     * via {@link TermsContentService} — same source as the signed PDF.
+     */
     @GetMapping("/api/agreement/terms")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getTerms() {
-        return ResponseEntity.ok(ApiResponse.success(Map.of(
-                "version", AgreementService.CURRENT_VERSION,
-                "lastUpdated", "2026-05-01",
-                "sections", TERMS_SECTIONS
-        )));
+        TermsContentService.TermsDocument doc =
+                termsContentService.getTerms(AgreementService.CURRENT_VERSION);
+        return ResponseEntity.ok(ApiResponse.success(termsContentService.toApiResponse(doc)));
+    }
+
+    // ─── Signed-agreement PDF download ──────────────────────────────
+
+    /**
+     * Streams the personalized signed-agreement PDF generated when
+     * the user completed OTP verification. Owner-or-admin gated:
+     * the path's {@code userId} must match the JWT principal,
+     * otherwise the caller must hold ROLE_ADMIN. Files live at
+     * {@code signed-agreements/{filename}} on the backend's working
+     * directory; the {@code userId} segment in the URL is purely
+     * for display and a defence-in-depth check on the row lookup.
+     */
+    @GetMapping("/api/agreement/signed-pdf/{userId}/{fileName:.+}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Resource> downloadSignedAgreement(
+            @PathVariable Long userId,
+            @PathVariable String fileName,
+            Authentication auth) {
+        Long callerId = Long.parseLong(auth.getPrincipal().toString());
+        boolean isOwner = callerId.equals(userId);
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (!isOwner && !isAdmin) {
+            throw new UnauthorizedException("Not allowed to download this agreement");
+        }
+
+        // Cross-check the row so a user can't probe other users'
+        // filenames even if they accidentally land on a path with
+        // someone else's id swapped in.
+        var row = agreementRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Agreement", "userId", userId));
+        String storedUrl = row.getSignedAgreementPdfUrl();
+        if (storedUrl == null || !storedUrl.endsWith("/" + fileName)) {
+            throw new ResourceNotFoundException("SignedAgreement", "file", fileName);
+        }
+
+        File file = new File("signed-agreements/" + fileName);
+        if (!file.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+        Resource resource = new FileSystemResource(file);
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"Spire-Agreement-" + userId + ".pdf\"")
+                .body(resource);
     }
 
     private static String clientIp(HttpServletRequest request) {
@@ -158,44 +223,5 @@ public class AgreementController {
             return (comma > 0 ? xff.substring(0, comma) : xff).trim();
         }
         return request.getRemoteAddr();
-    }
-
-    // ─── Terms text (14 sections, frozen at v1.0) ───────────────────
-    // Edits to this list bump the agreement version implicitly —
-    // existing acceptance rows stamp the old version string at
-    // accept time, so historic consents stay attributable.
-    private static final List<Map<String, String>> TERMS_SECTIONS = List.of(
-            sec("1. Introduction",
-                    "Welcome to Spire Info Tech (\"Company\", \"we\", \"us\"). By creating an account and using our platform at spireinfotech.vercel.app, you agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree, please do not use our services."),
-            sec("2. Definitions",
-                    "\"Platform\" refers to the Spire Info Tech website and all related services. \"User\" refers to any individual who creates an account. \"Content\" refers to all courses, video lessons, quizzes, assignments, and educational materials. \"Mentor\" refers to an instructor assigned to guide a User. \"Services\" refers to career services including resume preparation, interview training, LinkedIn optimization, and placement assistance."),
-            sec("3. User Accounts",
-                    "You must provide accurate and complete information when creating your account. You are responsible for maintaining the confidentiality of your login credentials. You must be at least 18 years of age or have parental/guardian consent. Each individual may maintain only one account. You agree to notify us immediately of any unauthorized use of your account."),
-            sec("4. Course Content & Intellectual Property",
-                    "All course content, including but not limited to video lessons, quizzes, assignments, code samples, and supplementary materials, is the intellectual property of Spire Info Tech and its respective instructors. You are granted a limited, non-exclusive, non-transferable license to access content solely for personal educational purposes. You may NOT record, screenshot, download, copy, distribute, share, or redistribute any course content by any means. You may NOT use screen recording software, capture tools, or any other method to capture course content. Violation of these terms may result in immediate account termination without refund and may subject you to legal action under applicable copyright laws."),
-            sec("5. Payments & Refunds",
-                    "All course prices are listed in Indian Rupees (INR) and are one-time payments granting lifetime access to the purchased course. Refund requests must be submitted within 7 days of purchase. No refunds will be issued if you have accessed more than 25% of the course content. Custom pricing agreements made through our Contact Sales feature are binding once accepted. Spire Info Tech reserves the right to modify pricing at any time. Existing purchases are not affected by price changes."),
-            sec("6. Mentorship",
-                    "Each course enrollment includes assignment of a personal mentor. Mentors provide guidance, feedback, and support but do not guarantee specific learning outcomes or career results. Session scheduling is subject to mentor availability. Users must attend scheduled sessions or cancel at least 24 hours in advance. Repeated no-shows may result in reduced session privileges. The mentor-student relationship is limited to the platform and course scope."),
-            sec("7. Certificates",
-                    "Certificates of completion are issued upon finishing all course requirements including lessons and assessments. Each certificate includes a unique verification number that can be independently verified at our verification page. Certificates represent completion of coursework and do not constitute a degree, diploma, or professional certification. Misrepresentation of certificate credentials is strictly prohibited."),
-            sec("8. Privacy & Data Collection",
-                    "We collect personal information including: name, email address, phone number, learning activity data, IP addresses, browser information, and device details. This data is used for: platform operation and improvement, communication regarding your account and courses, security monitoring and fraud prevention, and analytics to improve our services. We do NOT sell, rent, or trade your personal information to third parties. Activity logs and learning records are maintained for security, audit, and evidence purposes. You may request a complete export of your data or request deletion of your account by contacting support."),
-            sec("9. Content Protection Monitoring",
-                    "Our platform employs various security measures to protect course content, including but not limited to: browser-level protections against unauthorized copying, watermarking technology that identifies the viewing user, activity monitoring to detect potential content theft, and session tracking for security purposes. By using our platform, you consent to these protective measures. Attempting to circumvent content protection measures is a violation of these terms."),
-            sec("10. Account Termination",
-                    "Spire Info Tech reserves the right to suspend or terminate your account at any time for violation of these Terms of Service, including but not limited to: unauthorized content distribution, fraudulent activity, abusive behavior toward mentors or staff, or any other conduct deemed harmful to the platform or its users. Users may request voluntary account deletion through the support page. Upon termination, access to all courses and content is immediately revoked."),
-            sec("11. Limitation of Liability",
-                    "The platform and all content are provided on an \"as is\" and \"as available\" basis. Spire Info Tech makes no warranties regarding the accuracy, completeness, or reliability of any content. We are not liable for any direct, indirect, incidental, or consequential damages arising from your use of the platform. We do not guarantee specific career outcomes, job placements, or salary increases as a result of completing our courses or services."),
-            sec("12. Changes to Terms",
-                    "Spire Info Tech reserves the right to update or modify these Terms of Service at any time. Users will be notified of significant changes via email and/or platform notification. Continued use of the platform after changes constitutes acceptance of the updated terms. For major changes, users may be required to re-accept the updated terms."),
-            sec("13. Governing Law & Dispute Resolution",
-                    "These Terms of Service shall be governed by and construed in accordance with the laws of India. Any disputes arising from or relating to these terms shall be subject to the exclusive jurisdiction of the courts in Hyderabad, Telangana, India. Both parties agree to attempt to resolve any disputes through good-faith negotiation before pursuing legal action."),
-            sec("14. Contact Information",
-                    "For any questions or concerns regarding these Terms of Service, please contact us at: Email: noreply@spireitco.com | Website: spireinfotech.vercel.app/support | Address: Hyderabad, Telangana, India")
-    );
-
-    private static Map<String, String> sec(String title, String content) {
-        return Map.of("title", title, "content", content);
     }
 }

@@ -10,8 +10,11 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -72,20 +75,47 @@ public class EmailService {
      * exception — callers expect this to never throw.
      */
     public void sendEmail(String to, String subject, String htmlBody) {
+        sendEmail(to, subject, htmlBody, List.of());
+    }
+
+    /**
+     * Send a message with one or more PDF / binary attachments.
+     * Attachments are base64-encoded into the JSON payload and
+     * decoded by the Vercel relay before handing them to Nodemailer.
+     * Keep payload size reasonable — relay HTTP body is bounded by
+     * Vercel's request limits (4.5 MB on hobby/Pro routes).
+     */
+    public void sendEmail(String to, String subject, String htmlBody, List<Attachment> attachments) {
         if (!isConfigured()) {
             log.warn("Email relay not configured — skipping send: subject='{}' to='{}'", subject, to);
             return;
         }
         try {
-            Map<String, String> payload = new HashMap<>();
+            // Use Object map (not String map) so we can mix the JSON
+            // string fields with the attachments array.
+            Map<String, Object> payload = new HashMap<>();
             payload.put("to", to);
             payload.put("subject", subject);
             payload.put("html", htmlBody);
             payload.put("secret", relaySecret);
 
+            if (attachments != null && !attachments.isEmpty()) {
+                List<Map<String, String>> attachList = new ArrayList<>(attachments.size());
+                for (Attachment a : attachments) {
+                    if (a == null || a.content() == null || a.filename() == null) continue;
+                    Map<String, String> entry = new HashMap<>();
+                    entry.put("filename", a.filename());
+                    entry.put("contentType", a.contentType() == null
+                            ? "application/octet-stream" : a.contentType());
+                    entry.put("contentBase64", Base64.getEncoder().encodeToString(a.content()));
+                    attachList.add(entry);
+                }
+                payload.put("attachments", attachList);
+            }
+
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
-            HttpEntity<Map<String, String>> request = new HttpEntity<>(payload, headers);
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(payload, headers);
 
             // Use LinkedHashMap so any future logging of the response
             // body keeps a stable field order.
@@ -100,7 +130,8 @@ public class EmailService {
                     && Boolean.TRUE.equals(body.get("ok"));
 
             if (ok) {
-                log.info("Email relayed via Vercel: subject='{}' to='{}'", subject, to);
+                log.info("Email relayed via Vercel: subject='{}' to='{}' attachments={}",
+                        subject, to, attachments == null ? 0 : attachments.size());
             } else {
                 String detail = body != null && body.get("message") != null
                         ? body.get("message").toString() : "no body";
@@ -111,4 +142,11 @@ public class EmailService {
                     subject, to, e.getMessage());
         }
     }
+
+    /**
+     * Single attachment payload — raw bytes, filename, and MIME type.
+     * The relay client base64-encodes {@code content} into the JSON
+     * body the Vercel route expects.
+     */
+    public record Attachment(String filename, String contentType, byte[] content) {}
 }

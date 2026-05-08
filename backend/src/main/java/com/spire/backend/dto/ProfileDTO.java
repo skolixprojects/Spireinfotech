@@ -118,6 +118,10 @@ public class ProfileDTO {
         // Stable display id ("AGR-2026-00009") computed from the
         // backing row's primary key + creation year.
         private String recordId;
+        // Personalized signed-agreement PDF URL (relative path).
+        // Populated for verified rows once the PDF generator runs;
+        // null for legacy verified rows that pre-date the flow.
+        private String signedAgreementPdfUrl;
     }
 
     public static ProfileDTO from(
