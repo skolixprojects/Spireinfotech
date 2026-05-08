@@ -114,19 +114,23 @@ public class AgreementPdfService {
     }
 
     /**
-     * Renders the body PDF: header, user details box, all terms
-     * sections, acceptance confirmations, and signature block.
-     * Returns the raw PDF bytes so the caller can either ship them
-     * unmodified or overlay them onto a letterhead.
+     * Renders the body PDF: terms, acceptance confirmations, and the
+     * personalized signature page. Returns the raw PDF bytes so the
+     * caller can either ship them unmodified or overlay them onto a
+     * letterhead.
+     *
+     * Margins are sized to fit the Spire letterhead: ~140pt top
+     * clears the logo + corner accents; ~100pt bottom clears the
+     * address footer; 65pt sides clear the teal corner trim.
+     * No header / footer painting happens here — the letterhead
+     * provides all branding when overlaid, so a second header bar
+     * would just stack on top of the real one.
      */
     private byte[] renderBody(AgreementAcceptance row, TermsDocument doc) {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            // Top margin leaves room for the letterhead header strip /
-            // native header to live above the content area.
-            Document document = new Document(PageSize.A4, 54, 54, 110, 70);
-            PdfWriter writer = PdfWriter.getInstance(document, baos);
-            writer.setPageEvent(new HeaderFooter(doc, row));
+            Document document = new Document(PageSize.A4, 65, 65, 140, 100);
+            PdfWriter.getInstance(document, baos);
             document.open();
 
             User user = row.getUser();
@@ -337,93 +341,4 @@ public class AgreementPdfService {
         table.addCell(valueCell);
     }
 
-    /**
-     * Native header + footer painted on every page when no
-     * letterhead template is bundled. When a letterhead overlay is
-     * used the visual header is provided by the letterhead PDF
-     * itself, but we still render the page-number footer here
-     * because letterheads typically don't carry that.
-     */
-    private static class HeaderFooter extends com.lowagie.text.pdf.PdfPageEventHelper {
-        private final TermsDocument doc;
-        private final AgreementAcceptance row;
-
-        HeaderFooter(TermsDocument doc, AgreementAcceptance row) {
-            this.doc = doc;
-            this.row = row;
-        }
-
-        @Override
-        public void onEndPage(PdfWriter writer, Document document) {
-            try {
-                PdfContentByte cb = writer.getDirectContent();
-                Rectangle page = document.getPageSize();
-
-                // Header: teal band + platform name. Sized to live
-                // ABOVE the body's top margin so a letterhead overlay
-                // can hide it if needed.
-                cb.saveState();
-                cb.setColorFill(TEAL_PRIMARY);
-                cb.rectangle(0, page.getHeight() - 60, page.getWidth(), 60);
-                cb.fill();
-                cb.restoreState();
-
-                cb.beginText();
-                cb.setFontAndSize(com.lowagie.text.pdf.BaseFont.createFont(
-                        com.lowagie.text.pdf.BaseFont.HELVETICA_BOLD,
-                        com.lowagie.text.pdf.BaseFont.WINANSI, false), 16);
-                cb.setColorFill(Color.WHITE);
-                cb.setTextMatrix(54, page.getHeight() - 36);
-                cb.showText(doc.platform());
-                cb.endText();
-
-                cb.beginText();
-                cb.setFontAndSize(com.lowagie.text.pdf.BaseFont.createFont(
-                        com.lowagie.text.pdf.BaseFont.HELVETICA,
-                        com.lowagie.text.pdf.BaseFont.WINANSI, false), 9);
-                cb.setColorFill(Color.WHITE);
-                cb.setTextMatrix(54, page.getHeight() - 50);
-                cb.showText("Signed Agreement  •  " + doc.version());
-                cb.endText();
-
-                // Right-aligned record locator on the header
-                String locator = "AGR-" + row.getId();
-                var bf = com.lowagie.text.pdf.BaseFont.createFont(
-                        com.lowagie.text.pdf.BaseFont.HELVETICA,
-                        com.lowagie.text.pdf.BaseFont.WINANSI, false);
-                float w = bf.getWidthPoint(locator, 9);
-                cb.beginText();
-                cb.setFontAndSize(bf, 9);
-                cb.setColorFill(Color.WHITE);
-                cb.setTextMatrix(page.getWidth() - 54 - w, page.getHeight() - 36);
-                cb.showText(locator);
-                cb.endText();
-
-                // Footer band — light grey rule + page number / contact
-                cb.setColorStroke(LIGHT_BG);
-                cb.setLineWidth(0.5f);
-                cb.moveTo(54, 50);
-                cb.lineTo(page.getWidth() - 54, 50);
-                cb.stroke();
-
-                cb.beginText();
-                cb.setFontAndSize(bf, 8);
-                cb.setColorFill(MUTED);
-                cb.setTextMatrix(54, 36);
-                cb.showText(doc.platform() + "  •  " + doc.platformUrl());
-                cb.endText();
-
-                String pageLabel = "Page " + writer.getPageNumber();
-                float pw = bf.getWidthPoint(pageLabel, 8);
-                cb.beginText();
-                cb.setFontAndSize(bf, 8);
-                cb.setColorFill(MUTED);
-                cb.setTextMatrix(page.getWidth() - 54 - pw, 36);
-                cb.showText(pageLabel);
-                cb.endText();
-            } catch (Exception e) {
-                log.debug("Header/footer paint failed: {}", e.getMessage());
-            }
-        }
-    }
 }
