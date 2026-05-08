@@ -108,7 +108,9 @@ public class AgreementService {
     @Transactional
     public Map<String, Object> requestAcceptance(
             Long userId, String legalName, boolean termsAccepted,
-            boolean contentPolicyAccepted, String ipAddress, String userAgent
+            boolean contentPolicyAccepted,
+            String signatureImage, String signatureMethod,
+            String ipAddress, String userAgent
     ) {
         if (legalName == null || countWords(legalName) < 2) {
             throw new IllegalArgumentException(
@@ -117,6 +119,24 @@ public class AgreementService {
         if (!termsAccepted || !contentPolicyAccepted) {
             throw new IllegalArgumentException(
                     "You must agree to both the Terms of Service and the content policy.");
+        }
+        if (signatureImage == null || signatureImage.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Please add your digital signature before submitting.");
+        }
+        if (!signatureImage.startsWith("data:image/")) {
+            throw new IllegalArgumentException(
+                    "Signature must be an image (PNG / JPG).");
+        }
+        // 2 MB cap on the encoded payload — base64 inflates the binary
+        // by ~33%, so a true ~1.5 MB image produces a ~2 MB string.
+        if (signatureImage.length() > 2_800_000) {
+            throw new IllegalArgumentException(
+                    "Signature image is too large (max 2 MB).");
+        }
+        String method = signatureMethod == null ? "draw" : signatureMethod.toLowerCase();
+        if (!"draw".equals(method) && !"upload".equals(method)) {
+            method = "draw";
         }
 
         User user = userRepository.findById(userId)
@@ -149,6 +169,8 @@ public class AgreementService {
         row.setUserAgent(userAgent);
         row.setBrowser(ua.browser);
         row.setOs(ua.os);
+        row.setSignatureImage(signatureImage);
+        row.setSignatureMethod(method);
         row.setAgreementEmailSentAt(now);
         row.setAgreementExpiresAt(now.plusMinutes(AGREEMENT_EMAIL_TTL_MINUTES));
         row.setLastResendAt(now);

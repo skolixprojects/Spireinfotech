@@ -159,4 +159,24 @@ public class AgreementAcceptance {
      */
     @Column(name = "signed_agreement_pdf_url", length = 512)
     private String signedAgreementPdfUrl;
+
+    /**
+     * Base64-encoded PNG of the user's digital signature, captured
+     * either by drawing on a canvas or uploading an image. Stored
+     * with the {@code data:image/png;base64,…} prefix so the value
+     * can be dropped straight into an &lt;img src&gt; tag for the
+     * admin display, while the OpenPDF embed strips the prefix
+     * before decoding.
+     *
+     * Stored as TEXT (longer than VARCHAR can hold for a 200×80
+     * canvas at full quality). Required for new acceptances; nullable
+     * here to keep the column compatible with rows that pre-date the
+     * signature feature.
+     */
+    @Column(name = "signature_image", columnDefinition = "TEXT")
+    private String signatureImage;
+
+    /** Either {@code "draw"} or {@code "upload"}. Audit value only. */
+    @Column(name = "signature_method", length = 20)
+    private String signatureMethod;
 }

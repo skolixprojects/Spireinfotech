@@ -283,6 +283,11 @@ export async function acceptAgreement(payload: {
   legalName: string;
   termsAccepted: boolean;
   contentPolicyAccepted: boolean;
+  // Base64 data-URL of the user's drawn / uploaded signature.
+  // Server-side validation requires the data:image/* prefix and
+  // a payload under ~2 MB.
+  signatureImage: string;
+  signatureMethod: "draw" | "upload";
 }): Promise<{ success: boolean; alreadyAccepted: boolean; status: AgreementStatusValue; message: string; expiresAt?: string }> {
   const wrapper = await apiFetch<ApiResponse<{
     success: boolean; alreadyAccepted: boolean;
@@ -386,6 +391,11 @@ export interface ProfileAgreementSummary {
   // Personalized signed-agreement PDF download URL (relative to API_BASE_URL).
   // Null for legacy verified rows that pre-date the PDF flow.
   signedAgreementPdfUrl?: string | null;
+  // Base64 data-URL of the user's drawn or uploaded signature.
+  // Rendered in the admin user-detail panel; null for rows that
+  // pre-date the signature feature.
+  signatureImage?: string | null;
+  signatureMethod?: "draw" | "upload" | null;
 }
 
 export interface ProfileData extends UserDTO {

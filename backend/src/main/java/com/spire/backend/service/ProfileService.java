@@ -149,6 +149,8 @@ public class ProfileService {
                     .os(a.getOs())
                     .recordId(recordId)
                     .signedAgreementPdfUrl(a.getSignedAgreementPdfUrl())
+                    .signatureImage(a.getSignatureImage())
+                    .signatureMethod(a.getSignatureMethod())
                     .build());
         });
 

@@ -205,6 +205,13 @@ public class AgreementPdfService {
                     new Font(Font.HELVETICA, 10, Font.ITALIC,
                             signed ? MUTED : new Color(180, 83, 9)), 18));
 
+            // Embed the user's drawn / uploaded signature in a
+            // labeled bordered box at the top of the record. Sits
+            // above the data table so the visual signature reads
+            // first; the table provides the audit metadata that
+            // legally binds it.
+            addSignatureBlock(document, row.getSignatureImage());
+
             // The framed-table layout is rendered via PdfPTable so the
             // borders sit consistently regardless of font metrics.
             document.add(buildAcceptanceRecordTable(row, user, doc, acceptedAt, signed));
@@ -315,6 +322,70 @@ public class AgreementPdfService {
 
     private static String safe(String s) {
         return s == null || s.isBlank() ? "—" : s;
+    }
+
+    /**
+     * Renders the user's signature image inside a labeled, bordered
+     * single-cell {@link PdfPTable}. The data-URL prefix is stripped
+     * before base64 decoding; on any decode / embed failure we fall
+     * back to a placeholder line so the page still composes.
+     */
+    private static void addSignatureBlock(Document document, String dataUrl) {
+        try {
+            Paragraph label = new Paragraph("Digital Signature",
+                    new Font(Font.HELVETICA, 10, Font.BOLD, TEAL_PRIMARY));
+            label.setSpacingBefore(2);
+            label.setSpacingAfter(4);
+            document.add(label);
+        } catch (Exception ignored) {}
+
+        PdfPTable wrap = new PdfPTable(1);
+        wrap.setWidthPercentage(60);
+        wrap.setHorizontalAlignment(Element.ALIGN_LEFT);
+        wrap.setSpacingBefore(0);
+        wrap.setSpacingAfter(14);
+
+        PdfPCell cell = new PdfPCell();
+        cell.setBorderColor(MUTED);
+        cell.setBorderWidth(0.6f);
+        cell.setPadding(10);
+        cell.setMinimumHeight(70);
+        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+
+        Image sigImage = decodeSignature(dataUrl);
+        if (sigImage != null) {
+            sigImage.scaleToFit(220, 70);
+            sigImage.setAlignment(Image.ALIGN_CENTER);
+            cell.addElement(sigImage);
+        } else {
+            Paragraph placeholder = new Paragraph(
+                    "(no signature on file)",
+                    new Font(Font.HELVETICA, 9, Font.ITALIC, MUTED));
+            placeholder.setAlignment(Element.ALIGN_CENTER);
+            cell.addElement(placeholder);
+        }
+        wrap.addCell(cell);
+        try {
+            document.add(wrap);
+        } catch (Exception ignored) {}
+    }
+
+    /**
+     * Decodes a {@code data:image/<type>;base64,…} URL into an
+     * OpenPDF {@link Image}. Returns null on any failure so callers
+     * can render a placeholder instead of crashing the PDF gen.
+     */
+    private static Image decodeSignature(String dataUrl) {
+        if (dataUrl == null || dataUrl.isBlank()) return null;
+        try {
+            int comma = dataUrl.indexOf(',');
+            String b64 = comma >= 0 ? dataUrl.substring(comma + 1) : dataUrl;
+            byte[] bytes = java.util.Base64.getDecoder().decode(b64);
+            return Image.getInstance(bytes);
+        } catch (Exception e) {
+            log.warn("Failed to decode signature image for embed: {}", e.getMessage());
+            return null;
+        }
     }
 
     /**

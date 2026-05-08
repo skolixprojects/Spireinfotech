@@ -725,6 +725,30 @@ function AgreementStatusCard({
           value={<code className="font-mono text-[#0F766E]">{agreement.recordId}</code>} />
       </dl>
 
+      {agreement.signatureImage && (
+        <div className="mt-4">
+          <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">
+            Digital Signature
+          </p>
+          <div className="inline-block rounded-lg border border-dashed border-gray-300 bg-white p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={agreement.signatureImage}
+              alt="User digital signature"
+              style={{ maxWidth: 240, maxHeight: 96, display: "block" }}
+            />
+          </div>
+          {agreement.signatureMethod && (
+            <p className="text-xs text-gray-500 mt-1">
+              Method:{" "}
+              <span className="font-medium text-gray-700">
+                {agreement.signatureMethod === "draw" ? "Drawn on screen" : "Uploaded image"}
+              </span>
+            </p>
+          )}
+        </div>
+      )}
+
       {agreement.signedAgreementPdfUrl ? (
         <button
           type="button"

@@ -7,14 +7,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, ShieldCheck, AlertCircle, CheckCircle2, ArrowDown,
-  Mail, Inbox,
+  Mail, Inbox, PenLine, Upload, X,
 } from "lucide-react";
+import SignatureCanvas from "react-signature-canvas";
 import { useAuth } from "@/lib/auth-context";
 import {
   acceptAgreement, getAgreementStatus, getTerms, resendAgreementCode,
   verifyAgreementCode,
   type AgreementStatusValue, type TermsResponse,
 } from "@/lib/api";
+
+const MAX_SIGNATURE_BYTES = 2 * 1024 * 1024; // 2 MB upload cap (raw file)
 
 /**
  * /agreement — Terms of Service acceptance gate, email-reply edition.
@@ -86,6 +89,16 @@ export default function AgreementPage() {
   const [legalName, setLegalName] = useState("");
   const [termsChecked, setTermsChecked] = useState(false);
   const [contentPolicyChecked, setContentPolicyChecked] = useState(false);
+  const [signatureData, setSignatureData] = useState<string | null>(null);
+  const [signatureMethod, setSignatureMethod] = useState<"draw" | "upload">("draw");
+  const sigRef = useRef<SignatureCanvas | null>(null);
+  const sigFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [signatureError, setSignatureError] = useState("");
+  // SignatureCanvas pokes at the DOM during render, which crashes the
+  // SSR pass even on a "use client" page (the initial HTML render
+  // still runs server-side). Defer it to post-mount.
+  const [signatureMounted, setSignatureMounted] = useState(false);
+  useEffect(() => { setSignatureMounted(true); }, []);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
@@ -189,15 +202,65 @@ export default function AgreementPage() {
     && nameWordCount >= 2
     && termsChecked
     && contentPolicyChecked
+    && !!signatureData
     && !submitting;
   const code = digits.join("");
   const codeReady = code.length === CODE_LENGTH && /^\d{6}$/.test(code);
   const replyExpired = phase === "WAITING_REPLY" && agreementSecondsLeft === 0
     && agreementExpiresAt !== null;
 
+  // ── Signature handlers ──────────────────────────────────────────
+
+  const switchSignatureMethod = (next: "draw" | "upload") => {
+    setSignatureMethod(next);
+    setSignatureData(null);
+    setSignatureError("");
+    sigRef.current?.clear();
+    if (sigFileInputRef.current) sigFileInputRef.current.value = "";
+  };
+
+  const handleDrawEnd = () => {
+    const pad = sigRef.current;
+    if (!pad || pad.isEmpty()) {
+      setSignatureData(null);
+      return;
+    }
+    setSignatureData(pad.toDataURL("image/png"));
+    setSignatureError("");
+  };
+
+  const handleClearDrawn = () => {
+    sigRef.current?.clear();
+    setSignatureData(null);
+  };
+
+  const handleSignatureFile = (file: File | null | undefined) => {
+    if (!file) return;
+    if (!/^image\/(png|jpe?g)$/i.test(file.type)) {
+      setSignatureError("Use a PNG or JPG file.");
+      return;
+    }
+    if (file.size > MAX_SIGNATURE_BYTES) {
+      setSignatureError("File too large (max 2 MB).");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result || "");
+      if (!dataUrl.startsWith("data:image/")) {
+        setSignatureError("Couldn't read this file.");
+        return;
+      }
+      setSignatureData(dataUrl);
+      setSignatureError("");
+    };
+    reader.onerror = () => setSignatureError("Couldn't read this file.");
+    reader.readAsDataURL(file);
+  };
+
   // ── Submit accept → moves to WAITING_REPLY ──────────────────────
   const handleAccept = async () => {
-    if (!canAccept) return;
+    if (!canAccept || !signatureData) return;
     setSubmitting(true);
     setSubmitError("");
     try {
@@ -205,6 +268,8 @@ export default function AgreementPage() {
         legalName: legalName.trim(),
         termsAccepted: termsChecked,
         contentPolicyAccepted: contentPolicyChecked,
+        signatureImage: signatureData,
+        signatureMethod,
       });
       if (r.alreadyAccepted) {
         router.replace("/dashboard");
@@ -457,6 +522,146 @@ export default function AgreementPage() {
                     not be recorded, screenshotted, or shared with others.
                   </span>
                 </label>
+              </div>
+
+              {/* ── Digital signature ─────────────────────────── */}
+              <div className="mt-6">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Your digital signature
+                </label>
+
+                <div className="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 mb-3">
+                  <button
+                    type="button"
+                    onClick={() => switchSignatureMethod("draw")}
+                    disabled={!hasScrolledToBottom}
+                    className={
+                      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition "
+                      + (signatureMethod === "draw"
+                          ? "bg-[#0F766E] text-white shadow-sm"
+                          : "bg-transparent text-gray-600 hover:text-[#0F766E]")
+                      + " disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    }
+                  >
+                    <PenLine size={12} /> Draw signature
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchSignatureMethod("upload")}
+                    disabled={!hasScrolledToBottom}
+                    className={
+                      "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition "
+                      + (signatureMethod === "upload"
+                          ? "bg-[#0F766E] text-white shadow-sm"
+                          : "bg-transparent text-gray-600 hover:text-[#0F766E]")
+                      + " disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    }
+                  >
+                    <Upload size={12} /> Upload signature
+                  </button>
+                </div>
+
+                {signatureMethod === "draw" ? (
+                  <div>
+                    <div className="rounded-xl border border-gray-200 bg-white overflow-hidden" style={{ height: 160 }}>
+                      {signatureMounted ? (
+                        <SignatureCanvas
+                          ref={(el) => { sigRef.current = el; }}
+                          penColor="#111827"
+                          canvasProps={{
+                            className: "w-full h-full",
+                            style: {
+                              width: "100%",
+                              height: 160,
+                              background: "#ffffff",
+                              cursor: hasScrolledToBottom ? "crosshair" : "not-allowed",
+                              touchAction: "none",
+                            },
+                          }}
+                          onEnd={handleDrawEnd}
+                        />
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-xs text-gray-400">
+                          Loading…
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-xs text-gray-500">
+                        Sign here with your mouse or finger.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleClearDrawn}
+                        disabled={!signatureData || submitting}
+                        className="text-xs font-semibold text-[#0F766E] hover:text-[#0D9488] disabled:text-gray-400 disabled:cursor-not-allowed cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label
+                      htmlFor="sig-upload"
+                      className={
+                        "block rounded-xl border-2 border-dashed bg-gray-50 px-4 py-6 text-center transition "
+                        + (hasScrolledToBottom
+                            ? "border-gray-300 hover:border-[#0F766E] hover:bg-[#f0fdf9] cursor-pointer"
+                            : "border-gray-200 opacity-60 cursor-not-allowed")
+                      }
+                      onDragOver={(e) => { e.preventDefault(); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (!hasScrolledToBottom) return;
+                        handleSignatureFile(e.dataTransfer.files?.[0]);
+                      }}
+                    >
+                      <Upload size={20} className="mx-auto text-gray-400 mb-2" />
+                      <p className="text-sm font-semibold text-gray-700">
+                        Click to upload or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        PNG, JPG, JPEG (max 2 MB) — transparent background recommended
+                      </p>
+                      <input
+                        ref={sigFileInputRef}
+                        id="sig-upload"
+                        type="file"
+                        accept="image/png,image/jpeg,image/jpg"
+                        disabled={!hasScrolledToBottom}
+                        onChange={(e) => handleSignatureFile(e.target.files?.[0])}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {signatureError && (
+                  <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-red-600">
+                    <AlertCircle size={12} /> {signatureError}
+                  </p>
+                )}
+
+                {signatureData && (
+                  <div className="mt-3 flex items-start gap-3">
+                    <div className="rounded-lg border border-dashed border-gray-300 bg-white p-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={signatureData}
+                        alt="Your signature"
+                        style={{ maxWidth: 240, maxHeight: 90, display: "block" }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => switchSignatureMethod(signatureMethod)}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 hover:text-red-600 cursor-pointer"
+                    >
+                      <X size={12} /> Remove
+                    </button>
+                  </div>
+                )}
               </div>
 
               {submitError && (

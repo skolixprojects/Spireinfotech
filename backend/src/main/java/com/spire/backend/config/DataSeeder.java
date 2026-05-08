@@ -669,6 +669,28 @@ public class DataSeeder implements CommandLineRunner {
             log.debug("Couldn't add agreement_acceptances.signed_agreement_pdf_url "
                     + "(likely already present, or table not yet created): {}", e.getMessage());
         }
+
+        // Backfill the signature columns. signature_image holds the
+        // base64-encoded PNG (drawn on canvas or uploaded by the user);
+        // signature_method records 'draw' or 'upload' for audit. Both
+        // nullable so historic rows that pre-date the signature flow
+        // keep validating.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE agreement_acceptances ADD COLUMN IF NOT EXISTS "
+                            + "signature_image TEXT");
+            log.info("Ensured agreement_acceptances.signature_image exists");
+        } catch (Exception e) {
+            log.debug("Couldn't add agreement_acceptances.signature_image: {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE agreement_acceptances ADD COLUMN IF NOT EXISTS "
+                            + "signature_method VARCHAR(20)");
+            log.info("Ensured agreement_acceptances.signature_method exists");
+        } catch (Exception e) {
+            log.debug("Couldn't add agreement_acceptances.signature_method: {}", e.getMessage());
+        }
     }
 
     /**

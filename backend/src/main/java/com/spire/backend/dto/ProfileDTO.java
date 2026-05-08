@@ -122,6 +122,13 @@ public class ProfileDTO {
         // Populated for verified rows once the PDF generator runs;
         // null for legacy verified rows that pre-date the flow.
         private String signedAgreementPdfUrl;
+        // Base64-encoded PNG of the user's digital signature
+        // (data-URL form, e.g. "data:image/png;base64,…"). Drives
+        // the signature image displayed on the admin user-detail
+        // page. Null for rows that pre-date the signature feature.
+        private String signatureImage;
+        // 'draw' or 'upload'. Surfaced for the admin display.
+        private String signatureMethod;
     }
 
     public static ProfileDTO from(

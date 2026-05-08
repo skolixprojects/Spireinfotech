@@ -66,9 +66,12 @@ public class AgreementController {
         String legalName = (String) body.get("legalName");
         boolean termsAccepted = Boolean.TRUE.equals(body.get("termsAccepted"));
         boolean contentPolicyAccepted = Boolean.TRUE.equals(body.get("contentPolicyAccepted"));
+        String signatureImage = (String) body.get("signatureImage");
+        String signatureMethod = (String) body.get("signatureMethod");
 
         Map<String, Object> data = agreementService.requestAcceptance(
                 userId, legalName, termsAccepted, contentPolicyAccepted,
+                signatureImage, signatureMethod,
                 clientIp(request), request.getHeader("User-Agent"));
         return ResponseEntity.ok(ApiResponse.success(data));
     }
