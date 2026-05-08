@@ -702,6 +702,58 @@ export default function AgreementPage() {
     }
   };
 
+  // ── Manual "Check Now" — fires the IMAP debug route ────────────
+  const [checkingNow, setCheckingNow] = useState(false);
+  const handleCheckNow = async () => {
+    if (checkingNow) return;
+    setCheckingNow(true);
+    addLog("🔍", "Manual check requested — calling IMAP debug…", "checking");
+    try {
+      const token = typeof window === "undefined"
+        ? null : localStorage.getItem("access_token");
+      if (!token) {
+        addLog("❌", "Not logged in — can't run debug check", "error");
+        return;
+      }
+      const res = await fetch("/api/debug/check-replies", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      const debugLogs: string[] = Array.isArray(data?.logs) ? data.logs : [];
+      // Surface a tight subset — full server logs go straight in,
+      // each as its own line. Strip the leading ISO timestamp our
+      // backend already prefixed since the panel adds its own.
+      debugLogs.forEach((line) => {
+        const trimmed = line.replace(/^\d{4}-\d{2}-\d{2}T[^\s]+\s/, "");
+        addLog("•", trimmed, "checking");
+      });
+      if (!res.ok || data?.ok === false) {
+        addLog("❌", data?.error || `Debug request failed (${res.status})`, "error");
+        return;
+      }
+      const total = data?.totalMessages ?? "?";
+      const unseen = data?.unseenMessages ?? "?";
+      addLog("📬", `Inbox: ${total} total, ${unseen} unseen`, "info");
+      const matches: Array<{ email?: string; subject?: string; matchedBy?: string; forwarded?: boolean }>
+        = Array.isArray(data?.results) ? data.results : [];
+      if (matches.length === 0) {
+        addLog("📭", "No matching unseen messages right now", "waiting");
+      } else {
+        matches.forEach((m) => {
+          addLog(
+            m.forwarded ? "✅" : "📧",
+            `${m.email || "?"} — "${m.subject || "?"}" (${m.matchedBy || "?"})`,
+            m.forwarded ? "success" : "info",
+          );
+        });
+      }
+    } catch (err) {
+      addLog("❌", err instanceof Error ? err.message : "Check failed", "error");
+    } finally {
+      setCheckingNow(false);
+    }
+  };
+
   // ── Restart from expiry ─────────────────────────────────────────
   const handleRestart = () => {
     setPhase("READ_TERMS");
@@ -1041,6 +1093,18 @@ export default function AgreementPage() {
                       <span className="font-mono">{formatCountdown(agreementSecondsLeft)}</span>
                     </p>
                   )}
+                  <button
+                    type="button"
+                    onClick={handleCheckNow}
+                    disabled={checkingNow}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-gray-700 hover:border-[#0F766E] hover:text-[#0F766E] disabled:opacity-50 cursor-pointer"
+                  >
+                    {checkingNow ? <Loader2 size={12} className="animate-spin" /> : null}
+                    Check for reply now
+                  </button>
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    Manually triggers the IMAP scan — useful while debugging.
+                  </p>
                   {replyExpired && (
                     <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
                       This agreement request has expired. Please restart.

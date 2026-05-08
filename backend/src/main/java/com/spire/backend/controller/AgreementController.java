@@ -158,6 +158,35 @@ public class AgreementController {
         )));
     }
 
+    /**
+     * Sender-based lookup for the IMAP cron. Given a from-address,
+     * tells the cron whether that mailbox owner has a pending
+     * (WAITING_REPLY, not expired) agreement row, and if so the
+     * matching user id.
+     *
+     * Replaces the original {@code [AGREE-{userId}-{ts}]} subject
+     * tracking marker — Gmail / Outlook frequently mangle subjects
+     * (re-encoding, line wrapping, prefix changes), so matching by
+     * sender is the more reliable path.
+     *
+     * Cron-secret gated identically to {@link #processReply}.
+     */
+    @PostMapping("/api/auth/agreement/check-pending-user")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> checkPendingUser(
+            @RequestHeader(value = "X-Cron-Secret", required = false) String headerSecret,
+            @RequestBody Map<String, Object> body) {
+        if (cronSecret == null || cronSecret.isBlank()
+                || !cronSecret.equals(headerSecret)) {
+            throw new UnauthorizedException("Invalid cron secret");
+        }
+        Object emailRaw = body.get("email");
+        if (emailRaw == null || emailRaw.toString().isBlank()) {
+            throw new IllegalArgumentException("email is required");
+        }
+        Map<String, Object> data = agreementService.checkPendingByEmail(emailRaw.toString());
+        return ResponseEntity.ok(ApiResponse.success(data));
+    }
+
     // ─── Public: current terms text ─────────────────────────────────
 
     /**

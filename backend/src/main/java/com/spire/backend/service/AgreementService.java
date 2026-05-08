@@ -213,6 +213,53 @@ public class AgreementService {
         return out;
     }
 
+    // ─── Sender-based pending-user lookup (cron support) ───────────
+
+    /**
+     * Returns {@code { hasPending, userId, email, expiresAt }} for the
+     * given from-address. Used by the IMAP cron to drop subject-based
+     * matching (which Gmail re-formats unpredictably) in favour of
+     * sender-based matching: any unread email whose sender owns a
+     * WAITING_REPLY row is a candidate for acceptance processing.
+     *
+     * Email comparison is case-insensitive; address-only (no
+     * display name).
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> checkPendingByEmail(String email) {
+        Map<String, Object> out = new HashMap<>();
+        out.put("hasPending", false);
+        if (email == null || email.isBlank()) return out;
+
+        String normalised = email.trim().toLowerCase();
+        Optional<User> userOpt = userRepository.findByEmail(normalised);
+        // findByEmail uses an exact match; some seed data may have
+        // mixed-case addresses, so fall back to a scan if the
+        // case-folded lookup misses.
+        User user = userOpt.orElseGet(() -> userRepository.findAll().stream()
+                .filter(u -> u.getEmail() != null
+                        && u.getEmail().equalsIgnoreCase(normalised))
+                .findFirst()
+                .orElse(null));
+        if (user == null) return out;
+
+        AgreementAcceptance row = agreementRepository.findByUserId(user.getId()).orElse(null);
+        if (row == null) return out;
+        if (!STATUS_WAITING_REPLY.equals(row.getStatus())) return out;
+        if (row.getAgreementExpiresAt() != null
+                && row.getAgreementExpiresAt().isBefore(LocalDateTime.now())) {
+            return out;
+        }
+
+        out.put("hasPending", true);
+        out.put("userId", user.getId());
+        out.put("email", user.getEmail());
+        if (row.getAgreementExpiresAt() != null) {
+            out.put("expiresAt", row.getAgreementExpiresAt().toString());
+        }
+        return out;
+    }
+
     // ─── Process inbox reply (called by Vercel cron) ────────────────
 
     /**
