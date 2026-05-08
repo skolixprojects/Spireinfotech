@@ -3,11 +3,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Loader2, ShieldCheck, AlertCircle, CheckCircle2, ArrowDown,
   Mail, Inbox, PenLine, Upload, X,
+  BookOpen, PenTool, CheckSquare, Reply, KeyRound, Check,
 } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 import { useAuth } from "@/lib/auth-context";
@@ -44,6 +45,57 @@ const CODE_LENGTH = 6;
 
 type Phase = "READ_TERMS" | "WAITING_REPLY" | "CODE_SENT" | "VERIFIED";
 
+// ── Visible step tracker ───────────────────────────────────────────
+//
+// Seven phases the user passes through. Drives both the horizontal
+// stepper at the top of the page and which bucket of log entries
+// we surface below it.
+type StepId = "read" | "sign" | "consent" | "email" | "reply" | "otp" | "done";
+type StepStatus = "pending" | "active" | "completed" | "error";
+
+const STEPS: ReadonlyArray<{
+  id: StepId;
+  label: string;
+  Icon: typeof BookOpen;
+}> = [
+  { id: "read",    label: "Read terms",  Icon: BookOpen },
+  { id: "sign",    label: "Sign",        Icon: PenTool },
+  { id: "consent", label: "Consent",     Icon: CheckSquare },
+  { id: "email",   label: "Email sent",  Icon: Mail },
+  { id: "reply",   label: "Reply",       Icon: Reply },
+  { id: "otp",     label: "Verify code", Icon: KeyRound },
+  { id: "done",    label: "Done",        Icon: ShieldCheck },
+];
+
+type StatusLogType =
+  | "success" | "info" | "sending" | "waiting" | "checking" | "tip" | "error";
+
+interface StatusLog {
+  id: number;
+  time: string;          // pre-formatted IST timestamp
+  icon: string;          // emoji glyph
+  message: string;
+  type: StatusLogType;
+}
+
+const LOG_TYPE_COLOR: Record<StatusLogType, string> = {
+  success: "text-emerald-400",
+  info:    "text-gray-300",
+  sending: "text-sky-300",
+  waiting: "text-yellow-300",
+  checking:"text-gray-400",
+  tip:     "text-teal-300",
+  error:   "text-red-400",
+};
+
+function formatIstClock(): string {
+  return new Date().toLocaleTimeString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    hour: "numeric", minute: "2-digit", second: "2-digit",
+    hour12: true,
+  });
+}
+
 function maskEmail(email: string | null | undefined): string {
   if (!email) return "your email";
   const at = email.indexOf("@");
@@ -76,6 +128,124 @@ function statusToPhase(status: AgreementStatusValue, currentPhase: Phase): Phase
   return currentPhase;
 }
 
+// ── Step tracker (horizontal pill row with circles + connectors) ──
+function StepTracker({
+  statuses,
+}: {
+  statuses: Record<StepId, StepStatus>;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+      <ol className="flex items-start justify-between gap-1 sm:gap-2 overflow-x-auto">
+        {STEPS.map((step, idx) => {
+          const status = statuses[step.id];
+          const next = STEPS[idx + 1];
+          const nextStatus = next ? statuses[next.id] : null;
+
+          // Connector lights up when both this step and the next are
+          // at least active — a half-tone bridge while transitioning.
+          const connectorClass = nextStatus
+            ? (status === "completed"
+                ? "bg-[#0F766E]"
+                : "bg-gray-200 [background-image:repeating-linear-gradient(90deg,transparent_0_4px,#d1d5db_4px_8px)]")
+            : "";
+
+          let circleClass = "border border-gray-300 bg-white text-gray-400";
+          if (status === "completed") {
+            circleClass = "bg-emerald-600 border-emerald-600 text-white";
+          } else if (status === "active") {
+            circleClass = "bg-[#0F766E] border-[#0F766E] text-white ring-4 ring-[#0F766E]/20";
+          } else if (status === "error") {
+            circleClass = "bg-red-500 border-red-500 text-white";
+          }
+
+          let labelClass = "text-gray-400";
+          if (status === "completed") labelClass = "text-emerald-700 font-semibold";
+          else if (status === "active") labelClass = "text-[#0F766E] font-bold";
+          else if (status === "error") labelClass = "text-red-600 font-semibold";
+
+          return (
+            <li key={step.id} className="flex-1 min-w-0 flex flex-col items-center">
+              <div className="flex items-center w-full">
+                {idx > 0 && (
+                  <div
+                    className={`flex-1 h-[2px] -mr-1 ${
+                      statuses[STEPS[idx - 1].id] === "completed" ? "bg-[#0F766E]" : "bg-gray-200 [background-image:repeating-linear-gradient(90deg,transparent_0_4px,#d1d5db_4px_8px)]"
+                    }`}
+                  />
+                )}
+                <div
+                  className={
+                    "shrink-0 inline-flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-full transition-all "
+                    + circleClass
+                    + (status === "active" ? " animate-pulse" : "")
+                  }
+                  aria-current={status === "active" ? "step" : undefined}
+                >
+                  {status === "completed" ? (
+                    <Check size={16} />
+                  ) : status === "error" ? (
+                    <X size={16} />
+                  ) : (
+                    <step.Icon size={14} />
+                  )}
+                </div>
+                {next && (
+                  <div className={`flex-1 h-[2px] -ml-1 ${connectorClass}`} />
+                )}
+              </div>
+              <span className={`mt-2 text-[10px] sm:text-xs text-center leading-tight ${labelClass}`}>
+                {step.label}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
+// ── Live status log (terminal-style, auto-scrolls to bottom) ──────
+function StatusLogPanel({ logs }: { logs: StatusLog[] }) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [logs]);
+
+  return (
+    <div className="bg-[#111827] rounded-xl border border-gray-800 overflow-hidden shadow-sm">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-800">
+        <span className="w-2 h-2 rounded-full bg-red-500/60" />
+        <span className="w-2 h-2 rounded-full bg-yellow-500/60" />
+        <span className="w-2 h-2 rounded-full bg-emerald-500/60" />
+        <span className="ml-2 text-[11px] text-gray-400 font-mono">
+          agreement.log
+        </span>
+      </div>
+      <div
+        ref={scrollRef}
+        className="px-4 py-3 font-mono text-[11px] leading-6 overflow-y-auto"
+        style={{ maxHeight: 280 }}
+      >
+        {logs.length === 0 ? (
+          <p className="text-gray-500 italic">Waiting for first event…</p>
+        ) : (
+          logs.map((log) => (
+            <div key={log.id} className="flex gap-2">
+              <span className="text-gray-500 shrink-0">{log.time}</span>
+              <span className="shrink-0">{log.icon}</span>
+              <span className={LOG_TYPE_COLOR[log.type] + " break-all"}>
+                {log.message}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AgreementPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -99,6 +269,36 @@ export default function AgreementPage() {
   // still runs server-side). Defer it to post-mount.
   const [signatureMounted, setSignatureMounted] = useState(false);
   useEffect(() => { setSignatureMounted(true); }, []);
+
+  // ── Step tracker state ────────────────────────────────────────
+  const [stepStatuses, setStepStatuses] = useState<Record<StepId, StepStatus>>({
+    read: "active",
+    sign: "pending",
+    consent: "pending",
+    email: "pending",
+    reply: "pending",
+    otp: "pending",
+    done: "pending",
+  });
+  const [statusLogs, setStatusLogs] = useState<StatusLog[]>([]);
+  const logIdRef = useRef(0);
+  // Counts polls during WAITING_REPLY so we only push a log entry
+  // every Nth poll (keeps the panel readable rather than spamming it
+  // every 5s).
+  const pollCounterRef = useRef(0);
+
+  const addLog = useCallback(
+    (icon: string, message: string, type: StatusLogType) => {
+      logIdRef.current += 1;
+      const entry: StatusLog = {
+        id: logIdRef.current,
+        time: formatIstClock(),
+        icon, message, type,
+      };
+      setStatusLogs((prev) => [...prev, entry]);
+    },
+    [],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
@@ -145,10 +345,71 @@ export default function AgreementPage() {
           // to the matching phase instead of re-asking for the name.
           setPhase((prev) => statusToPhase(s.status, prev));
           if (s.agreementExpiresAt) setAgreementExpiresAt(s.agreementExpiresAt);
+
+          // Reflect a resumed flow on the step tracker so a returning
+          // user doesn't see all-pending circles when half the flow
+          // is already done server-side.
+          if (s.status === "WAITING_REPLY") {
+            setStepStatuses({
+              read: "completed", sign: "completed", consent: "completed",
+              email: "completed", reply: "active",
+              otp: "pending", done: "pending",
+            });
+            addLog("📨", "Resumed: agreement email already sent — awaiting your reply", "info");
+          } else if (s.status === "CODE_SENT") {
+            setStepStatuses({
+              read: "completed", sign: "completed", consent: "completed",
+              email: "completed", reply: "completed", otp: "active", done: "pending",
+            });
+            addLog("📨", "Resumed: reply received — enter the verification code", "info");
+          }
         }
       });
     return () => { cancelled = true; };
-  }, [router]);
+  }, [router, addLog]);
+
+  // ── Step-status flips driven by form progress ────────────────────
+  useEffect(() => {
+    if (!hasScrolledToBottom) return;
+    setStepStatuses((prev) => {
+      if (prev.read === "completed") return prev;
+      addLog("✅", "Terms of Service read completely", "success");
+      return { ...prev, read: "completed", sign: prev.sign === "pending" ? "active" : prev.sign };
+    });
+  }, [hasScrolledToBottom, addLog]);
+
+  useEffect(() => {
+    const words = legalName.trim().split(/\s+/).filter(Boolean).length;
+    if (words < 2 || !hasScrolledToBottom) return;
+    setStepStatuses((prev) => {
+      if (prev.sign === "completed") return prev;
+      addLog("✅", "Legal name provided: " + legalName.trim(), "success");
+      return { ...prev, sign: "completed", consent: prev.consent === "pending" ? "active" : prev.consent };
+    });
+    // Note: we don't roll back the step if the user clears the field
+    // mid-flow — the tracker reads forward-only.
+  }, [legalName, hasScrolledToBottom, addLog]);
+
+  useEffect(() => {
+    if (!termsChecked || !contentPolicyChecked || !hasScrolledToBottom) return;
+    setStepStatuses((prev) => {
+      if (prev.consent === "completed") return prev;
+      addLog("✅", "Consent boxes confirmed", "success");
+      return { ...prev, consent: "completed", email: prev.email === "pending" ? "active" : prev.email };
+    });
+  }, [termsChecked, contentPolicyChecked, hasScrolledToBottom, addLog]);
+
+  useEffect(() => {
+    if (!signatureData) return;
+    addLog(
+      signatureMethod === "draw" ? "✍️" : "🖼️",
+      signatureMethod === "draw" ? "Signature drawn on canvas" : "Signature image uploaded",
+      "info",
+    );
+    // signatureMethod intentionally left out of deps — we only want
+    // the log on the data transition, not a method swap mid-stream.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signatureData, addLog]);
 
   // ── Reply-window countdown tick ─────────────────────────────────
   useEffect(() => {
@@ -172,16 +433,37 @@ export default function AgreementPage() {
   // ── Status polling: only while WAITING_REPLY ────────────────────
   useEffect(() => {
     if (phase !== "WAITING_REPLY") return;
+    pollCounterRef.current = 0;
     let cancelled = false;
     const poll = async () => {
       try {
         const s = await getAgreementStatus();
         if (cancelled) return;
+        pollCounterRef.current += 1;
+        // ~30s heartbeat — surface a "Checking…" line every 6th poll
+        // (5s × 6 = 30s) so the panel doesn't fill up with chatter
+        // while still proving the cron is alive.
+        if (pollCounterRef.current % 6 === 0) {
+          addLog("🔍", "Checking for your reply… (" + pollCounterRef.current + ")", "checking");
+        }
         if (s.status === "CODE_SENT") {
           setPhase("CODE_SENT");
+          addLog("✅", "Reply received — verification code on its way", "success");
+          addLog("📤", "Verification code sent to your email", "sending");
+          addLog("💡", "Check your inbox for the 6-digit code", "tip");
+          setStepStatuses((prev) => ({
+            ...prev,
+            reply: "completed",
+            otp: "active",
+          }));
           setTimeout(() => inputRefs.current[0]?.focus(), 80);
         } else if (s.status === "VERIFIED") {
           setPhase("VERIFIED");
+          setStepStatuses((prev) => ({
+            ...prev,
+            reply: "completed", otp: "completed", done: "completed",
+          }));
+          addLog("🎉", "Agreement complete — redirecting to dashboard", "success");
           setTimeout(() => { window.location.href = "/dashboard"; }, 1500);
         }
       } catch {
@@ -190,7 +472,7 @@ export default function AgreementPage() {
     };
     const t = setInterval(poll, POLL_INTERVAL_MS);
     return () => { cancelled = true; clearInterval(t); };
-  }, [phase]);
+  }, [phase, addLog]);
 
   // ── Computed flags ──────────────────────────────────────────────
   const nameWordCount = useMemo(
@@ -263,6 +545,8 @@ export default function AgreementPage() {
     if (!canAccept || !signatureData) return;
     setSubmitting(true);
     setSubmitError("");
+    addLog("📄", "Generating agreement PDF…", "info");
+    addLog("📤", "Sending email to " + maskEmail(user?.email) + "…", "sending");
     try {
       const r = await acceptAgreement({
         legalName: legalName.trim(),
@@ -272,14 +556,26 @@ export default function AgreementPage() {
         signatureMethod,
       });
       if (r.alreadyAccepted) {
+        addLog("✅", "Agreement was already accepted on this account", "success");
         router.replace("/dashboard");
         return;
       }
+      addLog("✅", "Email sent successfully with PDF attachment", "success");
+      addLog("⏳", "Waiting for your reply…", "waiting");
+      addLog("💡", "Open your email and reply 'Yes, I agree'", "tip");
+      setStepStatuses((prev) => ({
+        ...prev,
+        email: "completed",
+        reply: "active",
+      }));
       setPhase("WAITING_REPLY");
       if (r.expiresAt) setAgreementExpiresAt(r.expiresAt);
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Couldn't send the agreement email");
+      const msg = err instanceof Error ? err.message : "Couldn't send the agreement email";
+      addLog("❌", msg, "error");
+      setSubmitError(msg);
+      setStepStatuses((prev) => ({ ...prev, email: "error" }));
     } finally {
       setSubmitting(false);
     }
@@ -352,12 +648,24 @@ export default function AgreementPage() {
     if (!codeReady || verifying) return;
     setVerifying(true);
     setVerifyError("");
+    addLog("🔢", "Submitting verification code…", "info");
     try {
       await verifyAgreementCode(code);
+      addLog("✅", "Code verified successfully", "success");
+      addLog("📤", "Generating signed agreement PDF…", "sending");
+      addLog("✅", "Signed PDF emailed to you", "success");
+      addLog("✅", "Welcome email sent", "success");
+      addLog("🎉", "Agreement complete — redirecting to dashboard", "success");
+      setStepStatuses((prev) => ({
+        ...prev,
+        otp: "completed", done: "completed",
+      }));
       setPhase("VERIFIED");
       setTimeout(() => { window.location.href = "/dashboard"; }, 1500);
     } catch (err) {
-      setVerifyError(err instanceof Error ? err.message : "Verification failed");
+      const msg = err instanceof Error ? err.message : "Verification failed";
+      addLog("❌", msg, "error");
+      setVerifyError(msg);
       setShake((n) => n + 1);
       setDigits(Array(CODE_LENGTH).fill(""));
       inputRefs.current[0]?.focus();
@@ -372,18 +680,23 @@ export default function AgreementPage() {
     setResending(true);
     setResendInfo("");
     setVerifyError("");
+    addLog("🔄", "Resending email…", "info");
     try {
       await resendAgreementCode();
-      setResendInfo(phase === "CODE_SENT"
+      const msg = phase === "CODE_SENT"
         ? "New code sent. Check your inbox."
-        : "Agreement email resent. Reply YES to confirm.");
+        : "Agreement email resent. Reply YES to confirm.";
+      setResendInfo(msg);
+      addLog("✅", msg, "success");
       setResendCooldown(RESEND_COOLDOWN_SECONDS);
       if (phase === "CODE_SENT") {
         setDigits(Array(CODE_LENGTH).fill(""));
         inputRefs.current[0]?.focus();
       }
     } catch (err) {
-      setVerifyError(err instanceof Error ? err.message : "Couldn't send another email");
+      const msg = err instanceof Error ? err.message : "Couldn't send another email";
+      addLog("❌", msg, "error");
+      setVerifyError(msg);
     } finally {
       setResending(false);
     }
@@ -422,8 +735,13 @@ export default function AgreementPage() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-        <AnimatePresence mode="wait">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+        <div className="mb-6">
+          <StepTracker statuses={stepStatuses} />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] gap-6">
+          <div>
+            <AnimatePresence mode="wait">
           {phase === "READ_TERMS" && (
             <motion.section
               key="read"
@@ -863,7 +1181,27 @@ export default function AgreementPage() {
               </p>
             </motion.section>
           )}
-        </AnimatePresence>
+            </AnimatePresence>
+          </div>
+
+          <aside className="lg:sticky lg:top-6 self-start">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs uppercase tracking-wider font-semibold text-gray-500">
+                Live status
+              </p>
+              {phase === "WAITING_REPLY" && agreementExpiresAt && !replyExpired && (
+                <p className="text-[11px] text-gray-500 font-mono">
+                  ⏱ {formatCountdown(agreementSecondsLeft)}
+                </p>
+              )}
+            </div>
+            <StatusLogPanel logs={statusLogs} />
+            <p className="mt-2 text-[10px] text-gray-400 leading-relaxed">
+              Updates appear in real time as your agreement moves through
+              each stage. The log resets if you reload the page.
+            </p>
+          </aside>
+        </div>
       </main>
     </div>
   );
