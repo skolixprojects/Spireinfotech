@@ -159,10 +159,22 @@ public class AgreementService {
         row.setVerificationCodeVerifiedAt(null);
         row.setCodeExpiresAt(null);
 
+        // Render the pending agreement PDF up-front so the email
+        // body and the attachment are dispatched in one relay call.
+        // Best-effort — if the PDF render fails we still send the
+        // email so the user can reply YES from the inbox; the signed
+        // copy generated after OTP verification will land regardless.
+        byte[] pendingPdf = null;
+        try {
+            pendingPdf = agreementPdfService.renderPendingBytes(row);
+        } catch (Exception e) {
+            log.warn("Pending agreement PDF render failed for user {}: {}", userId, e.getMessage());
+        }
+
         // Send the request email and capture the subject so the
         // IMAP cron can match the reply back to this row.
         String subject = emailTemplateService.sendAgreementReplyRequestEmail(
-                user, row.getLegalName(), ipAddress, userId, trackingTimestamp);
+                user, row.getLegalName(), ipAddress, userId, trackingTimestamp, pendingPdf);
         row.setAgreementEmailSubject(subject);
 
         AgreementAcceptance saved = agreementRepository.save(row);
@@ -231,7 +243,9 @@ public class AgreementService {
         row.setVerificationCodeSentAt(now);
         agreementRepository.save(row);
 
-        try { emailTemplateService.sendAgreementCodeEmail(user, code); } catch (Exception ignored) {}
+        try {
+            emailTemplateService.sendAgreementCodeEmail(user, row.getLegalName(), code);
+        } catch (Exception ignored) {}
 
         log.info("Agreement code emailed to user {} after reply detection", userId);
         return true;
@@ -391,9 +405,16 @@ public class AgreementService {
             row.setAgreementEmailSentAt(now);
             row.setAgreementExpiresAt(now.plusMinutes(AGREEMENT_EMAIL_TTL_MINUTES));
             row.setLastResendAt(now);
+            byte[] pendingPdf = null;
+            try {
+                pendingPdf = agreementPdfService.renderPendingBytes(row);
+            } catch (Exception e) {
+                log.warn("Pending agreement PDF render failed on resend for user {}: {}",
+                        userId, e.getMessage());
+            }
             String subject = emailTemplateService.sendAgreementReplyRequestEmail(
                     row.getUser(), row.getLegalName(), row.getIpAddress(),
-                    userId, trackingTimestamp);
+                    userId, trackingTimestamp, pendingPdf);
             row.setAgreementEmailSubject(subject);
             agreementRepository.save(row);
             return;
@@ -405,7 +426,10 @@ public class AgreementService {
             // again and bump the cooldown anchor.
             row.setLastResendAt(LocalDateTime.now());
             agreementRepository.save(row);
-            try { emailTemplateService.sendAgreementCodeEmail(row.getUser(), row.getAcceptanceCode()); } catch (Exception ignored) {}
+            try {
+                emailTemplateService.sendAgreementCodeEmail(
+                        row.getUser(), row.getLegalName(), row.getAcceptanceCode());
+            } catch (Exception ignored) {}
         }
     }
 

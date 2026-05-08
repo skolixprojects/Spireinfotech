@@ -113,49 +113,49 @@ public class EmailTemplateService {
      */
     public String sendAgreementReplyRequestEmail(
             User user, String legalName, String ipAddress,
-            long userId, long trackingTimestamp
+            long userId, long trackingTimestamp, byte[] pendingPdfBytes
     ) {
         // Subject embeds the tracking marker the IMAP cron uses to
         // match incoming replies back to this row. Format must stay
         // [AGREE-{userId}-{ts}] — see TRACKING_REGEX in the cron.
         String tracking = String.format("[AGREE-%d-%d]", userId, trackingTimestamp);
-        String subject = "ACTION REQUIRED: Accept Spire Info Tech Agreement " + tracking;
-        String dateStamp = java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Kolkata"))
-                .format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy, h:mm a"));
-
-        String summary =
-                "<div style=\"background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; padding:16px 20px; margin:18px 0;\">"
-                        + "<p style=\"margin:0 0 10px; color:#0F766E; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:1.5px;\">Agreement Summary</p>"
-                        + bullet("Terms of Service v1.0")
-                        + bullet("Privacy Policy")
-                        + bullet("Content Protection Policy")
-                        + bullet("Payment & Refund Policy")
-                        + "<hr style=\"border:none; border-top:1px solid #e5e7eb; margin:14px 0 10px;\"/>"
-                        + "<p style=\"margin:0; color:#374151; font-size:13px; line-height:1.7;\">"
-                        + "<strong>Legal name provided:</strong> " + escape(legalName) + "<br/>"
-                        + "<strong>Date:</strong> " + escape(dateStamp) + " IST<br/>"
-                        + "<strong>IP:</strong> " + escape(ipAddress == null ? "—" : ipAddress)
-                        + "</p></div>";
+        String subject = "Spire Info Tech — Terms of Service Agreement " + tracking;
+        // ipAddress is captured on the row for the audit trail but
+        // intentionally not surfaced in the email body — the spec
+        // wording deliberately reads as a formal letter rather than
+        // a security receipt.
+        if (ipAddress != null) { /* keep on signature for callers */ }
 
         String replyCallout =
                 "<div style=\"text-align:center; margin:24px 0;\">"
-                        + "<span style=\"display:inline-block; font-size:22px; font-weight:bold; "
-                        + "letter-spacing:4px; color:#0F766E; background:#f0fdf9; "
+                        + "<span style=\"display:inline-block; font-size:20px; font-weight:bold; "
+                        + "letter-spacing:1px; color:#0F766E; background:#f0fdf9; "
                         + "padding:12px 28px; border-radius:8px; "
                         + "border:1px solid rgba(15,118,110,0.2); font-family:Arial,Helvetica,sans-serif;\">"
-                        + "REPLY: YES"
+                        + "Yes, I agree"
                         + "</span></div>";
 
-        String body = p("Hi " + firstName(user) + ",")
-                + p("You have reviewed and indicated your acceptance of the <strong>Spire Info Tech</strong> Terms of Service.")
-                + summary
-                + p("To confirm your acceptance, <strong>reply</strong> to this email with the word:")
+        String body = p("Dear " + escape(legalName == null || legalName.isBlank()
+                        ? firstName(user) : legalName) + ",")
+                + p("Please find attached the Terms of Service agreement for <strong>Spire Info Tech</strong>.")
+                + p("We request you to review the attached document carefully.")
+                + p("To confirm your acceptance of these terms, please <strong>reply</strong> to this email with:")
                 + replyCallout
-                + p("Your reply serves as your digital consent and will be recorded for legal purposes.")
+                + p("By replying, you acknowledge that you have read and accept all terms and conditions stated in the attached document.")
                 + p("This request expires in <strong>30 minutes</strong>.")
+                + p("Regards,<br/>Spire Info Tech<br/>"
+                        + "<span style=\"color:#6b7280;\">info@spireitco.com &nbsp;•&nbsp; www.spireitco.com</span>")
                 + muted("If you did not initiate this, please ignore this email — no agreement will be recorded.");
 
-        emailService.sendEmail(user.getEmail(), subject, wrap("Confirm your agreement", body));
+        java.util.List<EmailService.Attachment> attachments =
+                pendingPdfBytes == null || pendingPdfBytes.length == 0
+                        ? java.util.List.of()
+                        : java.util.List.of(new EmailService.Attachment(
+                                "Spire_Agreement_v1.0.pdf",
+                                "application/pdf", pendingPdfBytes));
+
+        emailService.sendEmail(user.getEmail(), subject,
+                wrap("Terms of Service Agreement", body), attachments);
         return subject;
     }
 
@@ -165,7 +165,7 @@ public class EmailTemplateService {
      * backend has issued the OTP. Entering this code on the website
      * completes the acceptance.
      */
-    public void sendAgreementCodeEmail(User user, String code) {
+    public void sendAgreementCodeEmail(User user, String legalName, String code) {
         String codeBlock =
                 "<div style=\"text-align:center; margin:24px 0;\">"
                         + "<span style=\"display:inline-block; font-size:32px; font-weight:bold; "
@@ -176,17 +176,21 @@ public class EmailTemplateService {
                         + "</span>"
                         + "</div>";
 
-        String body = p("Hi " + firstName(user) + ",")
-                + p("You are accepting the Terms of Service of <strong>Spire Info Tech</strong>.")
-                + p("Your confirmation code is:")
+        String greeting = legalName == null || legalName.isBlank()
+                ? firstName(user) : legalName;
+
+        String body = p("Dear " + escape(greeting) + ",")
+                + p("Thank you for accepting the Terms of Service.")
+                + p("Your verification code is:")
                 + codeBlock
-                + p("By entering this code, you confirm that you have read and agree to the Terms of Service and Privacy Policy.")
+                + p("Enter this code on the website to complete your agreement.")
                 + p("This code expires in 10 minutes.")
+                + p("Regards,<br/>Spire Info Tech")
                 + muted("If you didn't request this, ignore this email — your agreement won't be recorded.");
         emailService.sendEmail(
                 user.getEmail(),
-                "Agreement confirmation code: " + code,
-                wrap("Confirm your agreement", body)
+                "Agreement verification code: " + code,
+                wrap("Verification code", body)
         );
     }
 
@@ -226,20 +230,29 @@ public class EmailTemplateService {
             User user, String legalName, String acceptedAtIst,
             String version, String recordId, byte[] pdfBytes
     ) {
-        String filename = "Spire-Agreement-" + (recordId == null ? "signed" : recordId) + ".pdf";
+        // Filename uses the user's legal name when available so the
+        // attachment lands in their inbox with a personal anchor;
+        // strip whitespace + non-filename-safe chars first.
+        String namePart = (legalName == null || legalName.isBlank())
+                ? (recordId == null ? "signed" : recordId)
+                : legalName.trim().replaceAll("[^A-Za-z0-9._-]", "_");
+        String filename = "Spire_Agreement_Signed_" + namePart + ".pdf";
         // legalName + version are kept on the signature for audit
         // logging on the caller side; the user-facing body shows
         // only the acceptance ID + timestamp per spec.
 
-        String body = p("Hi " + firstName(user) + ",")
+        String greeting = legalName == null || legalName.isBlank()
+                ? firstName(user) : legalName;
+
+        String body = p("Dear " + escape(greeting) + ",")
                 + p("Your agreement with <strong>Spire Info Tech</strong> has been confirmed.")
-                + p("Attached is your signed copy of the Terms of Service. Please keep this for your records.")
+                + p("Attached is your signed copy of the Terms of Service. Please keep this document for your records.")
                 + receipt(
                         "Agreement ID: " + (recordId == null ? "—" : recordId),
                         "Accepted on: " + acceptedAtIst
                 )
                 + button("View on Platform", appUrl + "/dashboard")
-                + muted("— Spire Info Tech");
+                + p("Regards,<br/>Spire Info Tech");
 
         java.util.List<EmailService.Attachment> attachments =
                 pdfBytes == null || pdfBytes.length == 0

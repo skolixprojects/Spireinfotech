@@ -71,39 +71,23 @@ public class AgreementPdfService {
     private final TermsContentService termsContentService;
 
     /**
-     * Generates the signed PDF for a verified acceptance row and
-     * returns the on-disk filename. Caller is responsible for
-     * persisting the resulting URL on the row.
+     * Generates the SIGNED PDF for a verified acceptance row, writes
+     * it to disk, and returns the on-disk filename. Caller is
+     * responsible for persisting the resulting URL on the row.
      *
      * Throws on disk / rendering failure — agreement-acceptance flow
      * wraps the call in try/catch so a PDF outage doesn't roll back
      * the verification itself.
      */
     public String generate(AgreementAcceptance row) {
-        TermsDocument doc = termsContentService.getTerms(row.getAgreementVersion());
         new File(OUTPUT_DIR).mkdirs();
-
         String fileName = row.getUser().getId() + "-" + System.currentTimeMillis() + ".pdf";
         String filePath = OUTPUT_DIR + "/" + fileName;
 
-        byte[] body = renderBody(row, doc);
-
-        ClassPathResource letterhead = new ClassPathResource(LETTERHEAD_PATH);
-        if (letterhead.exists()) {
-            try (var lhStream = letterhead.getInputStream();
-                 var out = new FileOutputStream(filePath)) {
-                overlayOnLetterhead(body, lhStream.readAllBytes(), out);
-                log.info("Signed agreement PDF written (with letterhead) for user {}: {}",
-                        row.getUser().getId(), filePath);
-                return fileName;
-            } catch (Exception e) {
-                log.warn("Letterhead overlay failed, falling back to native header: {}",
-                        e.getMessage());
-            }
-        }
+        byte[] finalPdf = renderPdf(row, true);
 
         try (var out = new FileOutputStream(filePath)) {
-            out.write(body);
+            out.write(finalPdf);
             log.info("Signed agreement PDF written for user {}: {}",
                     row.getUser().getId(), filePath);
             return fileName;
@@ -111,6 +95,41 @@ public class AgreementPdfService {
             throw new RuntimeException(
                     "Failed to write signed agreement PDF: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Generates the BLANK / pending agreement PDF — same letterhead,
+     * same terms wording, but the signature page reads "PENDING
+     * ACCEPTANCE" with the post-reply / OTP / acceptance-code rows
+     * stamped as PENDING placeholders. Returned as bytes only (no
+     * disk write) because the pending PDF is consumed by the email
+     * relay and then thrown away; the SIGNED copy that lands after
+     * OTP verification is the one we persist.
+     */
+    public byte[] renderPendingBytes(AgreementAcceptance row) {
+        return renderPdf(row, false);
+    }
+
+    /**
+     * Renders the body, then overlays it on the letterhead (if the
+     * template ships and the overlay succeeds). Falls back to the
+     * letterhead-less body bytes on overlay failure so a corrupted
+     * template can never break the flow.
+     */
+    private byte[] renderPdf(AgreementAcceptance row, boolean signed) {
+        TermsDocument doc = termsContentService.getTerms(row.getAgreementVersion());
+        byte[] body = renderBody(row, doc, signed);
+
+        ClassPathResource letterhead = new ClassPathResource(LETTERHEAD_PATH);
+        if (letterhead.exists()) {
+            try (var lhStream = letterhead.getInputStream()) {
+                return overlayOnLetterhead(body, lhStream.readAllBytes());
+            } catch (Exception e) {
+                log.warn("Letterhead overlay failed, falling back to plain body: {}",
+                        e.getMessage());
+            }
+        }
+        return body;
     }
 
     /**
@@ -126,7 +145,7 @@ public class AgreementPdfService {
      * provides all branding when overlaid, so a second header bar
      * would just stack on top of the real one.
      */
-    private byte[] renderBody(AgreementAcceptance row, TermsDocument doc) {
+    private byte[] renderBody(AgreementAcceptance row, TermsDocument doc, boolean signed) {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             Document document = new Document(PageSize.A4, 65, 65, 140, 100);
@@ -134,13 +153,13 @@ public class AgreementPdfService {
             document.open();
 
             User user = row.getUser();
-            String acceptedAt = row.getAcceptedAt() == null
-                    ? "—"
-                    : row.getAcceptedAt().atZone(IST).format(DATE_TIME_FMT);
+            String acceptedAt = signed && row.getAcceptedAt() != null
+                    ? row.getAcceptedAt().atZone(IST).format(DATE_TIME_FMT)
+                    : "PENDING";
 
             // ── Page 1+ : Title + acceptance confirmations + full terms
-            document.add(centered("SIGNED AGREEMENT",
-                    new Font(Font.HELVETICA, 11, Font.BOLD, MUTED), 16));
+            document.add(centered(signed ? "SIGNED AGREEMENT" : "AGREEMENT FOR REVIEW",
+                    new Font(Font.HELVETICA, 11, Font.BOLD, signed ? MUTED : new Color(180, 83, 9)), 16));
             document.add(centered("Terms of Service",
                     new Font(Font.TIMES_ROMAN, 24, Font.BOLD, TEAL_DARK), 8));
             document.add(centered(doc.version()
@@ -180,31 +199,42 @@ public class AgreementPdfService {
             document.add(spacer(8));
             document.add(centered("AGREEMENT ACCEPTANCE RECORD",
                     new Font(Font.HELVETICA, 13, Font.BOLD, TEAL_DARK), 4));
-            document.add(centered("Personalized signature page",
-                    new Font(Font.HELVETICA, 10, Font.ITALIC, MUTED), 18));
+            document.add(centered(
+                    signed ? "Personalized signature page"
+                           : "Personalized signature page  •  PENDING ACCEPTANCE",
+                    new Font(Font.HELVETICA, 10, Font.ITALIC,
+                            signed ? MUTED : new Color(180, 83, 9)), 18));
 
             // The framed-table layout is rendered via PdfPTable so the
             // borders sit consistently regardless of font metrics.
-            document.add(buildAcceptanceRecordTable(row, user, doc, acceptedAt));
+            document.add(buildAcceptanceRecordTable(row, user, doc, acceptedAt, signed));
 
             document.add(spacer(20));
             document.add(new Paragraph(
-                    "This document was generated by " + doc.platform() + " and constitutes "
-                            + "a record of the User's acceptance of the Terms of Service. "
-                            + "The acceptance was verified through email reply confirmation "
-                            + "and OTP code verification, and is recorded as binding legal "
-                            + "evidence equivalent to a handwritten signature.",
+                    signed
+                            ? "This document was generated by " + doc.platform() + " and constitutes "
+                                    + "a record of the User's acceptance of the Terms of Service. "
+                                    + "The acceptance was verified through email reply confirmation "
+                                    + "and OTP code verification, and is recorded as binding legal "
+                                    + "evidence equivalent to a handwritten signature."
+                            : "This document is a copy of the " + doc.platform() + " Terms of Service "
+                                    + "presented for review. To accept, reply 'Yes, I agree' to the "
+                                    + "email this PDF was attached to. After your reply is received, "
+                                    + "you'll receive a one-time verification code; entering it on "
+                                    + "the website finalises the acceptance and a fully-signed copy "
+                                    + "of this document will be issued to you.",
                     new Font(Font.TIMES_ROMAN, 10.5f, Font.NORMAL, INK)));
 
             document.add(spacer(20));
             Paragraph signedAs = new Paragraph();
-            signedAs.add(new Chunk("Signed as:  ",
+            signedAs.add(new Chunk(signed ? "Signed as:  " : "Will be signed as:  ",
                     new Font(Font.HELVETICA, 11, Font.NORMAL, MUTED)));
             signedAs.add(new Chunk(row.getLegalName(),
                     new Font(Font.HELVETICA, 14, Font.BOLD, INK)));
             document.add(signedAs);
             document.add(new Paragraph(
-                    "Signed on " + acceptedAt,
+                    signed ? "Signed on " + acceptedAt
+                           : "Acceptance pending — awaiting email reply + verification code",
                     new Font(Font.HELVETICA, 10, Font.ITALIC, MUTED)));
 
             // ── Contact / jurisdiction footer ───────────────────────
@@ -225,14 +255,13 @@ public class AgreementPdfService {
     }
 
     /**
-     * Overlays each body page onto a letterhead template. The
-     * letterhead's first page is reused for every body page —
-     * single-page letterheads are the common case, so we don't
-     * try to multiplex multi-page letterheads.
+     * Overlays each body page onto a letterhead template, returning
+     * the merged PDF as bytes. The letterhead's first page is reused
+     * for every body page — single-page letterheads are the common
+     * case, so we don't try to multiplex multi-page letterheads.
      */
-    private void overlayOnLetterhead(byte[] bodyBytes, byte[] letterheadBytes, FileOutputStream out)
+    private byte[] overlayOnLetterhead(byte[] bodyBytes, byte[] letterheadBytes)
             throws Exception {
-        // Read body PDF, then stamp the letterhead behind every page.
         PdfReader bodyReader = new PdfReader(bodyBytes);
         ByteArrayOutputStream tmp = new ByteArrayOutputStream();
         PdfStamper stamper = new PdfStamper(bodyReader, tmp);
@@ -249,7 +278,7 @@ public class AgreementPdfService {
         bodyReader.close();
         letterheadReader.close();
 
-        out.write(tmp.toByteArray());
+        return tmp.toByteArray();
     }
 
     // ─── Layout helpers ────────────────────────────────────────────
@@ -295,30 +324,38 @@ public class AgreementPdfService {
      * label/value font metrics.
      */
     private static PdfPTable buildAcceptanceRecordTable(
-            AgreementAcceptance row, User user, TermsDocument doc, String acceptedAt
+            AgreementAcceptance row, User user, TermsDocument doc,
+            String acceptedAt, boolean signed
     ) {
         PdfPTable table = new PdfPTable(new float[]{ 1.4f, 3.6f });
         table.setWidthPercentage(100);
         table.setSpacingBefore(8);
         table.setSpacingAfter(8);
 
+        // Status row first so a recipient sees PENDING / ACCEPTED at
+        // a glance without scanning the whole table.
+        addRecordRow(table, "Status", signed ? "ACCEPTED" : "PENDING ACCEPTANCE");
         addRecordRow(table, "Full legal name",
                 safe(row.getLegalName()));
         addRecordRow(table, "Email address",
-                safe(user.getEmail()) + "  (verified)");
+                safe(user.getEmail()) + (signed ? "  (verified)" : ""));
         addRecordRow(table, "Date of acceptance", acceptedAt);
         addRecordRow(table, "Agreement version", safe(doc.version()));
         addRecordRow(table, "Acceptance code",
-                (row.getAcceptanceCode() == null ? "—" : row.getAcceptanceCode())
-                        + "  (verified)");
+                signed
+                        ? (row.getAcceptanceCode() == null ? "—" : row.getAcceptanceCode())
+                                + "  (verified)"
+                        : "PENDING");
         addRecordRow(table, "IP address", safe(row.getIpAddress()));
         addRecordRow(table, "Browser",
                 safe(row.getBrowser()) + " on " + safe(row.getOs()));
         addRecordRow(table, "Reply received",
-                row.getUserReplyReceivedAt() == null
-                        ? "—"
-                        : row.getUserReplyReceivedAt().atZone(IST).format(DATE_TIME_FMT)
-                                + "   (\"" + safe(row.getUserReplyContent()) + "\")");
+                signed
+                        ? (row.getUserReplyReceivedAt() == null
+                                ? "—"
+                                : row.getUserReplyReceivedAt().atZone(IST).format(DATE_TIME_FMT)
+                                        + "   (\"" + safe(row.getUserReplyContent()) + "\")")
+                        : "PENDING");
 
         return table;
     }
