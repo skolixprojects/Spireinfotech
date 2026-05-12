@@ -4,9 +4,14 @@ import { Check } from "lucide-react";
 
 /**
  * 9-step progress bar shown across every Phase 1B onboarding page.
- * Steps mirror the workflow ladder grouped into user-visible
- * phases (Enroll, Verify, ID, Acknowledge, Documents, Program,
- * Agreement, Welcome, Dashboard).
+ *
+ * Layout strategy:
+ *   - Desktop (≥ sm): all 9 circles + short labels inline, no
+ *     horizontal scroll, labels capped at 7 characters so they
+ *     don't fight for width.
+ *   - Mobile (< sm): the row of circles hides; we render a
+ *     compact "Step X of 9: Name" pill instead so a 320 px screen
+ *     never overflows.
  *
  * Callers pass {@code currentStep} (1-9) explicitly rather than
  * having the component read auth context — keeps it pure and lets
@@ -16,12 +21,12 @@ const STEPS: ReadonlyArray<string> = [
   "Enroll",
   "Verify",
   "ID",
-  "Acknowledge",
-  "Documents",
+  "Accept",
+  "Docs",
   "Program",
-  "Agreement",
+  "Sign",
   "Welcome",
-  "Dashboard",
+  "Done",
 ];
 
 export interface OnboardingProgressBarProps {
@@ -79,15 +84,33 @@ export function stepFromStatus(status: string | null | undefined): number {
 
 export default function OnboardingProgressBar({ currentStep }: OnboardingProgressBarProps) {
   const clamped = Math.max(1, Math.min(STEPS.length, currentStep));
+  const activeLabel = STEPS[clamped - 1];
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
-      <ol className="flex items-start justify-between gap-1 sm:gap-2 overflow-x-auto">
+      {/* Mobile-only compact summary. Phones can't fit 9 circles
+          legibly so we collapse to one line. */}
+      <div className="sm:hidden flex items-center justify-between gap-3">
+        <div className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-[#0F766E] text-white text-xs font-bold animate-pulse">
+          {clamped}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
+            Step {clamped} of {STEPS.length}
+          </p>
+          <p className="text-sm font-bold text-[#0F766E] truncate">{activeLabel}</p>
+        </div>
+        <div className="text-xs text-gray-500 font-mono">
+          {clamped}/{STEPS.length}
+        </div>
+      </div>
+
+      {/* Desktop layout: 9 circles + short labels inline. */}
+      <ol className="hidden sm:flex items-start justify-between gap-1">
         {STEPS.map((label, idx) => {
           const stepNumber = idx + 1;
           const isCompleted = stepNumber < clamped;
           const isActive = stepNumber === clamped;
-          const isPending = stepNumber > clamped;
 
           let circleClass = "border border-gray-300 bg-white text-gray-400";
           if (isCompleted) circleClass = "bg-emerald-600 border-emerald-600 text-white";
@@ -97,48 +120,51 @@ export default function OnboardingProgressBar({ currentStep }: OnboardingProgres
           if (isCompleted) labelClass = "text-emerald-700 font-semibold";
           else if (isActive) labelClass = "text-[#0F766E] font-bold";
 
-          const prevDone = idx > 0 && stepNumber <= clamped;
+          // Connector lights up between any two completed-or-active steps.
+          const leftConnectorActive = idx > 0 && stepNumber <= clamped;
+          const rightConnectorActive = isCompleted; // line to the right is teal only if THIS step is done
 
           return (
             <li key={label} className="flex-1 min-w-0 flex flex-col items-center">
               <div className="flex items-center w-full">
-                {idx > 0 && (
+                {idx > 0 ? (
                   <div
-                    className={`flex-1 h-[2px] -mr-1 ${
-                      prevDone
-                        ? "bg-[#0F766E]"
-                        : "bg-gray-200 [background-image:repeating-linear-gradient(90deg,transparent_0_4px,#d1d5db_4px_8px)]"
-                    }`}
+                    className={
+                      "flex-1 h-[2px] " + (leftConnectorActive ? "bg-[#0F766E]" : "bg-gray-200")
+                    }
                   />
+                ) : (
+                  <div className="flex-1" />
                 )}
                 <div
                   className={
-                    "shrink-0 inline-flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-full transition-all text-[10px] sm:text-xs font-bold "
+                    "shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full transition-all text-xs font-bold mx-1 "
                     + circleClass
                   }
                   aria-current={isActive ? "step" : undefined}
                 >
                   {isCompleted ? <Check size={14} /> : stepNumber}
                 </div>
-                {stepNumber < STEPS.length && (
+                {stepNumber < STEPS.length ? (
                   <div
-                    className={`flex-1 h-[2px] -ml-1 ${
-                      isCompleted
-                        ? "bg-[#0F766E]"
-                        : "bg-gray-200 [background-image:repeating-linear-gradient(90deg,transparent_0_4px,#d1d5db_4px_8px)]"
-                    }`}
+                    className={
+                      "flex-1 h-[2px] " + (rightConnectorActive ? "bg-[#0F766E]" : "bg-gray-200")
+                    }
                   />
+                ) : (
+                  <div className="flex-1" />
                 )}
               </div>
-              <span className={`mt-1.5 text-[9px] sm:text-[11px] text-center leading-tight ${labelClass} ${isPending && stepNumber !== clamped + 1 && stepNumber !== clamped - 1 ? "hidden sm:block" : ""}`}>
+              <span className={`mt-2 text-[11px] text-center ${labelClass}`}>
                 {label}
               </span>
             </li>
           );
         })}
       </ol>
-      <p className="mt-3 text-xs text-gray-500 text-center">
-        Step {clamped} of {STEPS.length}: <span className="font-semibold text-gray-700">{STEPS[clamped - 1]}</span>
+
+      <p className="hidden sm:block mt-3 text-xs text-gray-500 text-center">
+        Step {clamped} of {STEPS.length}: <span className="font-semibold text-gray-700">{activeLabel}</span>
       </p>
     </div>
   );
