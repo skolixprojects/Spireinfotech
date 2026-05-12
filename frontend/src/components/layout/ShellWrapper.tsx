@@ -18,7 +18,7 @@ const AUTH_ROUTES = ["/login", "/signup"];
 // document the intent and stay correct if /verify ever needs to
 // narrow.
 const FULLSCREEN_ROUTES = [
-  "/learn", "/verify", "/agreement",
+  "/learn", "/verify", "/agreement", "/agreement-legacy",
   "/enroll", "/verify-email", "/participant-id",
   "/acknowledgment", "/document-upload", "/program-selection",
 ];

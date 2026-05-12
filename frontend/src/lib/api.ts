@@ -116,8 +116,14 @@ export async function apiFetch<T = unknown>(
     // already on /agreement (that page itself calls API endpoints
     // and we don't want a redirect loop).
     if (res.status === 403 && body?.message === "AGREEMENT_REQUIRED") {
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/agreement")) {
-        window.location.href = "/agreement";
+      // Legacy gate — fires for users created under the old
+      // Terms-of-Service flow who never accepted via the new
+      // /acknowledgment step. Send them to /agreement-legacy
+      // (which is the old Terms / email-reply UI, preserved for
+      // exactly this case). New onboarding traffic uses
+      // /acknowledgment + workflow gates instead.
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/agreement-legacy")) {
+        window.location.href = "/agreement-legacy";
       }
       throw new Error("AGREEMENT_REQUIRED");
     }
@@ -459,11 +465,18 @@ export function getOnboardingRoute(status: string | null | undefined): string {
       return "/participant-id";
     case "ACKNOWLEDGMENT_ACCEPTED":
       return "/document-upload";
-    case "DOCUMENTS_SUBMITTED":
     case "DOC_REVIEW_PENDING":
+      // Docs went out for review — send the user back to the
+      // upload page so they can see review status and resubmit
+      // if Operations rejected anything.
+      return "/document-upload";
+    case "DOCUMENTS_SUBMITTED":
       return "/program-selection";
     case "PROGRAM_SELECTED":
     case "DOCUSIGN_SENT":
+      // /agreement is currently a Phase 3B placeholder; Phase 3B
+      // will replace it with the real DocuSign envelope UI. The
+      // OLD Terms-of-Service flow lives at /agreement-legacy.
       return "/agreement";
     case "DOCUSIGN_COMPLETED":
     case "SIGNED_AGREEMENT_SENT_TO_ERM":

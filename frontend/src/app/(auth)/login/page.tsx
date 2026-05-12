@@ -56,11 +56,23 @@ function LoginForm() {
     setNeedsVerification(null);
     try {
       const auth = await login(data.email, data.password);
-      // Users who haven't accepted Terms of Service yet land on the
-      // agreement gate first; everyone else goes to their original
-      // redirect target.
-      if (!auth.user?.agreementAccepted) {
-        window.location.href = "/agreement";
+      // Routing after login:
+      //   - New participant lifecycle (has currentStatus) → route
+      //     to whichever onboarding step matches the status.
+      //   - Legacy users without a currentStatus but without the
+      //     old Terms-of-Service acceptance → /agreement-legacy.
+      //   - Everyone else → original redirect target.
+      const status = auth.user?.currentStatus;
+      if (status) {
+        // Lazy import to avoid pulling getOnboardingRoute into
+        // every page bundle just for this branch.
+        const { getOnboardingRoute, isDashboardStatus } = await import("@/lib/api");
+        if (!isDashboardStatus(status)) {
+          window.location.href = getOnboardingRoute(status);
+          return;
+        }
+      } else if (!auth.user?.agreementAccepted) {
+        window.location.href = "/agreement-legacy";
         return;
       }
       window.location.href = redirect;

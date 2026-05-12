@@ -138,9 +138,13 @@ function VerifyEmailInner() {
       // and walks the workflow to ID_EMAIL_SENT, so route into the
       // /participant-id confirmation page next. Legacy users who'd
       // already accepted the agreement skip to /dashboard.
+      // Routing after OTP verify:
+      //   - Already agreement-accepted (legacy users) → /dashboard
+      //   - New participant lifecycle (has participantId) → /participant-id
+      //   - Pre-Phase-1B legacy fallback → /agreement-legacy (old Terms flow)
       const target = auth.user?.agreementAccepted
         ? "/dashboard"
-        : (auth.user?.participantId ? "/participant-id" : "/agreement");
+        : (auth.user?.participantId ? "/participant-id" : "/agreement-legacy");
       setTimeout(() => { window.location.href = target; }, 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");

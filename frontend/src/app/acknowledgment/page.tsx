@@ -194,7 +194,9 @@ export default function AcknowledgmentPage() {
       });
       // Refresh profile so the cached auth-context status moves
       // forward, then route to whichever page comes next.
-      const next = result?.nextStep ?? "/agreement";
+      // Server typically returns nextStep="/document-upload";
+      // fall back to the same target if it doesn't.
+      const next = result?.nextStep ?? "/document-upload";
       router.replace(next);
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Couldn't submit acknowledgment");
