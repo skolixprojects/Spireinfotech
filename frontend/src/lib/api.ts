@@ -680,6 +680,313 @@ export async function getWeeklyReport(id: number): Promise<WeeklyReportDTO> {
   return wrapper.data;
 }
 
+// ─── Phase 5B: ERM dashboard ─────────────────────────────────────
+
+export interface ErmRosterRow {
+  userId: number;
+  participantId: string | null;
+  fullName: string | null;
+  email: string | null;
+  program: string | null;
+  technology: string | null;
+  targetJobTitle: string | null;
+  currentStatus: string | null;
+  lastActivity: string | null;
+}
+
+export async function getErmRoster(): Promise<ErmRosterRow[]> {
+  const wrapper = await apiFetch<ApiResponse<ErmRosterRow[]>>("/api/erm/participants");
+  return wrapper.data ?? [];
+}
+
+export async function getErmParticipantDetail(participantId: number): Promise<Record<string, unknown>> {
+  const wrapper = await apiFetch<ApiResponse<Record<string, unknown>>>(
+    `/api/erm/participants/${participantId}`);
+  return wrapper.data ?? {};
+}
+
+export async function getErmReports(): Promise<WeeklyReportDTO[]> {
+  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO[]>>("/api/erm/reports");
+  return wrapper.data ?? [];
+}
+
+export async function reviewErmReport(reportId: number, notes: string): Promise<WeeklyReportDTO> {
+  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO>>(
+    `/api/erm/reports/${reportId}/review`,
+    { method: "PUT", body: JSON.stringify({ notes }) });
+  return wrapper.data;
+}
+
+export async function addErmNote(
+  participantId: number,
+  note: string,
+  escalation = false,
+): Promise<unknown> {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/erm/participants/${participantId}/notes`,
+    { method: "POST", body: JSON.stringify({ note, escalation }) });
+  return wrapper.data;
+}
+
+// ─── Phase 5B: Coach dashboard ───────────────────────────────────
+
+export interface CoachParticipantRow {
+  userId: number;
+  participantId: string | null;
+  fullName: string | null;
+  technology: string | null;
+  targetJobTitle: string | null;
+  program: string | null;
+  phase: string | null;
+  coachRole: string | null;
+  sessions: number;
+  currentStatus: string | null;
+}
+
+export interface CoachingSessionDTO {
+  id?: number;
+  participantUserId: number;
+  coachUserId?: number;
+  sessionDate?: string | null;
+  topic?: string | null;
+  notes?: string | null;
+  nextSteps?: string | null;
+  durationMinutes?: number | null;
+  createdAt?: string | null;
+}
+
+export interface CoachingTaskDTO {
+  id?: number;
+  participantUserId: number;
+  coachUserId?: number;
+  title: string;
+  description?: string | null;
+  dueDate?: string | null;
+  status?: string;
+  createdAt?: string | null;
+}
+
+export interface CoachingFeedbackDTO {
+  id?: number;
+  participantUserId: number;
+  coachUserId?: number;
+  feedbackType?: string;
+  content: string;
+  rating?: number | null;
+  createdAt?: string | null;
+}
+
+export async function getCoachParticipants(): Promise<CoachParticipantRow[]> {
+  const wrapper = await apiFetch<ApiResponse<CoachParticipantRow[]>>(
+    "/api/coaches/participants");
+  return wrapper.data ?? [];
+}
+
+export async function getCoachParticipantDetail(participantId: number): Promise<Record<string, unknown>> {
+  const wrapper = await apiFetch<ApiResponse<Record<string, unknown>>>(
+    `/api/coaches/participants/${participantId}`);
+  return wrapper.data ?? {};
+}
+
+export async function listCoachSessions(participantId?: number): Promise<CoachingSessionDTO[]> {
+  const qs = participantId ? `?participantId=${participantId}` : "";
+  const wrapper = await apiFetch<ApiResponse<CoachingSessionDTO[]>>(
+    `/api/coaches/sessions${qs}`);
+  return wrapper.data ?? [];
+}
+
+export async function createCoachSession(body: CoachingSessionDTO): Promise<CoachingSessionDTO> {
+  const wrapper = await apiFetch<ApiResponse<CoachingSessionDTO>>(
+    "/api/coaches/sessions",
+    { method: "POST", body: JSON.stringify(body) });
+  return wrapper.data;
+}
+
+export async function listCoachTasks(participantId?: number): Promise<CoachingTaskDTO[]> {
+  const qs = participantId ? `?participantId=${participantId}` : "";
+  const wrapper = await apiFetch<ApiResponse<CoachingTaskDTO[]>>(
+    `/api/coaches/tasks${qs}`);
+  return wrapper.data ?? [];
+}
+
+export async function createCoachTask(body: CoachingTaskDTO): Promise<CoachingTaskDTO> {
+  const wrapper = await apiFetch<ApiResponse<CoachingTaskDTO>>(
+    "/api/coaches/tasks",
+    { method: "POST", body: JSON.stringify(body) });
+  return wrapper.data;
+}
+
+export async function updateCoachTaskStatus(taskId: number, status: string): Promise<CoachingTaskDTO> {
+  const wrapper = await apiFetch<ApiResponse<CoachingTaskDTO>>(
+    `/api/coaches/tasks/${taskId}/status`,
+    { method: "PUT", body: JSON.stringify({ status }) });
+  return wrapper.data;
+}
+
+export async function listCoachFeedback(participantId?: number): Promise<CoachingFeedbackDTO[]> {
+  const qs = participantId ? `?participantId=${participantId}` : "";
+  const wrapper = await apiFetch<ApiResponse<CoachingFeedbackDTO[]>>(
+    `/api/coaches/feedback${qs}`);
+  return wrapper.data ?? [];
+}
+
+export async function createCoachFeedback(body: CoachingFeedbackDTO): Promise<CoachingFeedbackDTO> {
+  const wrapper = await apiFetch<ApiResponse<CoachingFeedbackDTO>>(
+    "/api/coaches/feedback",
+    { method: "POST", body: JSON.stringify(body) });
+  return wrapper.data;
+}
+
+// ─── Phase 5B: Finance dashboard ─────────────────────────────────
+
+export interface FinanceCheckRow {
+  id: number;
+  userId: number;
+  participantId: string | null;
+  participantName: string | null;
+  checkNumber: string | null;
+  amount: number | null;
+  checkDate: string | null;
+  notes: string | null;
+  reviewStatus: string;
+  maskingStatus: string;
+  fileUrl: string | null;
+  uploadedAt: string | null;
+}
+
+export async function getFinanceChecks(status?: string): Promise<FinanceCheckRow[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const wrapper = await apiFetch<ApiResponse<FinanceCheckRow[]>>(
+    `/api/finance/checks${qs}`);
+  return wrapper.data ?? [];
+}
+
+export async function reviewFinanceCheck(
+  checkId: number,
+  status: "APPROVED" | "REJECTED",
+  notes = "",
+): Promise<FinanceCheckRow> {
+  const wrapper = await apiFetch<ApiResponse<FinanceCheckRow>>(
+    `/api/finance/checks/${checkId}/review`,
+    { method: "PUT", body: JSON.stringify({ status, notes }) });
+  return wrapper.data;
+}
+
+// ─── Phase 5B: Operations admin tabs ─────────────────────────────
+
+export interface OperationsQueueRow {
+  userId: number;
+  participantId?: string | null;
+  fullName: string | null;
+  email: string | null;
+  currentStatus: string | null;
+  createdAt?: string | null;
+  emailVerified?: boolean;
+  agreementStatus?: string | null;
+  agreementSentAt?: string | null;
+}
+
+export async function getEnrollmentQueue(): Promise<OperationsQueueRow[]> {
+  const wrapper = await apiFetch<ApiResponse<OperationsQueueRow[]>>(
+    "/api/admin/operations/enrollment-queue");
+  return wrapper.data ?? [];
+}
+
+export async function getAgreementQueue(): Promise<OperationsQueueRow[]> {
+  const wrapper = await apiFetch<ApiResponse<OperationsQueueRow[]>>(
+    "/api/admin/operations/agreement-queue");
+  return wrapper.data ?? [];
+}
+
+export interface AuditRow {
+  id: number;
+  userId: number;
+  recordType: string;
+  category: string;
+  title: string;
+  description: string;
+  createdAt: string;
+}
+
+export async function getAuditTrail(opts: {
+  userId?: number; category?: string; limit?: number;
+} = {}): Promise<AuditRow[]> {
+  const qs = new URLSearchParams();
+  if (opts.userId) qs.set("userId", String(opts.userId));
+  if (opts.category) qs.set("category", opts.category);
+  if (opts.limit) qs.set("limit", String(opts.limit));
+  const wrapper = await apiFetch<ApiResponse<AuditRow[]>>(
+    `/api/admin/operations/audit${qs.size ? `?${qs.toString()}` : ""}`);
+  return wrapper.data ?? [];
+}
+
+export interface OperationsException {
+  type: string;
+  userId: number;
+  fullName: string | null;
+  currentStatus: string | null;
+  openSince: string | null;
+}
+
+export async function getOperationsExceptions(): Promise<OperationsException[]> {
+  const wrapper = await apiFetch<ApiResponse<OperationsException[]>>(
+    "/api/admin/operations/exceptions");
+  return wrapper.data ?? [];
+}
+
+export interface StaffPool {
+  erm: { id: number; fullName: string; email: string }[];
+  coach: { id: number; fullName: string; email: string }[];
+  technicalAdvisor: { id: number; fullName: string; email: string }[];
+}
+
+export async function getStaffPool(): Promise<StaffPool> {
+  const wrapper = await apiFetch<ApiResponse<StaffPool>>(
+    "/api/admin/operations/staff-pool");
+  return wrapper.data ?? { erm: [], coach: [], technicalAdvisor: [] };
+}
+
+export async function getAssignmentQueue(): Promise<Record<string, unknown>[]> {
+  const wrapper = await apiFetch<ApiResponse<Record<string, unknown>[]>>(
+    "/api/admin/assignments/queue");
+  return wrapper.data ?? [];
+}
+
+export async function assignErmToParticipant(
+  participantId: number,
+  ermUserId: number,
+): Promise<unknown> {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/admin/assignments/erm/${participantId}`,
+    { method: "PUT", body: JSON.stringify({ ermUserId }) });
+  return wrapper.data;
+}
+
+export async function assignCoachToParticipant(
+  participantId: number,
+  coachUserId: number,
+  coachRole: string,
+): Promise<unknown> {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/admin/assignments/coach/${participantId}`,
+    { method: "PUT", body: JSON.stringify({ coachUserId, coachRole }) });
+  return wrapper.data;
+}
+
+/**
+ * Returns the dashboard route for the caller based on their primary
+ * role. Used by /login after a successful auth and by route guards
+ * to avoid sending a coach to the participant dashboard etc.
+ */
+export function dashboardRouteForRole(role: string | null | undefined): string {
+  const r = (role ?? "").toUpperCase();
+  if (r === "ERM") return "/erm-dashboard";
+  if (r === "COACH" || r === "TECHNICAL_ADVISOR") return "/coach-dashboard";
+  if (r === "FINANCE") return "/finance-dashboard";
+  if (r === "OPERATIONS_ADMIN" || r === "SYSTEM_ADMIN" || r === "ADMIN") return "/admin";
+  return "/dashboard";
+}
+
 /**
  * Maps a participant's workflow status to the onboarding page they
  * belong on. Mirrors the backend's WorkflowService.Status enum.

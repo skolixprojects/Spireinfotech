@@ -72,7 +72,8 @@ import {
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { ConversationThread } from "@/components/sales/ConversationThread";
-import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink } from "lucide-react";
+import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink, ShieldCheck } from "lucide-react";
+import { OperationsPanel } from "@/components/admin/OperationsPanel";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { cn } from "@/lib/utils";
@@ -90,6 +91,7 @@ const sidebarLinks = [
   { label: "Sales", icon: MessageSquare },
   { label: "Mentor Pools", icon: GraduationCap },
   { label: "Instructor Requests", icon: UserCheck },
+  { label: "Operations", icon: ShieldCheck },
 ];
 
 interface Analytics {
@@ -2377,6 +2379,19 @@ function AdminContent() {
                   ))}
                 </div>
               )}
+            </>
+          )}
+
+          {activeTab === "Operations" && (
+            <>
+              <h1 className="text-2xl font-bold text-[#0F766E] mb-2">Operations</h1>
+              <p className="text-sm text-gray-500 mb-5">
+                Participant-lifecycle operations queues — enrollment, document
+                review, agreement, assignments, audit, exceptions. The LMS
+                admin tabs above continue to handle courses, sessions, and
+                revenue.
+              </p>
+              <OperationsPanel />
             </>
           )}
         </motion.div>

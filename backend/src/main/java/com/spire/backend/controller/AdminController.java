@@ -45,7 +45,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ADMIN')")  // Double-layer: URL config + method-level
+@PreAuthorize("hasAnyRole('ADMIN','OPERATIONS_ADMIN','SYSTEM_ADMIN')")  // Double-layer: URL config + method-level
 public class AdminController {
 
     private final AdminService adminService;
@@ -60,6 +60,8 @@ public class AdminController {
     private final UserRepository userRepository;
     private final ErmAssignmentRepository ermAssignmentRepository;
     private final CoachAssignmentRepository coachAssignmentRepository;
+    private final com.spire.backend.repository.UserRecordRepository userRecordRepository;
+    private final com.spire.backend.repository.AgreementAcceptanceRepository agreementAcceptanceRepository;
 
     // CSV timestamps render in IST. The DB stores LocalDateTime
     // (timezone-naive, server-local = UTC on Railway) so we rebase
@@ -477,5 +479,157 @@ public class AdminController {
                         "coachRole", coachRole,
                         "workflowStatus", refreshed.getCurrentStatus()
                 )));
+    }
+
+    // ─── Phase 5B Operations tabs ───────────────────────────────────
+
+    /**
+     * Participants stuck at DRAFT_STARTED or BASIC_INFO_SUBMITTED —
+     * Operations Admin's "Enrollment Queue" tab.
+     */
+    @GetMapping("/operations/enrollment-queue")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> enrollmentQueue() {
+        java.util.Set<String> incomplete = java.util.Set.of(
+                "DRAFT_STARTED", "BASIC_INFO_SUBMITTED", "EMAIL_VERIFICATION_PENDING");
+        List<Map<String, Object>> rows = userRepository.findAll().stream()
+                .filter(u -> incomplete.contains(u.getCurrentStatus() == null ? "" : u.getCurrentStatus()))
+                .map(u -> {
+                    Map<String, Object> r = new java.util.LinkedHashMap<>();
+                    r.put("userId", u.getId());
+                    r.put("fullName", u.getFullName());
+                    r.put("email", u.getEmail());
+                    r.put("currentStatus", u.getCurrentStatus());
+                    r.put("createdAt", u.getCreatedAt());
+                    r.put("emailVerified", Boolean.TRUE.equals(u.getEmailVerified()));
+                    return r;
+                })
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(rows));
+    }
+
+    /**
+     * All participants who reached the agreement step but haven't
+     * completed it — Operations Admin's "Agreement Queue" tab.
+     */
+    @GetMapping("/operations/agreement-queue")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> agreementQueue() {
+        List<Map<String, Object>> rows = new java.util.ArrayList<>();
+        for (com.spire.backend.entity.User u : userRepository.findAll()) {
+            String status = u.getCurrentStatus();
+            if (status == null) continue;
+            boolean inFlight = "DOCUSIGN_SENT".equals(status)
+                    || "CHECK_COPY_UPLOADED".equals(status);
+            if (!inFlight) continue;
+            com.spire.backend.entity.AgreementAcceptance a =
+                    agreementAcceptanceRepository.findByUserId(u.getId()).orElse(null);
+            Map<String, Object> r = new java.util.LinkedHashMap<>();
+            r.put("userId", u.getId());
+            r.put("participantId", u.getParticipantId());
+            r.put("fullName", u.getFullName());
+            r.put("email", u.getEmail());
+            r.put("currentStatus", status);
+            r.put("agreementStatus", a == null ? "NOT_STARTED" : a.getStatus());
+            r.put("agreementSentAt", a == null ? null : a.getAgreementEmailSentAt());
+            rows.add(r);
+        }
+        return ResponseEntity.ok(ApiResponse.success(rows));
+    }
+
+    /**
+     * Audit trail — user_records for any participant, filtered by
+     * category or date range. Drives the "Audit Trail" tab.
+     */
+    @GetMapping("/operations/audit")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> auditTrail(
+            @RequestParam(value = "userId", required = false) Long userId,
+            @RequestParam(value = "category", required = false) String category,
+            @RequestParam(value = "limit", required = false, defaultValue = "200") Integer limit) {
+        var stream = userId != null
+                ? userRecordRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+                : userRecordRepository.findAll().stream()
+                        .sorted((a, b) -> {
+                            if (a.getCreatedAt() == null) return 1;
+                            if (b.getCreatedAt() == null) return -1;
+                            return b.getCreatedAt().compareTo(a.getCreatedAt());
+                        });
+        List<Map<String, Object>> rows = stream
+                .filter(r -> category == null || category.isBlank()
+                        || category.equalsIgnoreCase(r.getCategory()))
+                .limit(Math.max(1, Math.min(limit == null ? 200 : limit, 1000)))
+                .map(r -> {
+                    Map<String, Object> row = new java.util.LinkedHashMap<>();
+                    row.put("id", r.getId());
+                    row.put("userId", r.getUserId());
+                    row.put("recordType", r.getRecordType());
+                    row.put("category", r.getCategory());
+                    row.put("title", r.getTitle());
+                    row.put("description", r.getDescription());
+                    row.put("createdAt", r.getCreatedAt());
+                    return row;
+                })
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(rows));
+    }
+
+    /**
+     * Exceptions surface — derived view across the lifecycle (missing
+     * docs, stalled agreements, overdue weekly reports, etc.).
+     * Lightweight pass; expand as the data model grows.
+     */
+    @GetMapping("/operations/exceptions")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> exceptions() {
+        List<Map<String, Object>> rows = new java.util.ArrayList<>();
+        java.time.LocalDateTime cutoff = java.time.LocalDateTime.now().minusDays(7);
+        for (com.spire.backend.entity.User u : userRepository.findAll()) {
+            String status = u.getCurrentStatus();
+            if (status == null) continue;
+            // Stalled past document submission.
+            if (("DOCUMENTS_SUBMITTED".equals(status) || "DOC_REVIEW_PENDING".equals(status))
+                    && u.getCreatedAt() != null && u.getCreatedAt().isBefore(cutoff)) {
+                Map<String, Object> r = new java.util.LinkedHashMap<>();
+                r.put("type", "DOC_REVIEW_STALLED");
+                r.put("userId", u.getId());
+                r.put("fullName", u.getFullName());
+                r.put("currentStatus", status);
+                r.put("openSince", u.getCreatedAt());
+                rows.add(r);
+            }
+            // Agreement window past 48h with no completion.
+            if ("DOCUSIGN_SENT".equals(status)) {
+                com.spire.backend.entity.AgreementAcceptance a =
+                        agreementAcceptanceRepository.findByUserId(u.getId()).orElse(null);
+                if (a != null && a.getAgreementEmailSentAt() != null
+                        && a.getAgreementEmailSentAt().isBefore(java.time.LocalDateTime.now().minusHours(48))) {
+                    Map<String, Object> r = new java.util.LinkedHashMap<>();
+                    r.put("type", "AGREEMENT_STALLED");
+                    r.put("userId", u.getId());
+                    r.put("fullName", u.getFullName());
+                    r.put("currentStatus", status);
+                    r.put("openSince", a.getAgreementEmailSentAt());
+                    rows.add(r);
+                }
+            }
+        }
+        return ResponseEntity.ok(ApiResponse.success(rows));
+    }
+
+    /**
+     * Available staff for the Assignments tab dropdowns. Returns
+     * ERM-eligible users and coach-eligible users grouped by role.
+     */
+    @GetMapping("/operations/staff-pool")
+    public ResponseEntity<ApiResponse<Map<String, List<Map<String, Object>>>>> staffPool() {
+        Map<String, List<Map<String, Object>>> out = new java.util.LinkedHashMap<>();
+        java.util.function.Function<com.spire.backend.entity.User, Map<String, Object>> toRow = u ->
+                Map.of("id", u.getId(), "fullName", u.getFullName() == null ? "" : u.getFullName(),
+                        "email", u.getEmail() == null ? "" : u.getEmail());
+        var byRole = userRepository.findAll().stream()
+                .filter(u -> Boolean.TRUE.equals(u.getIsActive()))
+                .filter(u -> u.getRole() != null && u.getRole().getName() != null)
+                .collect(java.util.stream.Collectors.groupingBy(u -> u.getRole().getName().toUpperCase()));
+        out.put("erm", byRole.getOrDefault("ERM", java.util.List.of()).stream().map(toRow).toList());
+        out.put("coach", byRole.getOrDefault("COACH", java.util.List.of()).stream().map(toRow).toList());
+        out.put("technicalAdvisor", byRole.getOrDefault("TECHNICAL_ADVISOR", java.util.List.of()).stream().map(toRow).toList());
+        return ResponseEntity.ok(ApiResponse.success(out));
     }
 }

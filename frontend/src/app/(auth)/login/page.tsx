@@ -26,7 +26,7 @@ function LoginForm() {
   // Carries the email so we can render a "Verify Now" link that
   // routes straight to /verify-email with the address pre-filled.
   const [needsVerification, setNeedsVerification] = useState<string | null>(null);
-  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
@@ -39,9 +39,14 @@ function LoginForm() {
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      router.push("/dashboard");
+      // Already-logged-in shortcut — bounce to whichever dashboard
+      // matches the user's role.
+      (async () => {
+        const { dashboardRouteForRole } = await import("@/lib/api");
+        router.push(dashboardRouteForRole(user?.role));
+      })();
     }
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, user, router]);
 
   const {
     register,
@@ -63,10 +68,20 @@ function LoginForm() {
       //     old Terms-of-Service acceptance → /agreement-legacy.
       //   - Everyone else → original redirect target.
       const status = auth.user?.currentStatus;
+      const role = (auth.user?.role ?? "").toUpperCase();
+      // Lazy import to avoid pulling the helpers into every page
+      // bundle just for this branch.
+      const { getOnboardingRoute, isDashboardStatus, dashboardRouteForRole } =
+        await import("@/lib/api");
+      // Staff roles route to their own dashboards regardless of
+      // currentStatus (they don't have a participant lifecycle).
+      if (role === "ERM" || role === "COACH" || role === "TECHNICAL_ADVISOR"
+          || role === "FINANCE" || role === "OPERATIONS_ADMIN"
+          || role === "SYSTEM_ADMIN") {
+        window.location.href = dashboardRouteForRole(role);
+        return;
+      }
       if (status) {
-        // Lazy import to avoid pulling getOnboardingRoute into
-        // every page bundle just for this branch.
-        const { getOnboardingRoute, isDashboardStatus } = await import("@/lib/api");
         if (!isDashboardStatus(status)) {
           window.location.href = getOnboardingRoute(status);
           return;
