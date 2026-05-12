@@ -22,6 +22,10 @@ const FULLSCREEN_ROUTES = [
   "/enroll", "/verify-email", "/participant-id",
   "/acknowledgment", "/document-upload", "/program-selection",
   "/welcome",
+  // Phase 5A/B — role-scoped dashboards own their full chrome
+  // (sidebar + main column). Don't wrap them in the marketing-site
+  // Navbar/Footer, which would compete with the sidebar layout.
+  "/dashboard", "/erm-dashboard", "/coach-dashboard", "/finance-dashboard",
 ];
 
 export function ShellWrapper({ children }: { children: React.ReactNode }) {

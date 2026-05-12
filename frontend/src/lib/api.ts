@@ -1371,6 +1371,7 @@ export function dashboardRouteForRole(role: string | null | undefined): string {
   if (r === "COACH" || r === "TECHNICAL_ADVISOR") return "/coach-dashboard";
   if (r === "FINANCE") return "/finance-dashboard";
   if (r === "OPERATIONS_ADMIN" || r === "SYSTEM_ADMIN" || r === "ADMIN") return "/admin";
+  if (r === "INSTRUCTOR") return "/instructor";
   return "/dashboard";
 }
 

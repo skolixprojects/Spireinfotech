@@ -77,7 +77,7 @@ function LoginForm() {
       // currentStatus (they don't have a participant lifecycle).
       if (role === "ERM" || role === "COACH" || role === "TECHNICAL_ADVISOR"
           || role === "FINANCE" || role === "OPERATIONS_ADMIN"
-          || role === "SYSTEM_ADMIN") {
+          || role === "SYSTEM_ADMIN" || role === "INSTRUCTOR") {
         window.location.href = dashboardRouteForRole(role);
         return;
       }
