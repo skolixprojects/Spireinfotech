@@ -165,4 +165,29 @@ public class User {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    // ── Phase 1A: participant lifecycle ─────────────────────────────
+    // The user becomes a "participant" once email is verified and an
+    // ID is minted. participantId is the public-facing handle
+    // ("SIT-2026-00042"). currentStatus drives the 26-state workflow
+    // (see WorkflowService.Status); defaults to DRAFT_STARTED.
+
+    @Column(name = "participant_id", length = 20, unique = true)
+    private String participantId;
+
+    @Column(name = "participant_id_created_at")
+    private LocalDateTime participantIdCreatedAt;
+
+    @Column(name = "availability", length = 100)
+    private String availability;
+
+    @Column(name = "selected_technology", length = 255)
+    private String selectedTechnology;
+
+    @Column(name = "target_experience_level", length = 50)
+    private String targetExperienceLevel;
+
+    @Column(name = "current_status", length = 50)
+    @Builder.Default
+    private String currentStatus = "DRAFT_STARTED";
 }

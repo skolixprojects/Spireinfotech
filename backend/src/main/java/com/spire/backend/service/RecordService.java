@@ -47,7 +47,29 @@ public class RecordService {
         public static final String PAYMENT = "PAYMENT";
         public static final String CERTIFICATE = "CERTIFICATE";
         public static final String SECURITY = "SECURITY";
+        // Phase 1A additions — the participant lifecycle surfaces.
+        public static final String WORKFLOW = "WORKFLOW";
+        public static final String DOCUMENT = "DOCUMENT";
+        public static final String EMAIL = "EMAIL";
         private Category() {}
+    }
+
+    /**
+     * Lightweight wrapper around {@link #record(Long, String, String,
+     * String, String, Map)} for call sites that only have a category
+     * + short title + description. Useful for the participant
+     * lifecycle ({@code WorkflowService}, document review, …) where
+     * the structured details map is empty or already serialised
+     * upstream.
+     */
+    public void logAction(Long userId, String category, String title, String description) {
+        record(userId, category, category, title, description, null);
+    }
+
+    /** Same as {@link #logAction(Long, String, String, String)} with structured details. */
+    public void logAction(Long userId, String category, String title,
+                          String description, Map<String, Object> details) {
+        record(userId, category, category, title, description, details);
     }
 
     /**

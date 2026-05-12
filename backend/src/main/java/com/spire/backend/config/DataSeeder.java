@@ -61,6 +61,21 @@ public class DataSeeder implements CommandLineRunner {
         log.info("Roles ready: STUDENT({}), INSTRUCTOR({}), TRAINER({}), ADMIN({})",
                 studentRole.getId(), instructorRole.getId(), trainerRole.getId(), adminRole.getId());
 
+        // Phase 1A roles — added alongside the legacy LMS roles, not
+        // replacing them. Legacy STUDENT and ADMIN rows continue to
+        // work; the new code paths treat STUDENT as PARTICIPANT and
+        // ADMIN as OPERATIONS_ADMIN via PermissionService's role
+        // alias set. Idempotent, like the block above.
+        String[] phase1aRoles = {
+                "PARTICIPANT", "ERM", "COACH", "TECHNICAL_ADVISOR",
+                "OPERATIONS_ADMIN", "FINANCE", "SYSTEM_ADMIN",
+        };
+        for (String name : phase1aRoles) {
+            roleRepository.findByName(name).orElseGet(() ->
+                    roleRepository.save(Role.builder().name(name).build()));
+        }
+        log.info("Phase 1A roles ensured: {}", String.join(", ", phase1aRoles));
+
         // Drop the legacy unique constraint on quiz_attempts(quiz_id,
         // user_id) before any other migration runs — without this,
         // the new multi-attempt quiz flow would fail the second time
@@ -611,6 +626,13 @@ public class DataSeeder implements CommandLineRunner {
                 {"last_nudge_sent_at TIMESTAMP", "last_nudge_sent_at"},
                 {"agreement_accepted BOOLEAN NOT NULL DEFAULT FALSE", "agreement_accepted"},
                 {"deactivated_at TIMESTAMP", "deactivated_at"},
+                // Phase 1A — participant lifecycle columns.
+                {"participant_id VARCHAR(20)", "participant_id"},
+                {"participant_id_created_at TIMESTAMP", "participant_id_created_at"},
+                {"availability VARCHAR(100)", "availability"},
+                {"selected_technology VARCHAR(255)", "selected_technology"},
+                {"target_experience_level VARCHAR(50)", "target_experience_level"},
+                {"current_status VARCHAR(50) DEFAULT 'DRAFT_STARTED'", "current_status"},
         };
         for (String[] col : columns) {
             try {
@@ -690,6 +712,47 @@ public class DataSeeder implements CommandLineRunner {
             log.info("Ensured agreement_acceptances.signature_method exists");
         } catch (Exception e) {
             log.debug("Couldn't add agreement_acceptances.signature_method: {}", e.getMessage());
+        }
+
+        // Phase 1A — make participant_id unique. The entity carries
+        // @Column(unique = true) but Hibernate ddl-auto=update won't
+        // retro-add a unique constraint to a column that was created
+        // via raw ALTER above, so spell it out.
+        try {
+            jdbcTemplate.execute(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_participant_id "
+                            + "ON users(participant_id)");
+            log.info("Ensured unique idx_users_participant_id");
+        } catch (Exception e) {
+            log.debug("Couldn't create unique index on users.participant_id: {}",
+                    e.getMessage());
+        }
+
+        // Backfill current_status on rows that pre-date the column.
+        // The column-add above carries DEFAULT 'DRAFT_STARTED' but
+        // DEFAULT only fires on new INSERTs; existing rows stay NULL
+        // until we explicitly seed them. Treat any pre-existing user
+        // as "already through onboarding" — they were verified and
+        // (potentially) had accepted an agreement under the legacy
+        // flow, so dropping them at DRAFT_STARTED would visually
+        // un-enroll them. Pin them at WELCOME_SENT, which is the
+        // latest pre-coach lifecycle step.
+        try {
+            int updated = jdbcTemplate.update(
+                    "UPDATE users SET current_status = 'WELCOME_SENT' "
+                            + "WHERE current_status IS NULL "
+                            + "AND email_verified = TRUE");
+            if (updated > 0) {
+                log.info("Grandfathered {} pre-Phase-1A users to current_status=WELCOME_SENT", updated);
+            }
+            int draftUpdated = jdbcTemplate.update(
+                    "UPDATE users SET current_status = 'DRAFT_STARTED' "
+                            + "WHERE current_status IS NULL");
+            if (draftUpdated > 0) {
+                log.info("Defaulted {} unverified users to current_status=DRAFT_STARTED", draftUpdated);
+            }
+        } catch (Exception e) {
+            log.debug("Couldn't backfill users.current_status: {}", e.getMessage());
         }
     }
 
