@@ -42,6 +42,8 @@ public class AuthService {
     private final JwtService jwtService;
     private final RecordService recordService;
     private final EmailTemplateService emailTemplateService;
+    private final WorkflowService workflowService;
+    private final ParticipantIdService participantIdService;
 
     @Transactional
     public RegistrationResponse register(RegisterRequest request) {
@@ -90,6 +92,89 @@ public class AuthService {
 
         // 5. No JWT yet — frontend reads requiresVerification=true
         //    and routes to /verify-email?email=…
+        return RegistrationResponse.builder()
+                .userId(user.getId())
+                .email(user.getEmail())
+                .requiresVerification(true)
+                .build();
+    }
+
+    // ─── Phase 1B: participant enrollment ───────────────────────────
+
+    /**
+     * Phase 1B's enrollment endpoint backing logic. Wider than
+     * {@link #register} — accepts phone / location / availability /
+     * skillset / experience-level, stamps the participant role, and
+     * walks the workflow ladder DRAFT_STARTED → BASIC_INFO_SUBMITTED
+     * → EMAIL_VERIFICATION_PENDING in one shot.
+     *
+     * Re-uses the existing OTP-generation + emailing primitives from
+     * {@link #register} but does NOT delegate to it — we want the
+     * extended fields persisted in the same insert (rather than a
+     * follow-up UPDATE) and the role to be PARTICIPANT, not STUDENT.
+     */
+    @Transactional
+    public RegistrationResponse enrollParticipant(ParticipantEnrollRequest request) {
+        if (request.getEmail() == null || request.getEmail().isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+        if (request.getPassword() == null || request.getPassword().length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters");
+        }
+        if (request.getFullName() == null
+                || request.getFullName().trim().split("\\s+").length < 2) {
+            throw new IllegalArgumentException("Enter your full legal name (first and last)");
+        }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalArgumentException("Email already registered");
+        }
+
+        Role participantRole = roleRepository.findByName("PARTICIPANT")
+                .orElseGet(() -> roleRepository.findByName("STUDENT")
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Neither PARTICIPANT nor STUDENT role exists")));
+
+        String code = generateCode();
+        LocalDateTime now = LocalDateTime.now();
+
+        User user = User.builder()
+                .email(request.getEmail().trim().toLowerCase())
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName().trim())
+                .role(participantRole)
+                .phone(request.getPhone())
+                .location(request.getLocation())
+                .availability(request.getAvailability())
+                .selectedTechnology(request.getSelectedTechnology())
+                .targetExperienceLevel(request.getTargetExperienceLevel())
+                .isActive(true)
+                .emailVerified(false)
+                .currentStatus("DRAFT_STARTED")
+                .verificationCode(code)
+                .verificationCodeExpiresAt(now.plusMinutes(CODE_TTL_MINUTES))
+                .verificationFailedAttempts(0)
+                .lastVerificationResendAt(now)
+                .build();
+        user = userRepository.save(user);
+
+        recordService.record(user.getId(), "ACCOUNT_CREATED", RecordService.Category.ACCOUNT,
+                "Participant enrolled",
+                "New participant enrollment with email " + user.getEmail(),
+                Map.of(
+                        "email", user.getEmail(),
+                        "fullName", user.getFullName(),
+                        "phone", user.getPhone() != null ? user.getPhone() : "",
+                        "technology", user.getSelectedTechnology() != null ? user.getSelectedTechnology() : "",
+                        "experience", user.getTargetExperienceLevel() != null ? user.getTargetExperienceLevel() : "",
+                        "availability", user.getAvailability() != null ? user.getAvailability() : ""
+                ));
+
+        // Workflow ladder: DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING
+        workflowService.transition(user, WorkflowService.Status.BASIC_INFO_SUBMITTED, "enrollment");
+        workflowService.transition(user, WorkflowService.Status.EMAIL_VERIFICATION_PENDING, "otp_sent");
+
+        try { emailTemplateService.sendVerificationCodeEmail(user, code); } catch (Exception ignored) {}
+
         return RegistrationResponse.builder()
                 .userId(user.getId())
                 .email(user.getEmail())
@@ -173,6 +258,46 @@ public class AuthService {
                 "Email verified",
                 "User verified email via 6-digit code",
                 Map.of("email", saved.getEmail()));
+
+        // Phase 1B: walk the workflow forward + mint the participant
+        // ID + send the ID email. All best-effort below the verify
+        // itself — the user is already verified, so a mailer outage
+        // can't roll back the gate. We still attempt the transitions
+        // in the same Tx so the workflow_states audit row reflects
+        // the actual state on the user record.
+        try {
+            workflowService.transition(saved,
+                    WorkflowService.Status.EMAIL_VERIFIED, "email_verified");
+        } catch (Exception e) {
+            // Tolerant of pre-Phase-1B users whose currentStatus was
+            // backfilled past EMAIL_VERIFIED — the transition still
+            // records an audit row but doesn't move them backward.
+        }
+
+        // Only mint an ID if the user hasn't already got one. The
+        // ParticipantIdService is itself idempotent but skipping the
+        // call avoids an extra round-trip on returning users.
+        if (saved.getParticipantId() == null || saved.getParticipantId().isBlank()) {
+            try {
+                String issued = participantIdService.issue(saved);
+                saved.setParticipantId(issued);
+                workflowService.transition(saved,
+                        WorkflowService.Status.PARTICIPANT_ID_CREATED, "id_generated");
+                try {
+                    emailTemplateService.sendParticipantIdEmail(saved, issued);
+                    workflowService.transition(saved,
+                            WorkflowService.Status.ID_EMAIL_SENT, "id_email_sent");
+                } catch (Exception ignored) {
+                    // Email send failure — still report ID_CREATED so
+                    // the frontend can show the page. Resend is a
+                    // follow-up admin action.
+                }
+            } catch (Exception e) {
+                // ID issuance failure shouldn't block verification.
+                // The participant_id page will simply show "—" and
+                // an admin can re-mint via /api/participants/me.
+            }
+        }
 
         return buildAuthResponse(saved);
     }

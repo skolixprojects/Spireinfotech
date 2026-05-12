@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MailCheck, AlertCircle } from "lucide-react";
+import OnboardingProgressBar from "@/components/OnboardingProgressBar";
 import { useAuth } from "@/lib/auth-context";
 import { resendVerificationCode, verifyCode } from "@/lib/api";
 
@@ -163,11 +164,16 @@ function VerifyEmailInner() {
       const auth = await verifyCode(email, code);
       setSuccess(true);
       setSession(auth);
-      // Brief celebratory pause so the user sees the success state,
-      // then route based on whether the agreement has been accepted.
-      // Brand-new signups always land on /agreement next; returning
-      // users who'd already accepted skip ahead to /dashboard.
-      const target = auth.user?.agreementAccepted ? "/dashboard" : "/agreement";
+      // Phase 1B: verify-code now also mints the participant ID
+      // and walks the workflow to ID_EMAIL_SENT, so route into the
+      // /participant-id confirmation page next. Returning users
+      // whose lifecycle is past PARTICIPANT_ID still see that page
+      // briefly and the page's own routing guard forwards them on.
+      // Legacy users who'd already accepted the agreement skip
+      // straight to /dashboard.
+      const target = auth.user?.agreementAccepted
+        ? "/dashboard"
+        : (auth.user?.participantId ? "/participant-id" : "/agreement");
       setTimeout(() => {
         window.location.href = target;
       }, 800);
@@ -226,6 +232,10 @@ function VerifyEmailInner() {
           priority
           className="h-14 w-14 object-contain"
         />
+      </div>
+
+      <div className="mb-6 text-left">
+        <OnboardingProgressBar currentStep={2} />
       </div>
 
       <h1 className="font-serif text-2xl font-bold text-gray-900">

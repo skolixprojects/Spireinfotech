@@ -11,7 +11,7 @@ const AUTH_ROUTES = ["/login", "/signup"];
 // nav when they paste the link. The /agreement gate hides the nav
 // so the user can't navigate away mid-flow. All opt out of the
 // global Navbar/Footer.
-const FULLSCREEN_ROUTES = ["/learn", "/verify", "/agreement"];
+const FULLSCREEN_ROUTES = ["/learn", "/verify", "/agreement", "/participant-id"];
 
 export function ShellWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

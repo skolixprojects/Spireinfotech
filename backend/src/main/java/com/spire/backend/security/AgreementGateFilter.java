@@ -59,7 +59,12 @@ public class AgreementGateFilter extends OncePerRequestFilter {
                 // clearAuth → page would bounce to /login. Profile
                 // contains only the user's own personal data; safe
                 // to expose pre-acceptance.
-                || path.equals("/api/users/profile");
+                || path.equals("/api/users/profile")
+                // Phase 1B: participant routing guard needs to call
+                // GET /api/participants/me while a user is still
+                // mid-onboarding (pre-agreement). Same rationale as
+                // the /api/users/profile exemption above.
+                || path.equals("/api/participants/me");
     }
 
     @Override

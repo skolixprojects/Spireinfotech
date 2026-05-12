@@ -38,6 +38,18 @@ public class UserDTO {
      */
     private LocalDateTime deactivatedAt;
 
+    /**
+     * Phase 1A participant fields surfaced on every login / profile
+     * read. The frontend reads {@code currentStatus} to route a user
+     * to the correct onboarding step; {@code participantId} is the
+     * SIT-2026-XXXXX handle shown on the participant-id page and in
+     * every transactional email.
+     */
+    private String participantId;
+    private String currentStatus;
+    /** True after the user has completed the OTP-confirmed email gate. Drives onboarding routing. */
+    private Boolean emailVerified;
+
     public static UserDTO from(User user) {
         return UserDTO.builder()
                 .id(user.getId())
@@ -52,6 +64,9 @@ public class UserDTO {
                 .agreementAccepted(Boolean.TRUE.equals(user.getAgreementAccepted()))
                 .createdAt(user.getCreatedAt())
                 .deactivatedAt(user.getDeactivatedAt())
+                .participantId(user.getParticipantId())
+                .currentStatus(user.getCurrentStatus())
+                .emailVerified(Boolean.TRUE.equals(user.getEmailVerified()))
                 .build();
     }
 }

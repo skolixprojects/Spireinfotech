@@ -74,6 +74,38 @@ public class EmailTemplateService {
         );
     }
 
+    // ── 1b. Participant ID (Phase 1B) ───────────────────────────────
+    /**
+     * Sent immediately after OTP verification once the platform has
+     * minted a SIT-2026-XXXXX participant ID. Confirms the ID to the
+     * user and routes them to the next onboarding step.
+     */
+    public void sendParticipantIdEmail(User user, String participantId) {
+        String greeting = user.getFullName() == null || user.getFullName().isBlank()
+                ? "there" : user.getFullName();
+        String idBlock =
+                "<div style=\"text-align:center; margin:24px 0;\">"
+                        + "<span style=\"display:inline-block; font-size:26px; font-weight:bold; "
+                        + "letter-spacing:4px; color:#0F766E; background:#f0fdf9; "
+                        + "padding:14px 28px; border-radius:8px; "
+                        + "border:1px solid rgba(15,118,110,0.2); font-family:'Courier New',monospace;\">"
+                        + escape(participantId)
+                        + "</span></div>";
+        String body = p("Dear " + escape(greeting) + ",")
+                + p("Welcome! Your email has been verified successfully.")
+                + p("Your official Spire Info Tech Participant ID is:")
+                + idBlock
+                + p("Please keep this ID for your records. It will be used in all future "
+                        + "communications and documents.")
+                + p("Your next step: Complete the acknowledgment and upload your required documents.")
+                + button("Continue to Next Step", appUrl + "/participant-id")
+                + p("Regards,<br/>Spire Info Tech");
+        emailService.sendEmail(
+                user.getEmail(),
+                "Your Spire Info Tech Participant ID: " + participantId,
+                wrap("Welcome to Spire Info Tech", body));
+    }
+
     // ── 2. Email verification (6-digit OTP) ─────────────────────────
     public void sendVerificationCodeEmail(User user, String code) {
         // Big, centered code block — built inline rather than reusing

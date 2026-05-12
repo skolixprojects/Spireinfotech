@@ -44,6 +44,12 @@ export interface UserDTO {
   // reactivate. Drives the "Deactivated on …" column on the admin
   // Deactivated Users tab.
   deactivatedAt?: string | null;
+  // Phase 1B — participant lifecycle fields surfaced on every
+  // login / profile read. The onboarding routing guard reads
+  // currentStatus to decide which page the user should be on.
+  participantId?: string | null;
+  currentStatus?: string | null;
+  emailVerified?: boolean;
 }
 
 export interface AuthResponse {
@@ -168,6 +174,97 @@ export async function register(data: { fullName: string; email: string; password
     body: JSON.stringify(data),
   });
   return wrapper.data;
+}
+
+// ─── Phase 1B: participant enrollment ────────────────────────────────
+
+export interface ParticipantEnrollRequest {
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
+  location?: string;
+  availability: string;
+  selectedTechnology: string;
+  targetExperienceLevel: string;
+}
+
+/**
+ * Phase 1B enrollment — wider than the legacy {@link register}.
+ * Body matches the backend ParticipantEnrollRequest record;
+ * response shape stays {@link RegistrationResponse} so call sites
+ * can route to /verify-email the same way.
+ */
+export async function enrollParticipant(
+  data: ParticipantEnrollRequest,
+): Promise<RegistrationResponse> {
+  const wrapper = await apiFetch<ApiResponse<RegistrationResponse>>(
+    "/api/participants/enroll",
+    {
+      method: "POST",
+      body: JSON.stringify(data),
+    },
+  );
+  return wrapper.data;
+}
+
+/** Fetches the caller's full profile incl. participantId + currentStatus. */
+export async function getParticipantMe(): Promise<UserDTO> {
+  const wrapper = await apiFetch<ApiResponse<UserDTO>>("/api/participants/me");
+  return wrapper.data;
+}
+
+/**
+ * Maps a participant's workflow status to the onboarding page they
+ * belong on. Mirrors the backend's WorkflowService.Status enum.
+ * Used by each onboarding page on mount to bounce the user to the
+ * correct step if they're out of place; pages NOT listed here are
+ * considered "general" (dashboard, admin, courses, etc.) and the
+ * guard leaves the user alone.
+ */
+export function getOnboardingRoute(status: string | null | undefined): string {
+  switch (status) {
+    case "DRAFT_STARTED":
+    case "BASIC_INFO_SUBMITTED":
+      return "/enroll";
+    case "EMAIL_VERIFICATION_PENDING":
+      return "/verify-email";
+    case "EMAIL_VERIFIED":
+    case "PARTICIPANT_ID_CREATED":
+    case "ID_EMAIL_SENT":
+      return "/participant-id";
+    case "ACKNOWLEDGMENT_ACCEPTED":
+    case "DOCUMENTS_SUBMITTED":
+    case "DOC_REVIEW_PENDING":
+      // Phase 1C surfaces /document-upload; until then we hold the
+      // user on /participant-id so they don't 404 on a missing page.
+      return "/participant-id";
+    case "PROGRAM_SELECTED":
+    case "DOCUSIGN_SENT":
+      return "/agreement";
+    case "DOCUSIGN_COMPLETED":
+    case "SIGNED_AGREEMENT_SENT_TO_ERM":
+    case "WELCOME_SENT":
+    case "DEEPTHI_INTRO_SENT":
+    case "ERM_ASSIGNED":
+    case "COACHES_ASSIGNED":
+    case "DASHBOARD_ENABLED":
+    case "WEEKLY_REPORTING_ACTIVE":
+    case "EMPLOYMENT_ACCEPTED":
+    case "PHASE_1_COMPLETED":
+    case "PAYMENT_PLAN_ACCEPTED":
+    case "CHECK_TRACKING_ADDED":
+    case "INVOICING_ACTIVE":
+    case "PAYMENTS_TRACKED":
+      return "/dashboard";
+    default:
+      return "/enroll";
+  }
+}
+
+/** Coarse "is this user past onboarding?" check the routing guard uses. */
+export function isDashboardStatus(status: string | null | undefined): boolean {
+  return getOnboardingRoute(status) === "/dashboard";
 }
 
 /**
