@@ -109,22 +109,18 @@ export async function apiFetch<T = unknown>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    // 403 AGREEMENT_REQUIRED — the agreement gate filter on the
-    // backend rejected this call because the user hasn't accepted
-    // the Terms of Service yet. Redirect to /agreement so the
-    // user can complete the flow; never bounce them when they're
-    // already on /agreement (that page itself calls API endpoints
-    // and we don't want a redirect loop).
+    // 403 AGREEMENT_REQUIRED — backend legacy gate still fires for
+    // some non-participant endpoints (courses, lessons, …) when a
+    // user has agreement_accepted=false. The new participant
+    // lifecycle is exempt from this gate server-side, so this
+    // branch should only trip for legacy-only users.
+    //
+    // We no longer auto-redirect on this code — the old fallback
+    // to /agreement-legacy interrupted the new onboarding flow
+    // when any background fetch raced ahead of the page logic.
+    // The throw is preserved so the auth context's init useEffect
+    // can keep its tokens intact (it special-cases this message).
     if (res.status === 403 && body?.message === "AGREEMENT_REQUIRED") {
-      // Legacy gate — fires for users created under the old
-      // Terms-of-Service flow who never accepted via the new
-      // /acknowledgment step. Send them to /agreement-legacy
-      // (which is the old Terms / email-reply UI, preserved for
-      // exactly this case). New onboarding traffic uses
-      // /acknowledgment + workflow gates instead.
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/agreement-legacy")) {
-        window.location.href = "/agreement-legacy";
-      }
       throw new Error("AGREEMENT_REQUIRED");
     }
     throw new Error(body.message || body.detail || `API error ${res.status}`);

@@ -52,19 +52,19 @@ public class AgreementGateFilter extends OncePerRequestFilter {
                 || path.startsWith("/api/agreement/")
                 || path.equals("/api/health")
                 // Profile read is exempt so the AuthProvider on the
-                // /agreement page itself can hydrate the logged-in
-                // user. Without this, getProfile() would 403 →
-                // apiFetch interceptor would redirect to /agreement
-                // (already there) and throw → AuthProvider would
-                // clearAuth → page would bounce to /login. Profile
-                // contains only the user's own personal data; safe
-                // to expose pre-acceptance.
+                // /agreement-legacy page itself can hydrate the
+                // logged-in user. Profile contains only the user's
+                // own personal data; safe to expose pre-acceptance.
                 || path.equals("/api/users/profile")
-                // Phase 1B: participant routing guard needs to call
-                // GET /api/participants/me while a user is still
-                // mid-onboarding (pre-agreement). Same rationale as
-                // the /api/users/profile exemption above.
-                || path.equals("/api/participants/me");
+                // Phase 1A+: the entire participant lifecycle API
+                // surface is exempt. In the new 26-status flow,
+                // {@code agreement_accepted} doesn't flip to true
+                // until Step 9 (DocuSign), so participants need to
+                // call /acknowledgments, /documents/*, and
+                // /program-selection while the legacy boolean is
+                // still false. Workflow-state gates on each
+                // endpoint enforce ordering instead.
+                || path.startsWith("/api/participants/");
     }
 
     @Override
