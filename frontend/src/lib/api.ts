@@ -573,6 +573,116 @@ export async function refreshWelcomeStatus(): Promise<WelcomeStatus> {
   return wrapper.data ?? {};
 }
 
+// ─── Phase 5A: participant dashboard ───────────────────────────────
+
+export interface ParticipantDashboard {
+  participantId: string | null;
+  fullName: string | null;
+  email: string | null;
+  currentStatus: string | null;
+  roadmapTotal: number;
+  roadmapStep: number;
+  roadmapLabels: string[];
+  nextAction: { label: string; href: string };
+  program?: {
+    program?: string;
+    phase?: string;
+    skillset?: string;
+    targetJobTitle?: string;
+    availability?: string;
+  };
+  team?: {
+    ermName?: string | null;
+    ermEmail?: string | null;
+    coaches?: Record<string, string>;
+  };
+  recentActivity?: { title: string; category: string; createdAt: string }[];
+  stats?: { weeksEnrolled: number; reportsSubmitted: number };
+  currentWeekStart?: string;
+  currentWeekEnd?: string;
+  currentWeekReportStatus?: string;
+  currentWeekReportId?: number;
+}
+
+export async function getParticipantDashboard(): Promise<ParticipantDashboard> {
+  const wrapper = await apiFetch<ApiResponse<ParticipantDashboard>>(
+    "/api/participants/dashboard");
+  return wrapper.data;
+}
+
+export interface ParticipantTeam {
+  erm?: { name: string | null; email: string | null; bio: string | null };
+  coaches?: Record<string, string>;
+}
+
+export async function getParticipantTeam(): Promise<ParticipantTeam> {
+  const wrapper = await apiFetch<ApiResponse<ParticipantTeam>>(
+    "/api/participants/team");
+  return wrapper.data ?? {};
+}
+
+// ─── Weekly reports ───────────────────────────────────────────────
+
+export interface WeeklyReportJobSubmission {
+  company?: string;
+  client?: string;
+  jobTitle?: string;
+  technology?: string;
+  portal?: string;
+  applicationLink?: string;
+  submissionDate?: string;
+  status?: string;
+  followUpDate?: string;
+}
+
+export interface WeeklyReportRequest {
+  weekStart?: string;
+  weekEnd?: string;
+  jobSubmissions?: WeeklyReportJobSubmission[];
+  resumeActivities?: Record<string, string>;
+  interviewTraining?: Record<string, string>;
+  communications?: Record<string, string>;
+}
+
+export interface WeeklyReportDTO {
+  id: number;
+  weekStart: string | null;
+  weekEnd: string | null;
+  submissionDueDate: string | null;
+  submittedAt: string | null;
+  ermReviewDate: string | null;
+  ermNotes: string | null;
+  /** JSON-encoded form payload. */
+  reportData: string | null;
+  status: string;
+}
+
+export async function submitWeeklyReport(body: WeeklyReportRequest): Promise<WeeklyReportDTO> {
+  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO>>(
+    "/api/participants/reports/weekly",
+    { method: "POST", body: JSON.stringify(body) });
+  return wrapper.data;
+}
+
+export async function saveWeeklyReportDraft(body: WeeklyReportRequest): Promise<WeeklyReportDTO> {
+  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO>>(
+    "/api/participants/reports/weekly/draft",
+    { method: "POST", body: JSON.stringify(body) });
+  return wrapper.data;
+}
+
+export async function listWeeklyReports(): Promise<WeeklyReportDTO[]> {
+  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO[]>>(
+    "/api/participants/reports/weekly");
+  return wrapper.data ?? [];
+}
+
+export async function getWeeklyReport(id: number): Promise<WeeklyReportDTO> {
+  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO>>(
+    `/api/participants/reports/weekly/${id}`);
+  return wrapper.data;
+}
+
 /**
  * Maps a participant's workflow status to the onboarding page they
  * belong on. Mirrors the backend's WorkflowService.Status enum.

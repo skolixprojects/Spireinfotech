@@ -68,6 +68,10 @@ public class ParticipantController {
     private final ParticipantCheckService participantCheckService;
     private final com.spire.backend.service.OnboardingService onboardingService;
     private final com.spire.backend.service.WorkflowService workflowService;
+    private final com.spire.backend.service.ParticipantDashboardService participantDashboardService;
+    private final com.spire.backend.service.WeeklyReportService weeklyReportService;
+    private final com.spire.backend.service.ErmAssignmentService ermAssignmentService;
+    private final com.spire.backend.service.CoachAssignmentService coachAssignmentService;
 
     /** Public — anyone can enroll. Behind the scenes walks the workflow
      *  ladder DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING. */
@@ -432,6 +436,79 @@ public class ParticipantController {
         }
         return ResponseEntity.ok(ApiResponse.success(
                 onboardingService.snapshotForWelcome(user)));
+    }
+
+    // ─── Phase 5A: dashboard + team + weekly reports ───────────────
+
+    /** Aggregate dashboard payload — roadmap, team, recent activity, stats. */
+    @GetMapping("/dashboard")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getDashboard(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                participantDashboardService.snapshot(userId)));
+    }
+
+    /** Team contact cards — ERM + four coach roles. */
+    @GetMapping("/team")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getTeam(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        ermAssignmentService.getAssignedErm(userId).ifPresent(e -> {
+            Map<String, Object> erm = new java.util.LinkedHashMap<>();
+            erm.put("name", e.getFullName());
+            erm.put("email", e.getEmail());
+            erm.put("bio", e.getBio());
+            out.put("erm", erm);
+        });
+        out.put("coaches", coachAssignmentService.getAssignedCoaches(userId));
+        return ResponseEntity.ok(ApiResponse.success(out));
+    }
+
+    @PostMapping("/reports/weekly")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<com.spire.backend.dto.WeeklyReportDTO>> submitWeeklyReport(
+            @RequestBody com.spire.backend.dto.WeeklyReportRequest req,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        com.spire.backend.entity.WeeklyReport saved = weeklyReportService.submit(userId, req);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Report submitted",
+                com.spire.backend.dto.WeeklyReportDTO.from(saved)));
+    }
+
+    @PostMapping("/reports/weekly/draft")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<com.spire.backend.dto.WeeklyReportDTO>> saveWeeklyDraft(
+            @RequestBody com.spire.backend.dto.WeeklyReportRequest req,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        com.spire.backend.entity.WeeklyReport saved = weeklyReportService.saveDraft(userId, req);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Draft saved",
+                com.spire.backend.dto.WeeklyReportDTO.from(saved)));
+    }
+
+    @GetMapping("/reports/weekly")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<com.spire.backend.dto.WeeklyReportDTO>>> listWeeklyReports(
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        List<com.spire.backend.dto.WeeklyReportDTO> rows = weeklyReportService.listForUser(userId)
+                .stream().map(com.spire.backend.dto.WeeklyReportDTO::from).toList();
+        return ResponseEntity.ok(ApiResponse.success(rows));
+    }
+
+    @GetMapping("/reports/weekly/{reportId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<com.spire.backend.dto.WeeklyReportDTO>> getWeeklyReport(
+            @PathVariable Long reportId,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                com.spire.backend.dto.WeeklyReportDTO.from(
+                        weeklyReportService.getReport(userId, reportId))));
     }
 
     // ── Shared helper ───────────────────────────────────────────────

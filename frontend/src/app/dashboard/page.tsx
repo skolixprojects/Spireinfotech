@@ -27,6 +27,7 @@ import { AnnouncementsBanner } from "@/components/dashboard/AnnouncementsBanner"
 import { StudentDashboard } from "@/components/dashboard/StudentDashboard";
 import { OnboardingWizard, onboardingDismissedKey } from "@/components/onboarding/OnboardingWizard";
 import { InstructorSalesInbox } from "@/components/sales/InstructorSalesInbox";
+import ParticipantDashboard from "@/components/dashboard/ParticipantDashboard";
 import type { SessionRequest } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { formatISTDate } from "@/lib/datetime";
@@ -54,6 +55,19 @@ interface AnalyticsData {
 }
 
 export default function DashboardPage() {
+  const { user, isLoading: authLoading } = useAuth();
+
+  // Phase 5A — participants get the dedicated participant
+  // dashboard surface (sidebar + tabs + roadmap). Legacy LMS
+  // users (no participantId) fall through to the original
+  // student / instructor / admin home below.
+  if (!authLoading && user?.participantId) {
+    return <ParticipantDashboard />;
+  }
+  return <LegacyDashboardInner />;
+}
+
+function LegacyDashboardInner() {
   const { user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const [enrollments, setEnrollments] = useState<unknown[]>([]);
