@@ -807,6 +807,137 @@ public class EmailTemplateService {
         }
     }
 
+    // ── 14. Payment plan + invoice notices (Phase 7) ────────────────
+
+    /**
+     * Email #14a — payment plan accepted confirmation.
+     * Sent to the participant; finance CC'd via {@code financeEmail}.
+     */
+    public void sendPaymentPlanAcceptedEmail(
+            com.spire.backend.entity.User user,
+            com.spire.backend.entity.PaymentPlan plan,
+            java.util.List<PaymentService.ScheduleItem> schedule) {
+        String firstName = firstName(user);
+        StringBuilder rows = new StringBuilder();
+        int idx = 1;
+        for (PaymentService.ScheduleItem item : schedule) {
+            rows.append("Installment ").append(idx++)
+                .append(": ").append(item.dueDate() == null ? "—" : item.dueDate().toString())
+                .append(" — ").append(item.amount() == null ? "0" : item.amount().toPlainString())
+                .append("\n");
+        }
+        String body = p("Dear " + escape(firstName) + ",")
+                + p("Your payment plan has been confirmed. Here's a summary "
+                        + "of what to expect.")
+                + receipt(
+                        "Plan ID: " + safe(plan.getPlanId()),
+                        "Total amount: " + (plan.getTotalAmount() == null ? "—" : plan.getTotalAmount().toPlainString()),
+                        "Installments: " + plan.getInstallments(),
+                        "Accepted: " + (plan.getAcceptedAt() == null ? "—"
+                                : plan.getAcceptedAt().atZone(IST).format(DATE_FMT) + " IST"))
+                + p("<strong>Schedule</strong>")
+                + "<pre style=\"background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px;font-size:12px;line-height:1.7;\">"
+                + escape(rows.toString()) + "</pre>"
+                + p("Invoices will be issued per the schedule above. You can view "
+                        + "your payment status from your dashboard at any time.")
+                + button("Open your dashboard", appUrl + "/dashboard")
+                + p("Regards,<br/>Spire Info Tech");
+        try {
+            emailService.sendEmail(user.getEmail(),
+                    "Payment plan confirmed — Spire Info Tech",
+                    wrap("Payment plan confirmed", body));
+        } catch (Exception ignored) {}
+        if (financeEmail != null && !financeEmail.isBlank()) {
+            try {
+                emailService.sendEmail(financeEmail,
+                        "Payment plan accepted: " + safe(user.getFullName())
+                                + " (" + safe(user.getParticipantId()) + ")",
+                        wrap("Plan accepted — finance copy", body));
+            } catch (Exception ignored) {}
+        }
+    }
+
+    /**
+     * Email #14b — invoice issued. Sent to the participant; CC's
+     * finance if configured.
+     */
+    public void sendInvoiceIssuedEmail(
+            com.spire.backend.entity.User user,
+            com.spire.backend.entity.Invoice invoice) {
+        String firstName = firstName(user);
+        String amount = invoice.getAmount() == null ? "—" : invoice.getAmount().toPlainString();
+        String dueDate = invoice.getDueDate() == null ? "—" : invoice.getDueDate().toString();
+        String body = p("Dear " + escape(firstName) + ",")
+                + p("A new invoice has been issued on your account.")
+                + receipt(
+                        "Invoice: " + safe(invoice.getInvoiceNumber()),
+                        "Amount: " + amount,
+                        "Issued: " + (invoice.getIssueDate() == null ? "—" : invoice.getIssueDate().toString()),
+                        "Due: " + dueDate)
+                + p("You can view and download the invoice from your dashboard.")
+                + button("Open your dashboard", appUrl + "/dashboard")
+                + p("If you've already made this payment, no action is required — "
+                        + "your record will update once finance confirms receipt.")
+                + p("Regards,<br/>Spire Info Tech");
+        try {
+            emailService.sendEmail(user.getEmail(),
+                    "Invoice " + safe(invoice.getInvoiceNumber())
+                            + " — " + amount + " due " + dueDate,
+                    wrap("Invoice issued", body));
+        } catch (Exception ignored) {}
+    }
+
+    /** Email #14c — payment received confirmation. */
+    public void sendPaymentReceivedEmail(
+            com.spire.backend.entity.User user,
+            com.spire.backend.entity.Invoice invoice,
+            com.spire.backend.entity.PaymentLedger ledger) {
+        String firstName = firstName(user);
+        String received = ledger.getAmountReceived() == null ? "—" : ledger.getAmountReceived().toPlainString();
+        String balance = invoice.getBalance() == null ? "0" : invoice.getBalance().toPlainString();
+        String body = p("Dear " + escape(firstName) + ",")
+                + p("We've received your payment. Thank you.")
+                + receipt(
+                        "Invoice: " + safe(invoice.getInvoiceNumber()),
+                        "Amount received: " + received,
+                        "Method: " + safe(ledger.getMethod()),
+                        "Receipt date: " + (ledger.getReceiptDate() == null ? "—" : ledger.getReceiptDate().toString()),
+                        "Remaining balance: " + balance)
+                + p("Your dashboard reflects the updated status.")
+                + button("Open your dashboard", appUrl + "/dashboard")
+                + p("Regards,<br/>Spire Info Tech");
+        try {
+            emailService.sendEmail(user.getEmail(),
+                    "Payment received — Invoice " + safe(invoice.getInvoiceNumber()),
+                    wrap("Payment received", body));
+        } catch (Exception ignored) {}
+    }
+
+    /** Email #14d — overdue payment reminder. */
+    public void sendInvoiceOverdueEmail(
+            com.spire.backend.entity.User user,
+            com.spire.backend.entity.Invoice invoice) {
+        String firstName = firstName(user);
+        String amount = invoice.getAmount() == null ? "—" : invoice.getAmount().toPlainString();
+        String dueDate = invoice.getDueDate() == null ? "—" : invoice.getDueDate().toString();
+        String body = p("Dear " + escape(firstName) + ",")
+                + p("This is a reminder that the following invoice is past due.")
+                + receipt(
+                        "Invoice: " + safe(invoice.getInvoiceNumber()),
+                        "Amount: " + amount,
+                        "Original due date: " + dueDate)
+                + p("Please reach out to finance if there's anything we should know "
+                        + "about your payment. If you've already paid, your record "
+                        + "will update once we confirm receipt.")
+                + button("Open your dashboard", appUrl + "/dashboard")
+                + p("Regards,<br/>Spire Info Tech");
+        try {
+            emailService.sendEmail(user.getEmail(),
+                    "Payment reminder — Invoice " + safe(invoice.getInvoiceNumber()) + " overdue",
+                    wrap("Invoice overdue", body));
+        } catch (Exception ignored) {}
+    }
+
     // ───────────────────────────────────────────────────────────────
     // Markup helpers
     // ───────────────────────────────────────────────────────────────

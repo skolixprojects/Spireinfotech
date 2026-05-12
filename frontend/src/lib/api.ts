@@ -817,6 +817,256 @@ export async function approvePhase1(participantId: number, notes = ""): Promise<
   return wrapper.data;
 }
 
+// ─── Phase 7: payment plans, invoices, ledger, check tracking ────
+
+export interface PaymentScheduleItem {
+  dueDate: string | null;
+  amount: string | number | null;
+  label?: string | null;
+}
+
+export interface PaymentPlanDTO {
+  id: number;
+  planId: string;
+  userId: number;
+  totalAmount: string | number | null;
+  installments: number | null;
+  schedule: string | null;
+  acceptanceTextVersion: string | null;
+  acceptedAt: string | null;
+  ipAddress: string | null;
+  status: string;
+}
+
+export interface ParticipantPaymentPlanResponse {
+  plan: PaymentPlanDTO | null;
+  schedule: PaymentScheduleItem[];
+  acknowledgmentVersion: string;
+}
+
+export interface InvoiceDTO {
+  id: number;
+  invoiceNumber: string;
+  userId: number;
+  paymentPlanId: number | null;
+  amount: string | number | null;
+  dueDate: string | null;
+  issueDate: string | null;
+  paidDate: string | null;
+  balance: string | number | null;
+  status: string;
+}
+
+export interface PaymentLedgerDTO {
+  id: number;
+  invoiceId: number | null;
+  userId: number;
+  amountReceived: string | number | null;
+  receiptDate: string | null;
+  method: string | null;
+  adjustment: string | number | null;
+  balance: string | number | null;
+  notes: string | null;
+  financeReviewer: string | null;
+  createdAt: string | null;
+}
+
+export interface PaymentSummary {
+  totalDue?: string | number;
+  totalPaid?: string | number;
+  balance?: string | number;
+  overdue?: string | number;
+  nextDueAmount?: string | number | null;
+  nextDueDate?: string | null;
+  nextDueInvoice?: string | null;
+}
+
+export interface CheckTrackingDTO {
+  id: number;
+  checkNumber: string | null;
+  carrier: string | null;
+  trackingId: string | null;
+  mailedDate: string | null;
+  expectedReceiptDate: string | null;
+  receivedDate: string | null;
+  status: string;
+}
+
+export async function getParticipantPaymentPlan(): Promise<ParticipantPaymentPlanResponse> {
+  const wrapper = await apiFetch<ApiResponse<ParticipantPaymentPlanResponse>>(
+    "/api/participants/payments/plan");
+  return wrapper.data ?? { plan: null, schedule: [], acknowledgmentVersion: "PPL-v1.0" };
+}
+
+export async function acceptPaymentPlan(planId?: number, version = "PPL-v1.0"): Promise<unknown> {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    "/api/participants/payments/plan/accept",
+    { method: "POST", body: JSON.stringify({
+      accepted: true,
+      planId: planId ?? null,
+      acknowledgmentVersion: version,
+    }) });
+  return wrapper.data;
+}
+
+export async function submitCheckTracking(body: {
+  checkNumber: string;
+  carrier: string;
+  trackingId: string;
+  mailedDate: string;
+  expectedReceiptDate?: string | null;
+}): Promise<unknown> {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    "/api/participants/payments/check-tracking",
+    { method: "POST", body: JSON.stringify(body) });
+  return wrapper.data;
+}
+
+export async function listParticipantCheckTracking(): Promise<CheckTrackingDTO[]> {
+  const wrapper = await apiFetch<ApiResponse<CheckTrackingDTO[]>>(
+    "/api/participants/payments/check-tracking");
+  return wrapper.data ?? [];
+}
+
+export async function listParticipantInvoices(): Promise<InvoiceDTO[]> {
+  const wrapper = await apiFetch<ApiResponse<InvoiceDTO[]>>(
+    "/api/participants/payments/invoices");
+  return wrapper.data ?? [];
+}
+
+export async function getParticipantPaymentSummary(): Promise<PaymentSummary> {
+  const wrapper = await apiFetch<ApiResponse<PaymentSummary>>(
+    "/api/participants/payments/summary");
+  return wrapper.data ?? {};
+}
+
+export async function listParticipantPaymentHistory(): Promise<PaymentLedgerDTO[]> {
+  const wrapper = await apiFetch<ApiResponse<PaymentLedgerDTO[]>>(
+    "/api/participants/payments/history");
+  return wrapper.data ?? [];
+}
+
+// ── Finance side ──────────────────────────────────────────────────
+
+export interface FinancePlanRow {
+  id: number;
+  planNumber: string;
+  userId: number;
+  participantId: string | null;
+  participantName: string | null;
+  totalAmount: string | number | null;
+  installments: number | null;
+  status: string;
+  acceptedAt: string | null;
+  schedule: PaymentScheduleItem[];
+}
+
+export async function getFinancePlans(): Promise<FinancePlanRow[]> {
+  const wrapper = await apiFetch<ApiResponse<FinancePlanRow[]>>("/api/finance/plans");
+  return wrapper.data ?? [];
+}
+
+export async function createFinancePlan(body: {
+  participantId: number;
+  totalAmount: number;
+  installments: number;
+  schedule: { dueDate: string; amount: number; label?: string }[];
+}): Promise<PaymentPlanDTO> {
+  const wrapper = await apiFetch<ApiResponse<PaymentPlanDTO>>(
+    "/api/finance/plans",
+    { method: "POST", body: JSON.stringify(body) });
+  return wrapper.data;
+}
+
+export async function getFinanceInvoices(status?: string): Promise<InvoiceDTO[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const wrapper = await apiFetch<ApiResponse<InvoiceDTO[]>>(
+    `/api/finance/invoices${qs}`);
+  return wrapper.data ?? [];
+}
+
+export async function generateInvoice(paymentPlanId: number): Promise<InvoiceDTO> {
+  const wrapper = await apiFetch<ApiResponse<InvoiceDTO>>(
+    "/api/finance/invoices/generate",
+    { method: "POST", body: JSON.stringify({ paymentPlanId }) });
+  return wrapper.data;
+}
+
+export async function bulkGenerateInvoices(): Promise<{ issued: number; invoices: string[] }> {
+  const wrapper = await apiFetch<ApiResponse<{ issued: number; invoices: string[] }>>(
+    "/api/finance/invoices/bulk-generate",
+    { method: "POST" });
+  return wrapper.data;
+}
+
+export async function markOverdueInvoices(): Promise<{ marked: number }> {
+  const wrapper = await apiFetch<ApiResponse<{ marked: number }>>(
+    "/api/finance/invoices/mark-overdue",
+    { method: "POST" });
+  return wrapper.data;
+}
+
+export async function getFinanceLedger(): Promise<PaymentLedgerDTO[]> {
+  const wrapper = await apiFetch<ApiResponse<PaymentLedgerDTO[]>>(
+    "/api/finance/payments");
+  return wrapper.data ?? [];
+}
+
+export async function recordPaymentReceipt(body: {
+  invoiceId: number;
+  amountReceived: number;
+  receiptDate?: string;
+  method?: string;
+  notes?: string;
+}): Promise<PaymentLedgerDTO> {
+  const wrapper = await apiFetch<ApiResponse<PaymentLedgerDTO>>(
+    "/api/finance/payments/receive",
+    { method: "PUT", body: JSON.stringify(body) });
+  return wrapper.data;
+}
+
+export interface FinanceTrackingRow extends CheckTrackingDTO {
+  paymentPlanId: number;
+  userId: number | null;
+  participantId: string | null;
+  participantName: string | null;
+}
+
+export async function getFinanceTrackings(status?: string): Promise<FinanceTrackingRow[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+  const wrapper = await apiFetch<ApiResponse<FinanceTrackingRow[]>>(
+    `/api/finance/check-tracking${qs}`);
+  return wrapper.data ?? [];
+}
+
+export async function updateTrackingStatus(
+  trackingId: number,
+  status: "RECEIVED" | "EXCEPTION" | "IN_TRANSIT" | "RETURNED" | "LOST",
+  receivedDate?: string,
+): Promise<CheckTrackingDTO> {
+  const wrapper = await apiFetch<ApiResponse<CheckTrackingDTO>>(
+    `/api/finance/check-tracking/${trackingId}/update`,
+    { method: "PUT", body: JSON.stringify({ status, receivedDate: receivedDate ?? null }) });
+  return wrapper.data;
+}
+
+export interface FinanceDashboardSummary {
+  totalPlans: number;
+  activePlans: number;
+  unpaidInvoices: number;
+  overdueInvoices: number;
+  totalCollected: string | number;
+}
+
+export async function getFinanceDashboard(): Promise<FinanceDashboardSummary> {
+  const wrapper = await apiFetch<ApiResponse<FinanceDashboardSummary>>(
+    "/api/finance/dashboard");
+  return wrapper.data ?? {
+    totalPlans: 0, activePlans: 0,
+    unpaidInvoices: 0, overdueInvoices: 0, totalCollected: 0,
+  };
+}
+
 // ─── Phase 5B: ERM dashboard ─────────────────────────────────────
 
 export interface ErmRosterRow {

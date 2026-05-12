@@ -73,6 +73,10 @@ public class ParticipantController {
     private final com.spire.backend.service.ErmAssignmentService ermAssignmentService;
     private final com.spire.backend.service.CoachAssignmentService coachAssignmentService;
     private final com.spire.backend.service.EmploymentService employmentService;
+    private final com.spire.backend.service.PaymentService paymentService;
+    private final com.spire.backend.service.CheckTrackingService checkTrackingService;
+    private final com.spire.backend.repository.InvoiceRepository invoiceRepository;
+    private final com.spire.backend.repository.PaymentLedgerRepository paymentLedgerRepository;
 
     /** Public — anyone can enroll. Behind the scenes walks the workflow
      *  ladder DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING. */
@@ -597,6 +601,107 @@ public class ParticipantController {
         catch (Exception e) {
             throw new IllegalArgumentException("Date must be YYYY-MM-DD");
         }
+    }
+
+    // ─── Phase 7: payments — plan, check tracking, invoices, summary ──
+
+    @GetMapping("/payments/plan")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getPaymentPlan(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        var planOpt = paymentService.latestPlanForUser(userId);
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("plan", planOpt.orElse(null));
+        out.put("schedule", planOpt.map(p ->
+                paymentService.parseSchedule(p.getSchedule())).orElse(java.util.List.of()));
+        out.put("acknowledgmentVersion",
+                com.spire.backend.service.PaymentService.PLAN_ACK_VERSION);
+        return ResponseEntity.ok(ApiResponse.success(out));
+    }
+
+    @PostMapping("/payments/plan/accept")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> acceptPaymentPlan(
+            @RequestBody Map<String, Object> body,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        if (!Boolean.TRUE.equals(body.get("accepted"))) {
+            throw new IllegalArgumentException("You must accept the payment plan to continue.");
+        }
+        Object planIdRaw = body.get("planId");
+        Long planId = planIdRaw == null
+                ? paymentService.latestPlanForUser(userId)
+                        .orElseThrow(() -> new IllegalArgumentException("No payment plan on file."))
+                        .getId()
+                : (planIdRaw instanceof Number n ? n.longValue() : Long.parseLong(planIdRaw.toString()));
+        String version = (String) body.getOrDefault("acknowledgmentVersion",
+                com.spire.backend.service.PaymentService.PLAN_ACK_VERSION);
+        var saved = paymentService.acceptPlan(userId, planId, version, clientIp(httpRequest));
+        return ResponseEntity.ok(ApiResponse.success(
+                "Payment plan accepted",
+                Map.of(
+                        "success", true,
+                        "planId", saved.getId(),
+                        "planNumber", saved.getPlanId(),
+                        "acceptedAt", saved.getAcceptedAt()
+                )));
+    }
+
+    @PostMapping("/payments/check-tracking")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> submitCheckTracking(
+            @RequestBody Map<String, Object> body,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        com.spire.backend.entity.CheckTracking row =
+                com.spire.backend.entity.CheckTracking.builder()
+                        .checkNumber((String) body.get("checkNumber"))
+                        .carrier((String) body.get("carrier"))
+                        .physicalTrackingId((String) body.get("trackingId"))
+                        .mailedDate(parseDate(body.get("mailedDate")))
+                        .expectedReceiptDate(parseDate(body.get("expectedReceiptDate")))
+                        .build();
+        var saved = checkTrackingService.submit(userId, row);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Tracking submitted",
+                Map.of(
+                        "success", true,
+                        "trackingId", saved.getId(),
+                        "status", saved.getStatus()
+                )));
+    }
+
+    @GetMapping("/payments/check-tracking")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> listCheckTracking(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                checkTrackingService.trackingsForUser(userId)));
+    }
+
+    @GetMapping("/payments/invoices")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<com.spire.backend.entity.Invoice>>> myInvoices(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                invoiceRepository.findByUserIdOrderByIssueDateDesc(userId)));
+    }
+
+    @GetMapping("/payments/summary")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> paymentSummary(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                paymentService.participantSummary(userId)));
+    }
+
+    @GetMapping("/payments/history")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<com.spire.backend.entity.PaymentLedger>>> paymentHistory(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                paymentLedgerRepository.findByUserIdOrderByCreatedAtDesc(userId)));
     }
 
     // ─── Phase 5A: profile read / edit (dashboard Profile tab) ─────
