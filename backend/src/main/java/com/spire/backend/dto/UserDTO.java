@@ -52,6 +52,8 @@ public class UserDTO {
     /** Pre-filled into the /program-selection form (the participant can override). */
     private String selectedTechnology;
     private String availability;
+    /** Captured at enrollment; displayed on the agreement summary. */
+    private String phone;
 
     public static UserDTO from(User user) {
         return UserDTO.builder()
@@ -72,6 +74,7 @@ public class UserDTO {
                 .emailVerified(Boolean.TRUE.equals(user.getEmailVerified()))
                 .selectedTechnology(user.getSelectedTechnology())
                 .availability(user.getAvailability())
+                .phone(user.getPhone())
                 .build();
     }
 }

@@ -2,6 +2,7 @@ package com.spire.backend.controller;
 
 import com.spire.backend.dto.AcknowledgmentSubmitRequest;
 import com.spire.backend.dto.ApiResponse;
+import com.spire.backend.dto.CheckDocumentDTO;
 import com.spire.backend.dto.ParticipantDocumentDTO;
 import com.spire.backend.dto.ParticipantEnrollRequest;
 import com.spire.backend.dto.ProgramSelectionDTO;
@@ -9,6 +10,7 @@ import com.spire.backend.dto.ProgramSelectionRequest;
 import com.spire.backend.dto.RegistrationResponse;
 import com.spire.backend.dto.UserDTO;
 import com.spire.backend.entity.Acknowledgment;
+import com.spire.backend.entity.CheckDocument;
 import com.spire.backend.entity.ParticipantDocument;
 import com.spire.backend.entity.ProgramSelection;
 import com.spire.backend.entity.User;
@@ -18,6 +20,8 @@ import com.spire.backend.service.AcknowledgmentService;
 import com.spire.backend.service.AuthService;
 import com.spire.backend.service.DocumentService;
 import com.spire.backend.service.DocumentStorageService;
+import com.spire.backend.service.ParticipantAgreementService;
+import com.spire.backend.service.ParticipantCheckService;
 import com.spire.backend.service.ProgramSelectionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -60,6 +64,8 @@ public class ParticipantController {
     private final DocumentService documentService;
     private final DocumentStorageService storageService;
     private final ProgramSelectionService programSelectionService;
+    private final ParticipantAgreementService participantAgreementService;
+    private final ParticipantCheckService participantCheckService;
 
     /** Public — anyone can enroll. Behind the scenes walks the workflow
      *  ladder DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING. */
@@ -285,5 +291,115 @@ public class ParticipantController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Draft saved",
                 ProgramSelectionDTO.from(saved)));
+    }
+
+    // ─── Phase 3B: agreement signing ────────────────────────────────
+
+    /**
+     * Send the agreement email + transition workflow to DOCUSIGN_SENT.
+     * Body carries the typed legal name + captured signature; the
+     * server emails a PDF on letterhead with the user's signature
+     * already embedded on the signature page, waits for the email
+     * reply via the IMAP cron, then triggers OTP delivery.
+     */
+    @PostMapping("/agreement/send")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> sendAgreement(
+            @RequestBody Map<String, Object> body,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        String legalName = (String) body.get("legalName");
+        String signatureImage = (String) body.get("signatureImage");
+        String signatureMethod = (String) body.getOrDefault("signatureMethod", "draw");
+        if (legalName == null || legalName.isBlank()
+                || signatureImage == null || signatureImage.isBlank()) {
+            throw new IllegalArgumentException("legalName and signatureImage are required");
+        }
+        Map<String, Object> data = participantAgreementService.send(
+                userId, legalName, signatureImage, signatureMethod.toString(),
+                clientIp(httpRequest), httpRequest.getHeader("User-Agent"));
+        return ResponseEntity.ok(ApiResponse.success("Agreement email sent", data));
+    }
+
+    /** Verify the OTP + post-process: signed PDF, ERM routing,
+     *  workflow advance to SIGNED_AGREEMENT_SENT_TO_ERM. */
+    @PostMapping("/agreement/verify-code")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyAgreementCode(
+            @RequestBody Map<String, String> body,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        String code = body.get("code");
+        if (code == null || code.isBlank()) {
+            throw new IllegalArgumentException("Code is required");
+        }
+        Map<String, Object> data = participantAgreementService.verifyCode(userId, code);
+        return ResponseEntity.ok(ApiResponse.success("Agreement verified", data));
+    }
+
+    /** Status polling target — the /agreement page hits this every
+     *  5 seconds while waiting for the IMAP cron to detect the reply. */
+    @GetMapping("/agreement/status")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getAgreementStatus(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                participantAgreementService.getStatus(userId)));
+    }
+
+    // ─── Phase 3B: check soft-copy upload ───────────────────────────
+
+    @PostMapping("/checks/upload")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<CheckDocumentDTO>> uploadCheck(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "checkNumber", required = false) String checkNumber,
+            @RequestParam(value = "amount", required = false) java.math.BigDecimal amount,
+            @RequestParam(value = "checkDate", required = false) String checkDate,
+            @RequestParam(value = "notes", required = false) String notes,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        java.time.LocalDate date = null;
+        if (checkDate != null && !checkDate.isBlank()) {
+            try { date = java.time.LocalDate.parse(checkDate); }
+            catch (Exception e) {
+                throw new IllegalArgumentException("checkDate must be YYYY-MM-DD");
+            }
+        }
+        CheckDocument saved = participantCheckService.upload(
+                userId, file, checkNumber, amount, date, notes);
+        return ResponseEntity.ok(ApiResponse.success("Check uploaded",
+                CheckDocumentDTO.from(saved)));
+    }
+
+    @PostMapping("/checks/mark-na")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> markCheckNotApplicable(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        participantCheckService.markNotApplicable(userId);
+        return ResponseEntity.ok(ApiResponse.success("Marked as N/A",
+                Map.of("workflowStatus", "CHECK_COPY_UPLOADED")));
+    }
+
+    @GetMapping("/checks")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<CheckDocumentDTO>>> listChecks(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        List<CheckDocumentDTO> rows = participantCheckService.listForUser(userId)
+                .stream().map(CheckDocumentDTO::from).toList();
+        return ResponseEntity.ok(ApiResponse.success(rows));
+    }
+
+    // ── Shared helper ───────────────────────────────────────────────
+
+    private static String clientIp(HttpServletRequest request) {
+        if (request == null) return null;
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            int comma = xff.indexOf(',');
+            return (comma > 0 ? xff.substring(0, comma) : xff).trim();
+        }
+        return request.getRemoteAddr();
     }
 }

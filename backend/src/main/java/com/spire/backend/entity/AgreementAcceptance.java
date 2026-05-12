@@ -179,4 +179,15 @@ public class AgreementAcceptance {
     /** Either {@code "draw"} or {@code "upload"}. Audit value only. */
     @Column(name = "signature_method", length = 20)
     private String signatureMethod;
+
+    /**
+     * Phase 3B — set to true once the signed agreement has been
+     * routed to the ERM queue (post-OTP-verify post-processing).
+     * Drives the operations dashboard's "pending ERM assignment"
+     * filter; nullable / default false for rows from the legacy
+     * flow that never went through Phase 3B.
+     */
+    @Column(name = "erm_notified", nullable = false)
+    @Builder.Default
+    private Boolean ermNotified = false;
 }

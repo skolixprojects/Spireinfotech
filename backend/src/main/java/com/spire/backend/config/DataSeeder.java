@@ -791,6 +791,19 @@ public class DataSeeder implements CommandLineRunner {
             log.debug("Couldn't add documents.not_applicable: {}", e.getMessage());
         }
 
+        // Phase 3B: agreement_acceptances gets erm_notified flag
+        // so the operations dashboard can filter pending-routing
+        // rows. Default false; flipped true once the post-OTP
+        // post-processing routes the signed agreement to ERM.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE agreement_acceptances ADD COLUMN IF NOT EXISTS "
+                            + "erm_notified BOOLEAN NOT NULL DEFAULT FALSE");
+            log.info("Ensured agreement_acceptances.erm_notified exists");
+        } catch (Exception e) {
+            log.debug("Couldn't add agreement_acceptances.erm_notified: {}", e.getMessage());
+        }
+
         // Phase 3A: program_selections gets the version of the
         // service-summary text the participant reviewed plus
         // free-form notes. Both nullable for backward compat.

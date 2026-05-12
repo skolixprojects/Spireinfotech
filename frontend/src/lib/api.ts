@@ -55,6 +55,8 @@ export interface UserDTO {
   // these but allows overrides.
   selectedTechnology?: string | null;
   availability?: string | null;
+  /** Captured at enrollment; displayed on the agreement summary. */
+  phone?: string | null;
 }
 
 export interface AuthResponse {
@@ -440,6 +442,107 @@ export async function submitProgramSelection(
   return wrapper.data;
 }
 
+// ─── Phase 3B: participant agreement signing ──────────────────────
+
+export interface SendAgreementRequest {
+  legalName: string;
+  signatureImage: string;
+  signatureMethod: "draw" | "upload";
+}
+
+export interface ParticipantAgreementStatus {
+  /** Legacy agreement_acceptances row status: WAITING_REPLY / CODE_SENT / VERIFIED. */
+  status?: AgreementStatusValue | "NOT_STARTED";
+  /** True once the OTP has been verified. */
+  accepted?: boolean;
+  agreementExpiresAt?: string | null;
+  acceptedAt?: string | null;
+  legalName?: string | null;
+  /** New 26-status workflow value (DOCUSIGN_SENT etc.). */
+  workflowStatus?: string | null;
+  ermNotified?: boolean;
+}
+
+export async function sendParticipantAgreement(
+  body: SendAgreementRequest,
+): Promise<Record<string, unknown>> {
+  const wrapper = await apiFetch<ApiResponse<Record<string, unknown>>>(
+    "/api/participants/agreement/send",
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  return wrapper.data;
+}
+
+export async function verifyParticipantAgreementCode(
+  code: string,
+): Promise<{ status: string; nextStep: string; success: boolean }> {
+  const wrapper = await apiFetch<ApiResponse<{ status: string; nextStep: string; success: boolean }>>(
+    "/api/participants/agreement/verify-code",
+    { method: "POST", body: JSON.stringify({ code }) },
+  );
+  return wrapper.data;
+}
+
+export async function getParticipantAgreementStatus(): Promise<ParticipantAgreementStatus> {
+  const wrapper = await apiFetch<ApiResponse<ParticipantAgreementStatus>>(
+    "/api/participants/agreement/status",
+  );
+  return wrapper.data ?? {};
+}
+
+// ─── Phase 3B: check soft-copy uploads ────────────────────────────
+
+export interface CheckDocumentDTO {
+  id: number;
+  checkNumber: string | null;
+  amount: number | null;
+  checkDate: string | null;
+  notes: string | null;
+  reviewStatus: string;
+  uploadedAt: string | null;
+}
+
+export async function uploadCheckSoftCopy(
+  file: File,
+  meta: { checkNumber?: string; amount?: number; checkDate?: string; notes?: string },
+): Promise<CheckDocumentDTO> {
+  const token = typeof window === "undefined"
+    ? null : localStorage.getItem("access_token");
+  const form = new FormData();
+  form.append("file", file);
+  if (meta.checkNumber) form.append("checkNumber", meta.checkNumber);
+  if (meta.amount !== undefined && meta.amount !== null) form.append("amount", String(meta.amount));
+  if (meta.checkDate) form.append("checkDate", meta.checkDate);
+  if (meta.notes) form.append("notes", meta.notes);
+  const res = await fetch(`${API_BASE_URL}/api/participants/checks/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    let msg = `Upload failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.message) msg = body.message;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const body = (await res.json()) as ApiResponse<CheckDocumentDTO>;
+  return body.data;
+}
+
+export async function markCheckNotApplicable(): Promise<void> {
+  await apiFetch<ApiResponse<unknown>>(
+    "/api/participants/checks/mark-na",
+    { method: "POST" });
+}
+
+export async function listMyChecks(): Promise<CheckDocumentDTO[]> {
+  const wrapper = await apiFetch<ApiResponse<CheckDocumentDTO[]>>(
+    "/api/participants/checks");
+  return wrapper.data ?? [];
+}
+
 /**
  * Maps a participant's workflow status to the onboarding page they
  * belong on. Mirrors the backend's WorkflowService.Status enum.
@@ -470,8 +573,9 @@ export function getOnboardingRoute(status: string | null | undefined): string {
       return "/program-selection";
     case "PROGRAM_SELECTED":
     case "DOCUSIGN_SENT":
-      // /agreement is currently a Phase 3B placeholder; Phase 3B
-      // will replace it with the real DocuSign envelope UI. The
+    case "CHECK_COPY_UPLOADED":
+      // The /agreement page IS the Phase 3B signing UI — review,
+      // optional check upload, signature, send email, OTP. The
       // OLD Terms-of-Service flow lives at /agreement-legacy.
       return "/agreement";
     case "DOCUSIGN_COMPLETED":
