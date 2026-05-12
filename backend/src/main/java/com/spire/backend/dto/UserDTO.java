@@ -54,6 +54,8 @@ public class UserDTO {
     private String availability;
     /** Captured at enrollment; displayed on the agreement summary. */
     private String phone;
+    /** Free-form city / region — editable from the dashboard Profile tab. */
+    private String location;
 
     public static UserDTO from(User user) {
         return UserDTO.builder()
@@ -75,6 +77,7 @@ public class UserDTO {
                 .selectedTechnology(user.getSelectedTechnology())
                 .availability(user.getAvailability())
                 .phone(user.getPhone())
+                .location(user.getLocation())
                 .build();
     }
 }

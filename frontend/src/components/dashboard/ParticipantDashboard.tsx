@@ -3,20 +3,20 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
-  AlertCircle, ArrowRight, Briefcase, CheckCircle2, ClipboardList,
-  CreditCard, FileText, Loader2, Mail, MessageSquare, Plus, Save,
+  AlertCircle, ArrowRight, Bell, Briefcase, CheckCircle2, ClipboardList,
+  CreditCard, FileText, Loader2, Mail, Menu, MessageSquare, Plus, Save,
   Send, Settings, ShieldCheck, Target, Trash2, Users, BookOpen,
-  LayoutDashboard,
+  LayoutDashboard, X,
 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
 import {
-  getParticipantDashboard, getParticipantTeam, listWeeklyReports,
-  saveWeeklyReportDraft, submitWeeklyReport, listParticipantDocuments,
+  getParticipantDashboard, getParticipantProfile, getParticipantTeam,
+  listParticipantDocuments, listWeeklyReports, saveWeeklyReportDraft,
+  submitWeeklyReport, updateParticipantProfile,
   type ParticipantDashboard as DashboardData, type ParticipantTeam,
-  type ParticipantDocument, type WeeklyReportDTO,
+  type ParticipantDocument, type UserDTO, type WeeklyReportDTO,
   type WeeklyReportJobSubmission, type WeeklyReportRequest,
 } from "@/lib/api";
 
@@ -79,6 +79,11 @@ export default function ParticipantDashboard() {
   const [team, setTeam] = useState<ParticipantTeam | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Close the mobile drawer whenever the active tab changes — desktop
+  // sidebar stays put because it isn't backed by this state.
+  useEffect(() => { setDrawerOpen(false); }, [active]);
 
   useEffect(() => {
     let cancelled = false;
@@ -115,50 +120,95 @@ export default function ParticipantDashboard() {
     );
   }
 
+  const SidebarBody = (
+    <>
+      <div className="px-4 py-4 border-b border-gray-100 flex items-center justify-between gap-2">
+        <Link href="/" className="inline-flex items-center gap-2">
+          <Image src="/logo.png" alt="Spire" width={28} height={28} className="h-7 w-7 object-contain" />
+          <span className="font-serif text-sm font-bold text-[#0F766E]">Spire Info Tech</span>
+        </Link>
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(false)}
+          className="md:hidden text-gray-400 hover:text-gray-700 cursor-pointer"
+          aria-label="Close menu"
+        >
+          <X size={16} />
+        </button>
+      </div>
+      <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
+        {NAV.map((n) => {
+          const isActive = active === n.id;
+          return (
+            <button
+              key={n.id}
+              onClick={() => setActive(n.id)}
+              className={
+                "w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer "
+                + (isActive
+                    ? "bg-[#0F766E] text-white shadow-sm"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900")
+              }
+            >
+              <n.Icon size={14} />
+              <span className="truncate">{n.label}</span>
+            </button>
+          );
+        })}
+      </nav>
+      <div className="p-3 border-t border-gray-100 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold text-gray-700 truncate">{data.fullName ?? user?.email ?? ""}</p>
+          <p className="text-[10px] font-mono text-gray-400 truncate">{data.participantId ?? ""}</p>
+        </div>
+        <button
+          type="button"
+          onClick={logout}
+          className="shrink-0 text-xs text-gray-500 hover:text-red-600 cursor-pointer"
+        >
+          Sign out
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex">
-      {/* Sidebar */}
-      <aside className="w-56 shrink-0 bg-white border-r border-gray-200 flex flex-col">
-        <div className="px-4 py-4 border-b border-gray-100">
-          <Link href="/" className="inline-flex items-center gap-2">
-            <Image src="/logo.png" alt="Spire" width={28} height={28} className="h-7 w-7 object-contain" />
-            <span className="font-serif text-sm font-bold text-[#0F766E]">Spire Info Tech</span>
-          </Link>
-        </div>
-        <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-          {NAV.map((n) => {
-            const isActive = active === n.id;
-            return (
-              <button
-                key={n.id}
-                onClick={() => setActive(n.id)}
-                className={
-                  "w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer "
-                  + (isActive
-                      ? "bg-[#0F766E] text-white shadow-sm"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900")
-                }
-              >
-                <n.Icon size={14} />
-                <span className="truncate">{n.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-        <div className="p-3 border-t border-gray-100">
-          <button
-            type="button"
-            onClick={logout}
-            className="text-xs text-gray-500 hover:text-red-600 cursor-pointer"
-          >
-            Sign out
-          </button>
-        </div>
+      {/* Desktop sidebar */}
+      <aside className="hidden md:flex w-56 shrink-0 bg-white border-r border-gray-200 flex-col">
+        {SidebarBody}
       </aside>
 
+      {/* Mobile drawer */}
+      {drawerOpen && (
+        <div className="md:hidden fixed inset-0 z-40">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden="true"
+          />
+          <aside className="absolute left-0 top-0 bottom-0 w-64 bg-white shadow-xl flex flex-col">
+            {SidebarBody}
+          </aside>
+        </div>
+      )}
+
       {/* Main */}
-      <main className="flex-1 overflow-y-auto">
-        <div className="max-w-5xl mx-auto px-6 py-6">
+      <main className="flex-1 overflow-y-auto min-w-0">
+        {/* Mobile top bar */}
+        <div className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-2.5 bg-white border-b border-gray-100">
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            className="inline-flex items-center gap-1.5 text-gray-700 hover:text-[#0F766E] cursor-pointer"
+            aria-label="Open menu"
+          >
+            <Menu size={18} />
+            <span className="text-sm font-semibold">{NAV.find((n) => n.id === active)?.label ?? "Menu"}</span>
+          </button>
+          <span className="text-[10px] font-mono text-gray-400">{data.participantId ?? ""}</span>
+        </div>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
           {active === "home" && (
             <HomeTab data={data} team={team} userEmail={user?.email ?? null}
               onJumpTo={(t) => setActive(t)} />
@@ -195,22 +245,8 @@ export default function ParticipantDashboard() {
               hint="Reach out to your ERM if you have questions about the schedule."
             />
           )}
-          {active === "messages" && (
-            <PlaceholderCard
-              title="Messages"
-              copy="A full messaging surface is on the roadmap. For now, use your ERM's email from the My Team tab."
-              hint=""
-              link={{ label: "Open inbox", href: "/messages" }}
-            />
-          )}
-          {active === "profile" && (
-            <PlaceholderCard
-              title="Profile"
-              copy="Edit your personal details, contact info, and preferences."
-              hint=""
-              link={{ label: "Edit profile", href: "/profile" }}
-            />
-          )}
+          {active === "messages" && <MessagesTab data={data} team={team} />}
+          {active === "profile" && <ProfileTab />}
         </div>
       </main>
     </div>
@@ -466,6 +502,8 @@ interface WeeklyFormState {
   nextPractice: string;
   messagesAck: string;
   questions: string;
+  escalation: boolean;
+  escalationDetail: string;
 }
 
 const blankJob = (): WeeklyReportJobSubmission => ({
@@ -480,6 +518,7 @@ const blankForm = (): WeeklyFormState => ({
   mockDate: "", interviewTopic: "", coach: "", feedback: "",
   improvements: "", nextPractice: "",
   messagesAck: "", questions: "",
+  escalation: false, escalationDetail: "",
 });
 
 function WeeklyTab({ dashboardData }: { dashboardData: DashboardData }) {
@@ -521,6 +560,8 @@ function WeeklyTab({ dashboardData }: { dashboardData: DashboardData }) {
                 nextPractice: parsed.interviewTraining?.nextPracticeDate ?? "",
                 messagesAck: parsed.communications?.messagesAcknowledged ?? "",
                 questions: parsed.communications?.questions ?? "",
+                escalation: parsed.communications?.escalation === "true",
+                escalationDetail: parsed.communications?.escalationDetail ?? "",
               });
             } catch { /* keep default */ }
           }
@@ -557,7 +598,10 @@ function WeeklyTab({ dashboardData }: { dashboardData: DashboardData }) {
       nextPracticeDate: form.nextPractice,
     },
     communications: {
-      messagesAcknowledged: form.messagesAck, questions: form.questions,
+      messagesAcknowledged: form.messagesAck,
+      questions: form.questions,
+      escalation: form.escalation ? "true" : "false",
+      escalationDetail: form.escalation ? form.escalationDetail : "",
     },
   });
 
@@ -595,6 +639,14 @@ function WeeklyTab({ dashboardData }: { dashboardData: DashboardData }) {
           <p className="text-xs text-gray-500 mt-0.5">
             Week of <span className="font-mono">{dashboardData.currentWeekStart}</span> –{" "}
             <span className="font-mono">{dashboardData.currentWeekEnd}</span>
+            {dashboardData.currentWeekEnd && (
+              <>
+                {" · "}due{" "}
+                <span className="font-mono">
+                  {addOneDay(dashboardData.currentWeekEnd)}
+                </span>
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -686,6 +738,24 @@ function WeeklyTab({ dashboardData }: { dashboardData: DashboardData }) {
           <Input label="Questions for ERM" value={form.questions}
             onChange={(v) => setForm((p) => ({ ...p, questions: v }))} />
         </div>
+        <label className="mt-3 flex items-start gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={form.escalation}
+            onChange={(e) => setForm((p) => ({ ...p, escalation: e.target.checked }))}
+            className="mt-0.5 w-4 h-4 rounded border-gray-300 text-[#0F766E] focus:ring-[#14B8A6]"
+          />
+          <span className="text-gray-700">
+            Escalate this week to my ERM — I need help with a blocker.
+          </span>
+        </label>
+        {form.escalation && (
+          <div className="mt-2">
+            <Input label="Briefly describe the blocker"
+              value={form.escalationDetail}
+              onChange={(v) => setForm((p) => ({ ...p, escalationDetail: v }))} />
+          </div>
+        )}
       </Section>
 
       {error && (
@@ -833,6 +903,184 @@ function AgreementTab({ participantId }: { participantId: string | null }) {
   );
 }
 
+/* ── Messages tab ─────────────────────────────────────────────── */
+
+function MessagesTab({ data, team }: {
+  data: DashboardData;
+  team: ParticipantTeam | null;
+}) {
+  const items = data.recentActivity ?? [];
+  return (
+    <div className="space-y-4">
+      <h1 className="font-serif text-2xl font-bold text-gray-900">Messages &amp; notifications</h1>
+      <p className="text-sm text-gray-500">
+        System notifications, acknowledgments, and lifecycle events from your account.
+        Direct messaging is handled by your ERM via email — see My Team for contact info.
+      </p>
+
+      {team?.erm?.email && (
+        <div className="rounded-2xl border border-[#0F766E]/20 bg-[#f0fdf9] p-4 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] uppercase tracking-wider font-semibold text-[#0F766E]">Your ERM</p>
+            <p className="text-sm font-bold text-gray-900 mt-0.5 truncate">{team.erm.name ?? "—"}</p>
+            <p className="text-xs text-gray-600 truncate">{team.erm.email}</p>
+          </div>
+          <a href={`mailto:${team.erm.email}`}
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] cursor-pointer">
+            <Mail size={12} /> Email ERM
+          </a>
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-gray-200 bg-white divide-y divide-gray-100">
+        {items.length === 0 ? (
+          <p className="px-4 py-3 text-sm text-gray-400 italic">No notifications yet.</p>
+        ) : items.map((m, idx) => (
+          <div key={idx} className="px-4 py-3 flex items-start gap-3 text-sm">
+            <Bell size={14} className="text-[#0F766E] mt-0.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-gray-800">{m.title}</p>
+              <p className="text-[11px] text-gray-400">
+                {m.category} · {new Date(m.createdAt).toLocaleString("en-IN", {
+                  timeZone: "Asia/Kolkata", dateStyle: "medium", timeStyle: "short",
+                })}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ── Profile tab ──────────────────────────────────────────────── */
+
+function ProfileTab() {
+  const [profile, setProfile] = useState<UserDTO | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [error, setError] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [location, setLocation] = useState("");
+  const [availability, setAvailability] = useState("");
+  const [bio, setBio] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getParticipantProfile()
+      .then((p) => {
+        if (cancelled) return;
+        setProfile(p);
+        setFullName(p.fullName ?? "");
+        setPhone(p.phone ?? "");
+        setLocation(p.location ?? "");
+        setAvailability(p.availability ?? "");
+        setBio(p.bio ?? "");
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Couldn't load profile");
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true); setError(""); setFeedback("");
+    try {
+      const updated = await updateParticipantProfile({
+        fullName: fullName.trim() || undefined,
+        phone,
+        location,
+        availability,
+        bio,
+      });
+      setProfile(updated);
+      setFeedback("Profile saved.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't save profile");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="text-center py-10"><Loader2 size={20} className="animate-spin text-[#0F766E] inline" /></div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <h1 className="font-serif text-2xl font-bold text-gray-900">Profile</h1>
+
+      <Section title="Account">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <ReadOnlyRow label="Email" value={profile?.email} />
+          <ReadOnlyRow label="Participant ID" value={profile?.participantId} mono />
+          <ReadOnlyRow label="Enrolled"
+            value={profile?.createdAt
+              ? new Date(profile.createdAt).toLocaleDateString("en-IN", {
+                  timeZone: "Asia/Kolkata", dateStyle: "medium",
+                })
+              : null} />
+          <ReadOnlyRow label="Status" value={profile?.currentStatus} mono />
+          <ReadOnlyRow label="Selected technology" value={profile?.selectedTechnology} />
+        </div>
+      </Section>
+
+      <Section title="Editable details">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <Input label="Full name" value={fullName} onChange={setFullName} />
+          <Input label="Phone" value={phone} onChange={setPhone} />
+          <Input label="Location" value={location} onChange={setLocation} />
+          <Input label="Availability" value={availability} onChange={setAvailability} />
+          <div className="sm:col-span-2">
+            <label className="block text-[11px] font-medium text-gray-600 mb-0.5">Bio</label>
+            <textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={3}
+              className="w-full px-3 py-1.5 text-sm rounded-md border border-gray-200 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E]"
+            />
+          </div>
+        </div>
+      </Section>
+
+      {error && (
+        <p className="inline-flex items-center gap-1.5 text-sm text-red-600">
+          <AlertCircle size={14} /> {error}
+        </p>
+      )}
+      {feedback && (
+        <p className="inline-flex items-center gap-1.5 text-sm text-emerald-700">
+          <CheckCircle2 size={14} /> {feedback}
+        </p>
+      )}
+
+      <div className="flex justify-end">
+        <button type="button" onClick={handleSave} disabled={saving}
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-60 cursor-pointer"
+        >
+          {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+          {saving ? "Saving…" : "Save profile"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ReadOnlyRow({ label, value, mono }: {
+  label: string;
+  value?: string | null;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">{label}</span>
+      <span className={mono ? "font-mono text-[13px] text-gray-800" : "text-[13px] text-gray-800"}>
+        {value ?? "—"}
+      </span>
+    </div>
+  );
+}
+
 /* ── Placeholder cards ────────────────────────────────────────── */
 
 function PlaceholderCard({ title, copy, hint, link }: {
@@ -858,6 +1106,15 @@ function PlaceholderCard({ title, copy, hint, link }: {
 }
 
 /* ── Inputs ───────────────────────────────────────────────────── */
+
+/** YYYY-MM-DD + 1 day — used for the weekly report's due date hint. */
+function addOneDay(isoDate: string | null | undefined): string {
+  if (!isoDate) return "";
+  const d = new Date(isoDate + "T00:00:00");
+  if (Number.isNaN(d.getTime())) return "";
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (

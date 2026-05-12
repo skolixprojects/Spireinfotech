@@ -57,6 +57,8 @@ export interface UserDTO {
   availability?: string | null;
   /** Captured at enrollment; displayed on the agreement summary. */
   phone?: string | null;
+  /** Free-form city / region, editable from the Profile tab. */
+  location?: string | null;
 }
 
 export interface AuthResponse {
@@ -220,6 +222,29 @@ export async function enrollParticipant(
 /** Fetches the caller's full profile incl. participantId + currentStatus. */
 export async function getParticipantMe(): Promise<UserDTO> {
   const wrapper = await apiFetch<ApiResponse<UserDTO>>("/api/participants/me");
+  return wrapper.data;
+}
+
+export interface ParticipantProfileUpdate {
+  fullName?: string;
+  phone?: string;
+  location?: string;
+  bio?: string;
+  availability?: string;
+}
+
+export async function getParticipantProfile(): Promise<UserDTO> {
+  const wrapper = await apiFetch<ApiResponse<UserDTO>>("/api/participants/profile");
+  return wrapper.data;
+}
+
+export async function updateParticipantProfile(
+  body: ParticipantProfileUpdate,
+): Promise<UserDTO> {
+  const wrapper = await apiFetch<ApiResponse<UserDTO>>(
+    "/api/participants/profile",
+    { method: "PUT", body: JSON.stringify(body) },
+  );
   return wrapper.data;
 }
 

@@ -501,6 +501,49 @@ public class ParticipantController {
                         weeklyReportService.getReport(userId, reportId))));
     }
 
+    // ─── Phase 5A: profile read / edit (dashboard Profile tab) ─────
+
+    @GetMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserDTO>> getProfile(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        return ResponseEntity.ok(ApiResponse.success(UserDTO.from(user)));
+    }
+
+    @PutMapping("/profile")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserDTO>> updateProfile(
+            @RequestBody com.spire.backend.dto.ProfileUpdateRequest body,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        if (body.getFullName() != null && !body.getFullName().isBlank()) {
+            user.setFullName(body.getFullName().trim());
+        }
+        if (body.getPhone() != null) {
+            String phone = body.getPhone().trim();
+            user.setPhone(phone.isEmpty() ? null : phone);
+        }
+        if (body.getLocation() != null) {
+            String loc = body.getLocation().trim();
+            user.setLocation(loc.isEmpty() ? null : loc);
+        }
+        if (body.getBio() != null) {
+            String bio = body.getBio().trim();
+            user.setBio(bio.isEmpty() ? null : bio);
+        }
+        if (body.getAvailability() != null) {
+            String avail = body.getAvailability().trim();
+            user.setAvailability(avail.isEmpty() ? null : avail);
+        }
+        userRepository.save(user);
+        return ResponseEntity.ok(ApiResponse.success("Profile updated", UserDTO.from(user)));
+    }
+
     // ── Shared helper ───────────────────────────────────────────────
 
     private static String clientIp(HttpServletRequest request) {

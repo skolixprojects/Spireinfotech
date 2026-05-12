@@ -48,4 +48,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("inactiveCutoff") LocalDateTime inactiveCutoff,
             @Param("nudgeThrottleCutoff") LocalDateTime nudgeThrottleCutoff
     );
+
+    List<User> findByCurrentStatus(String currentStatus);
 }

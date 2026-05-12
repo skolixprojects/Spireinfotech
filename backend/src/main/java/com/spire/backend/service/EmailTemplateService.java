@@ -113,6 +113,26 @@ public class EmailTemplateService {
         emailService.sendEmail(user.getEmail(), subject, wrap(title, body));
     }
 
+    // ── 12. Weekly report reminder (Phase 5A — Mondays) ─────────────
+    /**
+     * Monday nudge for participants in WEEKLY_REPORTING_ACTIVE who
+     * haven't submitted the current week's report yet. Best-effort —
+     * the job logs and continues on any per-user failure.
+     */
+    public void sendWeeklyReminderEmail(User user, java.time.LocalDate weekStart, java.time.LocalDate weekEnd) {
+        String first = firstName(user);
+        String body = p("Hi " + escape(first) + ",")
+                + p("A quick reminder that your weekly submission report for "
+                        + escape(weekStart.toString()) + " – " + escape(weekEnd.toString())
+                        + " is due. Logging your job submissions, resume activity, and any "
+                        + "interview prep keeps your ERM in the loop and your roadmap on track.")
+                + button("Submit Weekly Report", appUrl + "/dashboard")
+                + muted("If you've already submitted, you can ignore this reminder.");
+        emailService.sendEmail(user.getEmail(),
+                "Weekly report due — Spire Info Tech",
+                wrap("Your weekly report is due", body));
+    }
+
     // ── 11. Coordinator intro (Phase 4 Step 12) ─────────────────────
     /**
      * "Meet your program coordinator" — fired right after the
