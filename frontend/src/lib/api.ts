@@ -50,6 +50,11 @@ export interface UserDTO {
   participantId?: string | null;
   currentStatus?: string | null;
   emailVerified?: boolean;
+  // Phase 3A pre-fill: skillset + availability the participant
+  // captured at enrollment. The /program-selection form pre-fills
+  // these but allows overrides.
+  selectedTechnology?: string | null;
+  availability?: string | null;
 }
 
 export interface AuthResponse {
@@ -362,6 +367,77 @@ export async function viewParticipantDocument(documentId: number): Promise<void>
   setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
 }
 
+// ─── Phase 3A: program selection ───────────────────────────────────
+
+export interface ProgramSelectionRequest {
+  program?: string;
+  phase?: string;
+  skillset?: string;
+  targetJobTitle?: string;
+  coachingPreference?: string;
+  availability?: string;
+  servicePackage?: string;
+  serviceSummaryVersion?: string;
+  notes?: string;
+}
+
+export interface ProgramSelectionDTO {
+  id: number;
+  program: string | null;
+  phase: string | null;
+  skillset: string | null;
+  targetJobTitle: string | null;
+  coachingPreference: string | null;
+  availability: string | null;
+  servicePackage: string | null;
+  serviceSummaryVersion: string | null;
+  notes: string | null;
+  selectionDate: string | null;
+}
+
+export interface ProgramSelectionSubmitResponse {
+  selectionId: number;
+  serviceSummaryVersion: string;
+  nextStep: string;
+  success: boolean;
+}
+
+/** Returns the current saved selection (or null), used to pre-fill the form. */
+export async function getProgramSelection(): Promise<ProgramSelectionDTO | null> {
+  const wrapper = await apiFetch<ApiResponse<ProgramSelectionDTO | null>>(
+    "/api/participants/program-selection",
+  );
+  return wrapper.data ?? null;
+}
+
+/**
+ * Partial save — survives a refresh / sign-out. Server doesn't
+ * validate or transition workflow on this path.
+ */
+export async function saveProgramSelectionDraft(
+  body: ProgramSelectionRequest,
+): Promise<ProgramSelectionDTO> {
+  const wrapper = await apiFetch<ApiResponse<ProgramSelectionDTO>>(
+    "/api/participants/program-selection/draft",
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  return wrapper.data;
+}
+
+/**
+ * Final submit. Server validates required fields, transitions
+ * workflow to PROGRAM_SELECTED, fires the confirmation email.
+ */
+export async function submitProgramSelection(
+  body: ProgramSelectionRequest,
+): Promise<ProgramSelectionSubmitResponse> {
+  const wrapper = await apiFetch<ApiResponse<ProgramSelectionSubmitResponse>>(
+    "/api/participants/program-selection",
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  return wrapper.data;
+}
+
 /**
  * Maps a participant's workflow status to the onboarding page they
  * belong on. Mirrors the backend's WorkflowService.Status enum.
@@ -385,10 +461,7 @@ export function getOnboardingRoute(status: string | null | undefined): string {
       return "/document-upload";
     case "DOCUMENTS_SUBMITTED":
     case "DOC_REVIEW_PENDING":
-      // Past document upload, before /program-selection ships
-      // (Phase 2C). Route forward to /agreement so the downstream
-      // flow stays unblocked.
-      return "/agreement";
+      return "/program-selection";
     case "PROGRAM_SELECTED":
     case "DOCUSIGN_SENT":
       return "/agreement";

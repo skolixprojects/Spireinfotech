@@ -4,10 +4,13 @@ import com.spire.backend.dto.AcknowledgmentSubmitRequest;
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.dto.ParticipantDocumentDTO;
 import com.spire.backend.dto.ParticipantEnrollRequest;
+import com.spire.backend.dto.ProgramSelectionDTO;
+import com.spire.backend.dto.ProgramSelectionRequest;
 import com.spire.backend.dto.RegistrationResponse;
 import com.spire.backend.dto.UserDTO;
 import com.spire.backend.entity.Acknowledgment;
 import com.spire.backend.entity.ParticipantDocument;
+import com.spire.backend.entity.ProgramSelection;
 import com.spire.backend.entity.User;
 import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.repository.UserRepository;
@@ -15,6 +18,7 @@ import com.spire.backend.service.AcknowledgmentService;
 import com.spire.backend.service.AuthService;
 import com.spire.backend.service.DocumentService;
 import com.spire.backend.service.DocumentStorageService;
+import com.spire.backend.service.ProgramSelectionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +59,7 @@ public class ParticipantController {
     private final AcknowledgmentService acknowledgmentService;
     private final DocumentService documentService;
     private final DocumentStorageService storageService;
+    private final ProgramSelectionService programSelectionService;
 
     /** Public — anyone can enroll. Behind the scenes walks the workflow
      *  ladder DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING. */
@@ -225,5 +230,60 @@ public class ParticipantController {
         if (lower.endsWith(".png")) return "image/png";
         if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
         return "application/octet-stream";
+    }
+
+    // ─── Phase 3A: program selection ────────────────────────────────
+
+    /**
+     * Read the participant's current (or in-progress draft) program
+     * selection. Returns 200 with {@code null} data when none exists
+     * yet — keeps the FE pre-fill logic simple.
+     */
+    @GetMapping("/program-selection")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ProgramSelectionDTO>> getProgramSelection(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        ProgramSelectionDTO dto = programSelectionService.getCurrent(userId)
+                .map(ProgramSelectionDTO::from).orElse(null);
+        return ResponseEntity.ok(ApiResponse.success(dto));
+    }
+
+    /**
+     * Final submit. Validates all required fields, transitions
+     * workflow to PROGRAM_SELECTED, fires the confirmation email
+     * (participant + internal operations CC), returns nextStep.
+     */
+    @PostMapping("/program-selection")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> submitProgramSelection(
+            @RequestBody ProgramSelectionRequest request,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        ProgramSelection saved = programSelectionService.submit(userId, request);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Program selection saved",
+                Map.of(
+                        "selectionId", saved.getId(),
+                        "serviceSummaryVersion", saved.getServiceSummaryVersion(),
+                        "nextStep", "/agreement",
+                        "success", true
+                )));
+    }
+
+    /**
+     * Partial save — "Save and Continue Later". Mutates the same
+     * row in place, no validation, no workflow transition. Returns
+     * the saved row so the page can confirm fields persisted.
+     */
+    @PostMapping("/program-selection/draft")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ProgramSelectionDTO>> saveProgramSelectionDraft(
+            @RequestBody ProgramSelectionRequest request,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        ProgramSelection saved = programSelectionService.saveDraft(userId, request);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Draft saved",
+                ProgramSelectionDTO.from(saved)));
     }
 }

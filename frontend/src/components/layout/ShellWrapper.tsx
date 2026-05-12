@@ -20,7 +20,7 @@ const AUTH_ROUTES = ["/login", "/signup"];
 const FULLSCREEN_ROUTES = [
   "/learn", "/verify", "/agreement",
   "/enroll", "/verify-email", "/participant-id",
-  "/acknowledgment", "/document-upload",
+  "/acknowledgment", "/document-upload", "/program-selection",
 ];
 
 export function ShellWrapper({ children }: { children: React.ReactNode }) {

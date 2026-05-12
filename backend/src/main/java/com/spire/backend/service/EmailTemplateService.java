@@ -47,6 +47,15 @@ public class EmailTemplateService {
     @Value("${app.url:https://spireinfotech.vercel.app}")
     private String appUrl;
 
+    /**
+     * Internal operations mailbox that receives a CC of certain
+     * lifecycle events (program selection, future review queues).
+     * Empty default keeps the internal-copy branch a no-op when
+     * the env var isn't set on a dev box.
+     */
+    @Value("${program.operations.email:}")
+    private String operationsEmail;
+
     // ── 1. Welcome (sent LAST, after agreement is fully accepted) ───
     /**
      * Final onboarding email. Fires after the user has completed
@@ -72,6 +81,72 @@ public class EmailTemplateService {
                 "Welcome to Spire Info Tech, " + firstName(user) + "!",
                 wrap("You're all set, " + firstName(user) + "!", body)
         );
+    }
+
+    // ── 1c. Program selection confirmation (Phase 3A) ───────────────
+    /**
+     * Sent immediately after a participant finalises their program
+     * selection. Confirms the chosen program / phase / skillset back
+     * to the participant and points them at the next onboarding step
+     * (/agreement). The internal operations-mailbox copy is optional
+     * — controlled by {@code program.operations.email} — so a dev
+     * env without that env var still sends the participant copy.
+     */
+    public void sendProgramSelectionConfirmationEmail(
+            com.spire.backend.entity.User user,
+            com.spire.backend.entity.ProgramSelection selection
+    ) {
+        String greeting = user.getFullName() == null || user.getFullName().isBlank()
+                ? "there" : user.getFullName();
+        String body = p("Dear " + escape(greeting) + ",")
+                + p("Your program selection has been recorded:")
+                + receipt(
+                        "Program: " + safe(selection.getProgram()),
+                        "Phase: " + safe(selection.getPhase()),
+                        "Technology: " + safe(selection.getSkillset()),
+                        "Target Job Title: " + safe(selection.getTargetJobTitle()),
+                        "Availability: " + safe(selection.getAvailability()),
+                        "Participant ID: " + safe(user.getParticipantId())
+                )
+                + p("Your next step: Review and sign your agreement.")
+                + button("Continue to Agreement", appUrl + "/agreement")
+                + p("Regards,<br/>Spire Info Tech");
+        emailService.sendEmail(
+                user.getEmail(),
+                "Program selection confirmed — Spire Info Tech",
+                wrap("Program selected", body));
+
+        // Internal operations notification — kept best-effort and
+        // off the participant's eyeline. Same template wrapper as
+        // the participant copy so the inbox layout stays consistent.
+        if (operationsEmail != null && !operationsEmail.isBlank()) {
+            String opsBody = p("New program selection on Spire Info Tech:")
+                    + receipt(
+                            "Participant: " + safe(user.getFullName())
+                                    + " (" + safe(user.getParticipantId()) + ")",
+                            "Email: " + safe(user.getEmail()),
+                            "Program: " + safe(selection.getProgram()),
+                            "Phase: " + safe(selection.getPhase()),
+                            "Skillset: " + safe(selection.getSkillset()),
+                            "Target: " + safe(selection.getTargetJobTitle()),
+                            "Availability: " + safe(selection.getAvailability())
+                    )
+                    + p("→ Ready for agreement generation.");
+            try {
+                emailService.sendEmail(
+                        operationsEmail,
+                        "New program selection: "
+                                + safe(user.getFullName())
+                                + " (" + safe(user.getParticipantId()) + ")",
+                        wrap("Program selection — internal", opsBody));
+            } catch (Exception ignored) {
+                // Internal-copy outage doesn't fail the participant flow.
+            }
+        }
+    }
+
+    private static String safe(String s) {
+        return s == null || s.isBlank() ? "—" : s;
     }
 
     // ── 1b. Participant ID (Phase 1B) ───────────────────────────────

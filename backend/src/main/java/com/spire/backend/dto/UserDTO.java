@@ -49,6 +49,9 @@ public class UserDTO {
     private String currentStatus;
     /** True after the user has completed the OTP-confirmed email gate. Drives onboarding routing. */
     private Boolean emailVerified;
+    /** Pre-filled into the /program-selection form (the participant can override). */
+    private String selectedTechnology;
+    private String availability;
 
     public static UserDTO from(User user) {
         return UserDTO.builder()
@@ -67,6 +70,8 @@ public class UserDTO {
                 .participantId(user.getParticipantId())
                 .currentStatus(user.getCurrentStatus())
                 .emailVerified(Boolean.TRUE.equals(user.getEmailVerified()))
+                .selectedTechnology(user.getSelectedTechnology())
+                .availability(user.getAvailability())
                 .build();
     }
 }

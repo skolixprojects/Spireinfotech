@@ -790,6 +790,26 @@ public class DataSeeder implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("Couldn't add documents.not_applicable: {}", e.getMessage());
         }
+
+        // Phase 3A: program_selections gets the version of the
+        // service-summary text the participant reviewed plus
+        // free-form notes. Both nullable for backward compat.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE program_selections ADD COLUMN IF NOT EXISTS "
+                            + "service_summary_version VARCHAR(20)");
+            log.info("Ensured program_selections.service_summary_version exists");
+        } catch (Exception e) {
+            log.debug("Couldn't add program_selections.service_summary_version: {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE program_selections ADD COLUMN IF NOT EXISTS "
+                            + "notes TEXT");
+            log.info("Ensured program_selections.notes exists");
+        } catch (Exception e) {
+            log.debug("Couldn't add program_selections.notes: {}", e.getMessage());
+        }
     }
 
     /**
