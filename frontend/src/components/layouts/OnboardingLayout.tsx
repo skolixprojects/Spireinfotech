@@ -49,31 +49,34 @@ export default function OnboardingLayout({
 }: OnboardingLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
-      {/* Header: logo only, centred, links back to public site. */}
-      <header className="pt-8 sm:pt-10 pb-4 flex justify-center">
+      {/* Header: logo only, centred, links back to public site.
+          Vertical rhythm is tight so the whole layout (logo +
+          progress bar + content card) stays in one viewport on a
+          standard 1080-ish desktop screen. */}
+      <header className="pt-4 sm:pt-5 pb-2 flex justify-center">
         <Link href="/" className="inline-flex items-center gap-2" aria-label="Spire Info Tech home">
           <Image
             src="/logo.png"
             alt="Spire Info Tech"
-            width={36}
-            height={36}
+            width={32}
+            height={32}
             priority
-            className="h-9 w-9 object-contain"
+            className="h-8 w-8 object-contain"
           />
-          <span className="font-serif text-base font-bold text-[#0F766E]">
+          <span className="font-serif text-sm font-bold text-[#0F766E]">
             Spire Info Tech
           </span>
         </Link>
       </header>
 
-      <main className={`flex-1 w-full mx-auto px-4 sm:px-6 pb-12 ${MAX_WIDTH_CLASS[contentMaxWidth]}`}>
-        <div className="mb-6">
+      <main className={`flex-1 w-full mx-auto px-4 sm:px-6 pb-6 ${MAX_WIDTH_CLASS[contentMaxWidth]}`}>
+        <div className="mb-4">
           <OnboardingProgressBar currentStep={currentStep} />
         </div>
         {children}
       </main>
 
-      <footer className="py-6 text-center text-xs text-gray-400">
+      <footer className="py-3 text-center text-[11px] text-gray-400">
         © {new Date().getFullYear()} Spire Info Tech. All rights reserved.
       </footer>
     </div>

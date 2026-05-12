@@ -87,7 +87,7 @@ export default function OnboardingProgressBar({ currentStep }: OnboardingProgres
   const activeLabel = STEPS[clamped - 1];
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-5">
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 sm:px-5 sm:py-3.5">
       {/* Mobile-only compact summary. Phones can't fit 9 circles
           legibly so we collapse to one line. */}
       <div className="sm:hidden flex items-center justify-between gap-3">
@@ -155,7 +155,7 @@ export default function OnboardingProgressBar({ currentStep }: OnboardingProgres
                   <div className="flex-1" />
                 )}
               </div>
-              <span className={`mt-2 text-[11px] text-center ${labelClass}`}>
+              <span className={`mt-1.5 text-[11px] text-center ${labelClass}`}>
                 {label}
               </span>
             </li>
@@ -163,7 +163,7 @@ export default function OnboardingProgressBar({ currentStep }: OnboardingProgres
         })}
       </ol>
 
-      <p className="hidden sm:block mt-3 text-xs text-gray-500 text-center">
+      <p className="hidden sm:block mt-2 text-[11px] text-gray-500 text-center">
         Step {clamped} of {STEPS.length}: <span className="font-semibold text-gray-700">{activeLabel}</span>
       </p>
     </div>
