@@ -754,6 +754,28 @@ public class DataSeeder implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("Couldn't backfill users.current_status: {}", e.getMessage());
         }
+
+        // Phase 2A: signature columns on the acknowledgments table.
+        // Mirrors the AgreementAcceptance pattern — base64 PNG +
+        // method label. Both nullable so rows from earlier (none
+        // exist yet, but future flows might write without a
+        // signature) keep validating.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE acknowledgments ADD COLUMN IF NOT EXISTS "
+                            + "signature_image TEXT");
+            log.info("Ensured acknowledgments.signature_image exists");
+        } catch (Exception e) {
+            log.debug("Couldn't add acknowledgments.signature_image: {}", e.getMessage());
+        }
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE acknowledgments ADD COLUMN IF NOT EXISTS "
+                            + "signature_method VARCHAR(20)");
+            log.info("Ensured acknowledgments.signature_method exists");
+        } catch (Exception e) {
+            log.debug("Couldn't add acknowledgments.signature_method: {}", e.getMessage());
+        }
     }
 
     /**

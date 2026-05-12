@@ -58,6 +58,21 @@ public class Acknowledgment {
     @Column(name = "device", length = 100)
     private String device;
 
+    /**
+     * Base64 PNG/JPG of the participant's digital signature, drawn
+     * or uploaded at the time of acceptance. Stored as a data-URL
+     * (with the {@code data:image/png;base64,…} prefix) so it can
+     * drop straight into an &lt;img src&gt; on the admin display.
+     * Nullable for rows from older acknowledgment flows that didn't
+     * capture a signature.
+     */
+    @Column(name = "signature_image", columnDefinition = "TEXT")
+    private String signatureImage;
+
+    /** Either {@code "draw"} or {@code "upload"}. Audit value only. */
+    @Column(name = "signature_method", length = 20)
+    private String signatureMethod;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

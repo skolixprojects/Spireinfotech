@@ -130,16 +130,11 @@ export default function ParticipantIdPage() {
         </p>
 
         <Link
-          href="/agreement"
+          href="/acknowledgment"
           className="mt-8 inline-flex items-center justify-center gap-2 bg-[#0F766E] hover:bg-[#0D9488] text-white text-sm font-bold px-6 py-3 rounded-lg shadow-sm hover:shadow-md transition"
         >
           Continue to Acknowledgment →
         </Link>
-
-        <p className="mt-3 text-[11px] text-gray-400">
-          The acknowledgment + document upload + program selection pages roll out
-          with Phase 1C. For now, this button takes you to the existing agreement flow.
-        </p>
       </motion.section>
     </OnboardingLayout>
   );

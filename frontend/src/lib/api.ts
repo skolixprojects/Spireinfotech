@@ -214,6 +214,43 @@ export async function getParticipantMe(): Promise<UserDTO> {
   return wrapper.data;
 }
 
+// ─── Phase 2A: acknowledgment ────────────────────────────────────────
+
+export interface AcknowledgmentSubmitRequest {
+  legalName: string;
+  /** Base64 data-URL (data:image/png;base64,…). */
+  signatureImage: string;
+  signatureMethod: "draw" | "upload";
+  interestAccepted: boolean;
+  documentationConsent: boolean;
+  communicationConsent: boolean;
+  /** Pinned to the exact text version the user accepted ("ACK-v1.0"). */
+  acknowledgmentVersion: string;
+}
+
+export interface AcknowledgmentSubmitResponse {
+  acknowledgmentId: number;
+  version: string;
+  nextStep: string;
+  success: boolean;
+}
+
+/**
+ * Phase 2A step-4 submission. Server enforces the workflow gate
+ * (status &gt;= ID_EMAIL_SENT) and is idempotent — re-submitting
+ * once already past ACKNOWLEDGMENT_ACCEPTED returns the existing
+ * row rather than writing a duplicate.
+ */
+export async function submitAcknowledgment(
+  body: AcknowledgmentSubmitRequest,
+): Promise<AcknowledgmentSubmitResponse> {
+  const wrapper = await apiFetch<ApiResponse<AcknowledgmentSubmitResponse>>(
+    "/api/participants/acknowledgments",
+    { method: "POST", body: JSON.stringify(body) },
+  );
+  return wrapper.data;
+}
+
 /**
  * Maps a participant's workflow status to the onboarding page they
  * belong on. Mirrors the backend's WorkflowService.Status enum.
@@ -236,9 +273,10 @@ export function getOnboardingRoute(status: string | null | undefined): string {
     case "ACKNOWLEDGMENT_ACCEPTED":
     case "DOCUMENTS_SUBMITTED":
     case "DOC_REVIEW_PENDING":
-      // Phase 1C surfaces /document-upload; until then we hold the
-      // user on /participant-id so they don't 404 on a missing page.
-      return "/participant-id";
+      // /document-upload ships with Phase 2B. Until then we route
+      // acknowledgment-completed users to /agreement so the
+      // downstream flow stays unblocked.
+      return "/agreement";
     case "PROGRAM_SELECTED":
     case "DOCUSIGN_SENT":
       return "/agreement";
