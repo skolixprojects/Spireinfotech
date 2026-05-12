@@ -299,59 +299,49 @@ public class ParticipantController {
                 ProgramSelectionDTO.from(saved)));
     }
 
-    // ─── Phase 3B: agreement signing ────────────────────────────────
+    // ─── Phase 3B: agreement signing (on-site, one-click) ───────────
 
     /**
-     * Send the agreement email + transition workflow to DOCUSIGN_SENT.
-     * Body carries the typed legal name + captured signature; the
-     * server emails a PDF on letterhead with the user's signature
-     * already embedded on the signature page, waits for the email
-     * reply via the IMAP cron, then triggers OTP delivery.
+     * Sign the agreement on the website. One round-trip:
+     *   - persists VERIFIED row with full audit trail
+     *   - generates signed PDF and emails it
+     *   - advances workflow through DOCUSIGN_SENT → DOCUSIGN_COMPLETED
+     *     → SIGNED_AGREEMENT_SENT_TO_ERM
+     *   - kicks off the onboarding chain (welcome, coordinator,
+     *     ERM, coaches, dashboard)
      */
-    @PostMapping("/agreement/send")
+    @PostMapping("/agreement/sign")
     @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> sendAgreement(
+    public ResponseEntity<ApiResponse<Map<String, Object>>> signAgreement(
             @RequestBody Map<String, Object> body,
             Authentication auth,
             HttpServletRequest httpRequest) {
         Long userId = Long.parseLong(auth.getPrincipal().toString());
         String legalName = (String) body.get("legalName");
         String signatureImage = (String) body.get("signatureImage");
-        String signatureMethod = (String) body.getOrDefault("signatureMethod", "draw");
+        Object methodObj = body.getOrDefault("signatureMethod", "draw");
+        String signatureMethod = methodObj == null ? "draw" : methodObj.toString();
         if (legalName == null || legalName.isBlank()
                 || signatureImage == null || signatureImage.isBlank()) {
             throw new IllegalArgumentException("legalName and signatureImage are required");
         }
-        Map<String, Object> data = participantAgreementService.send(
-                userId, legalName, signatureImage, signatureMethod.toString(),
+        Map<String, Object> data = participantAgreementService.sign(
+                userId, legalName, signatureImage, signatureMethod,
                 clientIp(httpRequest), httpRequest.getHeader("User-Agent"));
-        return ResponseEntity.ok(ApiResponse.success("Agreement email sent", data));
+        return ResponseEntity.ok(ApiResponse.success("Agreement signed", data));
     }
 
-    /** Verify the OTP + post-process: signed PDF, ERM routing,
-     *  workflow advance to SIGNED_AGREEMENT_SENT_TO_ERM. */
-    @PostMapping("/agreement/verify-code")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyAgreementCode(
-            @RequestBody Map<String, String> body,
-            Authentication auth) {
-        Long userId = Long.parseLong(auth.getPrincipal().toString());
-        String code = body.get("code");
-        if (code == null || code.isBlank()) {
-            throw new IllegalArgumentException("Code is required");
-        }
-        Map<String, Object> data = participantAgreementService.verifyCode(userId, code);
-        return ResponseEntity.ok(ApiResponse.success("Agreement verified", data));
+    /** Legacy endpoints — removed in favour of /agreement/sign. */
+    @PostMapping({"/agreement/send", "/agreement/verify-code"})
+    public ResponseEntity<ApiResponse<Map<String, Object>>> legacyAgreementGone() {
+        return ResponseEntity.status(410).body(ApiResponse.error(
+                "This endpoint has been removed. Use POST /api/participants/agreement/sign."));
     }
 
-    /** Status polling target — the /agreement page hits this every
-     *  5 seconds while waiting for the IMAP cron to detect the reply. */
     @GetMapping("/agreement/status")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getAgreementStatus(Authentication auth) {
-        Long userId = Long.parseLong(auth.getPrincipal().toString());
-        return ResponseEntity.ok(ApiResponse.success(
-                participantAgreementService.getStatus(userId)));
+    public ResponseEntity<ApiResponse<Map<String, Object>>> legacyAgreementStatusGone() {
+        return ResponseEntity.status(410).body(ApiResponse.error(
+                "This endpoint has been removed. Use POST /api/participants/agreement/sign."));
     }
 
     // ─── Phase 3B: check soft-copy upload ───────────────────────────

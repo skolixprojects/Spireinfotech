@@ -442,52 +442,24 @@ export async function submitProgramSelection(
   return wrapper.data;
 }
 
-// ─── Phase 3B: participant agreement signing ──────────────────────
+// ─── Phase 3B: participant agreement signing (one-click) ───────────
 
-export interface SendAgreementRequest {
+export interface SignAgreementRequest {
   legalName: string;
   signatureImage: string;
   signatureMethod: "draw" | "upload";
 }
 
-export interface ParticipantAgreementStatus {
-  /** Legacy agreement_acceptances row status: WAITING_REPLY / CODE_SENT / VERIFIED. */
-  status?: AgreementStatusValue | "NOT_STARTED";
-  /** True once the OTP has been verified. */
-  accepted?: boolean;
-  agreementExpiresAt?: string | null;
-  acceptedAt?: string | null;
-  legalName?: string | null;
-  /** New 26-status workflow value (DOCUSIGN_SENT etc.). */
-  workflowStatus?: string | null;
-  ermNotified?: boolean;
-}
-
-export async function sendParticipantAgreement(
-  body: SendAgreementRequest,
-): Promise<Record<string, unknown>> {
-  const wrapper = await apiFetch<ApiResponse<Record<string, unknown>>>(
-    "/api/participants/agreement/send",
+export async function signParticipantAgreement(
+  body: SignAgreementRequest,
+): Promise<{ success: boolean; status: string; nextStep: string; alreadySigned?: boolean }> {
+  const wrapper = await apiFetch<ApiResponse<{
+    success: boolean; status: string; nextStep: string; alreadySigned?: boolean;
+  }>>(
+    "/api/participants/agreement/sign",
     { method: "POST", body: JSON.stringify(body) },
   );
   return wrapper.data;
-}
-
-export async function verifyParticipantAgreementCode(
-  code: string,
-): Promise<{ status: string; nextStep: string; success: boolean }> {
-  const wrapper = await apiFetch<ApiResponse<{ status: string; nextStep: string; success: boolean }>>(
-    "/api/participants/agreement/verify-code",
-    { method: "POST", body: JSON.stringify({ code }) },
-  );
-  return wrapper.data;
-}
-
-export async function getParticipantAgreementStatus(): Promise<ParticipantAgreementStatus> {
-  const wrapper = await apiFetch<ApiResponse<ParticipantAgreementStatus>>(
-    "/api/participants/agreement/status",
-  );
-  return wrapper.data ?? {};
 }
 
 // ─── Phase 3B: check soft-copy uploads ────────────────────────────

@@ -93,6 +93,109 @@ public class AgreementService {
         return out;
     }
 
+    // ─── One-shot on-site signing (current PRD flow) ───────────────
+
+    /**
+     * Records acceptance immediately when the user signs on the
+     * /agreement page — no email reply, no OTP. Persists the row
+     * directly in VERIFIED state with the full audit trail, flips
+     * {@code user.agreementAccepted}, generates + emails the signed
+     * PDF, and dispatches the welcome email. Idempotent on rows
+     * already VERIFIED.
+     */
+    @Transactional
+    public Map<String, Object> signImmediate(
+            Long userId, String legalName,
+            String signatureImage, String signatureMethod,
+            String ipAddress, String userAgent
+    ) {
+        if (legalName == null || countWords(legalName) < 2) {
+            throw new IllegalArgumentException(
+                    "Please enter your full legal name (first and last).");
+        }
+        if (signatureImage == null || signatureImage.isBlank()) {
+            throw new IllegalArgumentException(
+                    "Please add your digital signature before submitting.");
+        }
+        if (!signatureImage.startsWith("data:image/")) {
+            throw new IllegalArgumentException(
+                    "Signature must be an image (PNG / JPG).");
+        }
+        if (signatureImage.length() > 2_800_000) {
+            throw new IllegalArgumentException(
+                    "Signature image is too large (max 2 MB).");
+        }
+        String method = signatureMethod == null ? "draw" : signatureMethod.toLowerCase();
+        if (!"draw".equals(method) && !"upload".equals(method)) {
+            method = "draw";
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        Optional<AgreementAcceptance> existing = agreementRepository.findByUserId(userId);
+        if (existing.isPresent() && STATUS_VERIFIED.equals(existing.get().getStatus())) {
+            return Map.of(
+                    "success", true,
+                    "alreadyAccepted", true,
+                    "status", STATUS_VERIFIED
+            );
+        }
+
+        AgreementAcceptance row = existing.orElseGet(AgreementAcceptance::new);
+        UserAgentInfo ua = parseUserAgent(userAgent);
+        LocalDateTime now = LocalDateTime.now();
+
+        row.setUser(user);
+        row.setLegalName(legalName.trim());
+        row.setAgreementVersion(CURRENT_VERSION);
+        row.setStatus(STATUS_VERIFIED);
+        row.setAcceptanceCode(null);
+        row.setCodeVerified(true);
+        row.setIpAddress(ipAddress);
+        row.setUserAgent(userAgent);
+        row.setBrowser(ua.browser);
+        row.setOs(ua.os);
+        row.setSignatureImage(signatureImage);
+        row.setSignatureMethod(method);
+        row.setAcceptedAt(now);
+        row.setAgreementEmailSentAt(null);
+        row.setAgreementExpiresAt(null);
+        row.setLastResendAt(null);
+        row.setUserReplyReceivedAt(null);
+        row.setUserReplyContent(null);
+        row.setVerificationCodeSentAt(null);
+        row.setVerificationCodeVerifiedAt(now);
+        row.setCodeExpiresAt(null);
+
+        AgreementAcceptance saved = agreementRepository.save(row);
+
+        user.setAgreementAccepted(true);
+        userRepository.save(user);
+
+        recordService.record(userId, "AGREEMENT_ACCEPTED",
+                RecordService.Category.SECURITY,
+                "Agreement signed on website",
+                "User signed Terms of Service " + saved.getAgreementVersion(),
+                Map.of(
+                        "version", saved.getAgreementVersion(),
+                        "legalName", saved.getLegalName(),
+                        "ip", saved.getIpAddress() != null ? saved.getIpAddress() : "",
+                        "browser", saved.getBrowser() != null ? saved.getBrowser() : "",
+                        "os", saved.getOs() != null ? saved.getOs() : ""
+                ));
+
+        generateAndDeliverSignedPdf(saved);
+        try { emailTemplateService.sendWelcomeEmail(user); } catch (Exception ignored) {}
+
+        log.info("Agreement signed on-site for user {} (row {})", userId, saved.getId());
+        return Map.of(
+                "success", true,
+                "alreadyAccepted", false,
+                "status", STATUS_VERIFIED
+        );
+    }
+
     // ─── Request acceptance — sends "Reply YES" email ───────────────
 
     /**
