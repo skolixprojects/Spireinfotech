@@ -56,31 +56,170 @@ public class EmailTemplateService {
     @Value("${program.operations.email:}")
     private String operationsEmail;
 
+    /** Phase 4 — program coordinator display name on the intro email. */
+    @Value("${program.coordinator.name:Deepthi R}")
+    private String coordinatorName;
+
     // ── 1. Welcome (sent LAST, after agreement is fully accepted) ───
     /**
      * Final onboarding email. Fires after the user has completed
-     * email verification and the OTP-confirmed agreement acceptance,
-     * so by the time this lands they're fully set up. Not sent
-     * during signup — the welcome would otherwise be premature
-     * (account exists but they can't actually use the platform yet).
+     * email verification and the OTP-confirmed agreement acceptance.
+     *
+     * Branches on whether the user is on the Phase 1-3B participant
+     * lifecycle (has a participantId) or the legacy LMS flow (no
+     * participantId, course-only). The Phase 4 copy primes the
+     * participant for the team-assembly step that runs immediately
+     * after; the legacy copy points them at the course catalog.
      */
     public void sendWelcomeEmail(User user) {
-        String body = p("Hi " + firstName(user) + ",")
-                + p("You're all set! Your account is verified and your agreement is on file.")
-                + p("You've joined a learning platform where every course comes with personal "
-                        + "mentorship, career services, and verified certificates.")
-                + p("Here's what to do next:")
-                + bullet("Browse courses and find your first one")
-                + bullet("Each course includes a dedicated mentor")
-                + bullet("Complete courses to earn verified certificates")
-                + button("Browse Courses", appUrl + "/courses")
-                + p("Welcome aboard!")
-                + muted("— The Spire Info Tech Team");
+        String body;
+        String subject;
+        String title;
+        if (user.getParticipantId() != null && !user.getParticipantId().isBlank()) {
+            // Phase 4 — participant lifecycle.
+            body = p("Dear " + escape(user.getFullName() == null ? "there" : user.getFullName()) + ",")
+                    + p("Congratulations! Your enrollment is confirmed and your agreement is on file.")
+                    + receipt(
+                            "Participant ID: " + safe(user.getParticipantId()),
+                            "Technology: " + safe(user.getSelectedTechnology())
+                    )
+                    + p("Your team is being assembled. You will receive introduction emails "
+                            + "shortly with your:")
+                    + bullet("Program Coordinator")
+                    + bullet("Relationship Manager (ERM)")
+                    + bullet("Career Coach and Technical Advisor")
+                    + p("Once your team is ready, your dashboard will open with your "
+                            + "personalised roadmap and next steps.")
+                    + p("We're excited to support your career journey!")
+                    + p("Regards,<br/>Spire Info Tech");
+            subject = "Welcome to Spire Info Tech, " + firstName(user) + "!";
+            title = "Welcome aboard, " + firstName(user) + "!";
+        } else {
+            // Legacy LMS flow.
+            body = p("Hi " + firstName(user) + ",")
+                    + p("You're all set! Your account is verified and your agreement is on file.")
+                    + p("You've joined a learning platform where every course comes with personal "
+                            + "mentorship, career services, and verified certificates.")
+                    + p("Here's what to do next:")
+                    + bullet("Browse courses and find your first one")
+                    + bullet("Each course includes a dedicated mentor")
+                    + bullet("Complete courses to earn verified certificates")
+                    + button("Browse Courses", appUrl + "/courses")
+                    + p("Welcome aboard!")
+                    + muted("— The Spire Info Tech Team");
+            subject = "Welcome to Spire Info Tech, " + firstName(user) + "!";
+            title = "You're all set, " + firstName(user) + "!";
+        }
+        emailService.sendEmail(user.getEmail(), subject, wrap(title, body));
+    }
+
+    // ── 11. Coordinator intro (Phase 4 Step 12) ─────────────────────
+    /**
+     * "Meet your program coordinator" — fired right after the
+     * welcome email. Coordinator name + email come from env
+     * (program.coordinator.name / program.coordinator.email),
+     * defaulting to the values shipped in the PRD spec.
+     */
+    public void sendCoordinatorIntroEmail(User user) {
+        String coordName = coordinatorName == null || coordinatorName.isBlank()
+                ? "Deepthi" : coordinatorName;
+        String body = p("Dear " + escape(user.getFullName() == null ? "there" : user.getFullName()) + ",")
+                + p("I'm " + escape(coordName) + ", your program coordinator at Spire Info Tech.")
+                + p("I'll be overseeing your overall program experience and ensuring everything "
+                        + "runs smoothly. If you have any general questions about the program, "
+                        + "feel free to reach out.")
+                + p("Your relationship manager will be introduced shortly — they'll be your "
+                        + "primary point of contact going forward.")
+                + p("Looking forward to working with you!")
+                + p("Best regards,<br/>"
+                        + escape(coordName) + "<br/>"
+                        + "<span style=\"color:#6b7280;\">Program Coordinator, Spire Info Tech</span>");
         emailService.sendEmail(
                 user.getEmail(),
-                "Welcome to Spire Info Tech, " + firstName(user) + "!",
-                wrap("You're all set, " + firstName(user) + "!", body)
-        );
+                "Meet your program coordinator — Spire Info Tech",
+                wrap("Meet " + escape(coordName), body));
+    }
+
+    // ── 12. ERM intro — participant copy (Phase 4 Step 13) ─────────
+    public void sendErmIntroEmail(User user, com.spire.backend.entity.User erm) {
+        String ermName = erm == null || erm.getFullName() == null
+                ? "Your ERM" : erm.getFullName();
+        String ermEmail = erm == null ? "" : safe(erm.getEmail());
+        String body = p("Dear " + escape(user.getFullName() == null ? "there" : user.getFullName()) + ",")
+                + p("Your Employee Relationship Manager (ERM) has been assigned:")
+                + receipt(
+                        "Name: " + safe(ermName),
+                        "Email: " + ermEmail
+                )
+                + p(escape(ermName) + " is your primary communication owner. They will guide you "
+                        + "through your program, review your weekly reports, and support you at "
+                        + "every step.")
+                + p("You can reach " + escape(ermName) + " via email or through your dashboard "
+                        + "once it's ready.")
+                + p("Regards,<br/>Spire Info Tech");
+        emailService.sendEmail(
+                user.getEmail(),
+                "Your relationship manager — Spire Info Tech",
+                wrap("Meet your ERM", body));
+    }
+
+    // ── 12b. ERM intro — ERM-side notification ──────────────────────
+    public void sendErmAssignmentNotification(com.spire.backend.entity.User erm,
+                                              User participant,
+                                              com.spire.backend.entity.ProgramSelection program) {
+        if (erm == null || erm.getEmail() == null) return;
+        String programStr = program == null ? "—" : safe(program.getProgram());
+        String phaseStr = program == null ? "—" : safe(program.getPhase());
+        String tech = program != null && program.getSkillset() != null
+                ? program.getSkillset() : safe(participant.getSelectedTechnology());
+        String target = program == null ? "—" : safe(program.getTargetJobTitle());
+
+        String body = p("Hi " + firstName(erm) + ",")
+                + p("A new participant has been assigned to you:")
+                + receipt(
+                        "Name: " + safe(participant.getFullName()),
+                        "Participant ID: " + safe(participant.getParticipantId()),
+                        "Email: " + safe(participant.getEmail()),
+                        "Program: " + programStr,
+                        "Phase: " + phaseStr,
+                        "Technology: " + safe(tech),
+                        "Target: " + safe(target)
+                )
+                + p("Please review their profile and prepare for onboarding.")
+                + muted("— Spire Info Tech operations");
+        emailService.sendEmail(
+                erm.getEmail(),
+                "New participant assigned: " + safe(participant.getFullName())
+                        + " (" + safe(participant.getParticipantId()) + ")",
+                wrap("New participant assignment", body));
+    }
+
+    // ── 13. Coach / advisor assignment (Phase 4 Step 14) ────────────
+    /**
+     * Sent after coaches have been assigned (or marked pending).
+     * Accepts a map keyed by role label ("Career Coach", "Technical
+     * Advisor", …) → coach display name. Roles with no available
+     * assignee can pass through with value "Awaiting assignment".
+     */
+    public void sendCoachAssignmentEmail(User user, java.util.Map<String, String> coachesByRole) {
+        StringBuilder rows = new StringBuilder();
+        if (coachesByRole != null) {
+            for (java.util.Map.Entry<String, String> e : coachesByRole.entrySet()) {
+                rows.append(safe(e.getKey())).append(": ").append(safe(e.getValue())).append("\n");
+            }
+        }
+        String[] receiptLines = rows.toString().split("\n");
+        String body = p("Dear " + escape(user.getFullName() == null ? "there" : user.getFullName()) + ",")
+                + p("Your support team has been assembled:")
+                + receipt(receiptLines)
+                + p("Your first checkpoint will be scheduled by your ERM. You can view your "
+                        + "team contacts in your dashboard.")
+                + button("Enter Your Dashboard", appUrl + "/dashboard")
+                + p("Regards,<br/>Spire Info Tech");
+        emailService.sendEmail(
+                user.getEmail(),
+                "Your coaching team — Spire Info Tech",
+                wrap("Your coaching team", body));
     }
 
     // ── 1c. Program selection confirmation (Phase 3A) ───────────────

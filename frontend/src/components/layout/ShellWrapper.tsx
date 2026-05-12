@@ -21,6 +21,7 @@ const FULLSCREEN_ROUTES = [
   "/learn", "/verify", "/agreement", "/agreement-legacy",
   "/enroll", "/verify-email", "/participant-id",
   "/acknowledgment", "/document-upload", "/program-selection",
+  "/welcome",
 ];
 
 export function ShellWrapper({ children }: { children: React.ReactNode }) {

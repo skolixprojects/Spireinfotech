@@ -66,6 +66,8 @@ public class ParticipantController {
     private final ProgramSelectionService programSelectionService;
     private final ParticipantAgreementService participantAgreementService;
     private final ParticipantCheckService participantCheckService;
+    private final com.spire.backend.service.OnboardingService onboardingService;
+    private final com.spire.backend.service.WorkflowService workflowService;
 
     /** Public — anyone can enroll. Behind the scenes walks the workflow
      *  ladder DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING. */
@@ -389,6 +391,47 @@ public class ParticipantController {
         List<CheckDocumentDTO> rows = participantCheckService.listForUser(userId)
                 .stream().map(CheckDocumentDTO::from).toList();
         return ResponseEntity.ok(ApiResponse.success(rows));
+    }
+
+    // ─── Phase 4: welcome page polling + dashboard gate ─────────────
+
+    /**
+     * Status snapshot for the /welcome page. The page polls this
+     * every 5 seconds to update its checklist + team cards as the
+     * post-agreement onboarding chain runs.
+     */
+    @GetMapping("/welcome-status")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> welcomeStatus(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        return ResponseEntity.ok(ApiResponse.success(
+                onboardingService.snapshotForWelcome(user)));
+    }
+
+    /**
+     * Idempotent re-run of the OnboardingService chain. Useful when
+     * an admin has just manually assigned an ERM and we want the
+     * participant's workflow to roll forward without waiting on a
+     * scheduled tick.
+     */
+    @PostMapping("/welcome-status/refresh")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> refreshWelcome(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        // Only re-run when the chain is mid-flight — already at
+        // DASHBOARD_ENABLED means no-op.
+        if (!workflowService.isStatusAtLeast(user,
+                com.spire.backend.service.WorkflowService.Status.DASHBOARD_ENABLED)) {
+            onboardingService.completeOnboarding(user);
+            user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        }
+        return ResponseEntity.ok(ApiResponse.success(
+                onboardingService.snapshotForWelcome(user)));
     }
 
     // ── Shared helper ───────────────────────────────────────────────

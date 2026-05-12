@@ -44,6 +44,7 @@ public class ParticipantAgreementService {
     private final UserRepository userRepository;
     private final WorkflowService workflowService;
     private final RecordService recordService;
+    private final OnboardingService onboardingService;
 
     // ── Send agreement (Step 7 of the lifecycle) ────────────────
 
@@ -141,12 +142,28 @@ public class ParticipantAgreementService {
                         "ermNotified", true
                 ));
 
-        log.info("Phase 3B agreement completed for user {} → SIGNED_AGREEMENT_SENT_TO_ERM",
-                userId);
+        // Phase 4 — kick off the team-assembly chain (welcome,
+        // coordinator, ERM, coaches, dashboard). Best-effort: if
+        // any step inside fails, the chain logs and continues; the
+        // /welcome page's polling endpoint surfaces the partial
+        // progress and an operations admin can manually complete
+        // missing assignments.
+        try {
+            onboardingService.completeOnboarding(user);
+            // Refresh after the chain — currentStatus may have
+            // advanced to DASHBOARD_ENABLED already.
+            user = userRepository.findById(userId)
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        } catch (Exception e) {
+            log.warn("OnboardingService chain failed for user {}: {}", userId, e.getMessage());
+        }
+
+        log.info("Phase 3B agreement completed for user {} → currentStatus={}",
+                userId, user.getCurrentStatus());
         return Map.of(
                 "success", true,
                 "status", user.getCurrentStatus(),
-                "nextStep", "/dashboard"
+                "nextStep", "/welcome"
         );
     }
 

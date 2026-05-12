@@ -76,6 +76,15 @@ public class DataSeeder implements CommandLineRunner {
         }
         log.info("Phase 1A roles ensured: {}", String.join(", ", phase1aRoles));
 
+        // Phase 4 — seed a starter ERM + coach team so dev / first
+        // production deploys have a non-empty assignment pool. The
+        // OnboardingService chain picks from these candidates when
+        // a participant finishes their agreement; without at least
+        // one ERM the participant stays at SIGNED_AGREEMENT_SENT_TO_ERM
+        // forever. Idempotent — only creates each user when the
+        // email isn't already taken.
+        seedPhase4Team();
+
         // Drop the legacy unique constraint on quiz_attempts(quiz_id,
         // user_id) before any other migration runs — without this,
         // the new multi-attempt quiz flow would fail the second time
@@ -465,6 +474,50 @@ public class DataSeeder implements CommandLineRunner {
     // (see ServiceCard, /services/[id], cart). The task spec asked for
     // instructor_id=NULL; honoring that would need a schema + entity change
     // (loosen nullable=false), which is out of scope for a seed-data task.
+    /**
+     * Phase 4 — seed at least one ERM and one of each coach role so
+     * the OnboardingService can actually assign team members on a
+     * fresh deploy. All idempotent (existsByEmail short-circuits).
+     * Default password "spire-team-2026" — change in any production
+     * deploy via the admin panel.
+     */
+    private void seedPhase4Team() {
+        Role ermRole = roleRepository.findByName("ERM").orElse(null);
+        Role coachRole = roleRepository.findByName("COACH").orElse(null);
+        Role techAdvisorRole = roleRepository.findByName("TECHNICAL_ADVISOR").orElse(null);
+        if (ermRole == null || coachRole == null || techAdvisorRole == null) {
+            log.warn("Phase 4 roles missing — skipping seed");
+            return;
+        }
+        String defaultPassword = passwordEncoder.encode("spire-team-2026");
+
+        seedTeamUser("deepthi.erm@spire.dev", "Deepthi R", ermRole, defaultPassword,
+                "Program coordinator and Employee Relationship Manager.");
+        seedTeamUser("arjun.coach@spire.dev", "Arjun Menon", coachRole, defaultPassword,
+                "Career coach — resume reviews, profile administration, job-market navigation.");
+        seedTeamUser("priya.tech@spire.dev", "Priya Sharma", techAdvisorRole, defaultPassword,
+                "Technical advisor — Java Full Stack, Python Full Stack, Cloud & DevOps.");
+        seedTeamUser("rahul.interview@spire.dev", "Rahul Kapoor", coachRole, defaultPassword,
+                "Interview coach — mock interviews, communication training.");
+    }
+
+    private void seedTeamUser(String email, String fullName, Role role,
+                              String passwordHash, String bio) {
+        if (userRepository.existsByEmail(email)) return;
+        userRepository.save(User.builder()
+                .email(email)
+                .passwordHash(passwordHash)
+                .fullName(fullName)
+                .role(role)
+                .bio(bio)
+                .isActive(true)
+                .emailVerified(true)
+                .agreementAccepted(true)
+                .currentStatus("DASHBOARD_ENABLED")
+                .build());
+        log.info("Seeded team user {} ({}) with role {}", email, fullName, role.getName());
+    }
+
     private void seedServicesAndTrainer(Role trainerRole) {
         User meera = userRepository.findByEmail("meera@spire.dev")
                 .orElseGet(() -> {
@@ -735,15 +788,31 @@ public class DataSeeder implements CommandLineRunner {
         // as "already through onboarding" — they were verified and
         // (potentially) had accepted an agreement under the legacy
         // flow, so dropping them at DRAFT_STARTED would visually
-        // un-enroll them. Pin them at WELCOME_SENT, which is the
-        // latest pre-coach lifecycle step.
+        // un-enroll them. Pin them at DASHBOARD_ENABLED so they
+        // bypass the new participant-lifecycle onboarding pages
+        // entirely — they're legacy LMS users who already have a
+        // dashboard. (Phase 4: WELCOME_SENT now means "post-agreement,
+        // awaiting team assembly" which would loop them on the
+        // welcome page; DASHBOARD_ENABLED is the actual end-state.)
         try {
             int updated = jdbcTemplate.update(
-                    "UPDATE users SET current_status = 'WELCOME_SENT' "
+                    "UPDATE users SET current_status = 'DASHBOARD_ENABLED' "
                             + "WHERE current_status IS NULL "
                             + "AND email_verified = TRUE");
             if (updated > 0) {
-                log.info("Grandfathered {} pre-Phase-1A users to current_status=WELCOME_SENT", updated);
+                log.info("Grandfathered {} pre-Phase-1A users to current_status=DASHBOARD_ENABLED", updated);
+            }
+            // Also catch already-grandfathered rows that landed at
+            // WELCOME_SENT under the earlier rule — bump them
+            // forward so the routing guard doesn't drop them on
+            // /welcome.
+            int reGrandfathered = jdbcTemplate.update(
+                    "UPDATE users SET current_status = 'DASHBOARD_ENABLED' "
+                            + "WHERE current_status = 'WELCOME_SENT' "
+                            + "AND agreement_accepted = TRUE "
+                            + "AND participant_id IS NULL");
+            if (reGrandfathered > 0) {
+                log.info("Re-grandfathered {} legacy WELCOME_SENT users to DASHBOARD_ENABLED", reGrandfathered);
             }
             int draftUpdated = jdbcTemplate.update(
                     "UPDATE users SET current_status = 'DRAFT_STARTED' "

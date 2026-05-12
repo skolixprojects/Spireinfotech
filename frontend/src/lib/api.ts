@@ -543,6 +543,36 @@ export async function listMyChecks(): Promise<CheckDocumentDTO[]> {
   return wrapper.data ?? [];
 }
 
+// ─── Phase 4: welcome / team-assembly status ──────────────────────
+
+export interface WelcomeStatus {
+  workflowStatus?: string;
+  welcomeEmailSent?: boolean;
+  coordinatorIntroSent?: boolean;
+  ermAssigned?: boolean;
+  coachesAssigned?: boolean;
+  dashboardReady?: boolean;
+  ermName?: string | null;
+  ermEmail?: string | null;
+  /** label → coach name (or "Awaiting assignment"). */
+  coaches?: Record<string, string>;
+}
+
+export async function getWelcomeStatus(): Promise<WelcomeStatus> {
+  const wrapper = await apiFetch<ApiResponse<WelcomeStatus>>(
+    "/api/participants/welcome-status");
+  return wrapper.data ?? {};
+}
+
+/** Re-runs the OnboardingService chain (idempotent). Used by the
+ *  /welcome page when the user clicks "Check now". */
+export async function refreshWelcomeStatus(): Promise<WelcomeStatus> {
+  const wrapper = await apiFetch<ApiResponse<WelcomeStatus>>(
+    "/api/participants/welcome-status/refresh",
+    { method: "POST" });
+  return wrapper.data ?? {};
+}
+
 /**
  * Maps a participant's workflow status to the onboarding page they
  * belong on. Mirrors the backend's WorkflowService.Status enum.
@@ -584,6 +614,10 @@ export function getOnboardingRoute(status: string | null | undefined): string {
     case "DEEPTHI_INTRO_SENT":
     case "ERM_ASSIGNED":
     case "COACHES_ASSIGNED":
+      // Phase 4 — between agreement completion and Gate 5
+      // (dashboard enabled), the participant stays on /welcome
+      // which polls for team-assembly progress.
+      return "/welcome";
     case "DASHBOARD_ENABLED":
     case "WEEKLY_REPORTING_ACTIVE":
     case "EMPLOYMENT_ACCEPTED":

@@ -12,10 +12,18 @@ import com.spire.backend.entity.ParticipantDocument;
 import com.spire.backend.entity.Payment;
 import com.spire.backend.service.AdminRevenueService;
 import com.spire.backend.service.AdminService;
+import com.spire.backend.service.CoachAssignmentService;
 import com.spire.backend.service.CourseService;
 import com.spire.backend.service.DocumentService;
+import com.spire.backend.service.ErmAssignmentService;
 import com.spire.backend.service.InstructorRequestService;
+import com.spire.backend.service.OnboardingService;
 import com.spire.backend.service.ProfileService;
+import com.spire.backend.repository.CoachAssignmentRepository;
+import com.spire.backend.repository.ErmAssignmentRepository;
+import com.spire.backend.repository.UserRepository;
+import com.spire.backend.entity.CoachAssignment;
+import com.spire.backend.entity.ErmAssignment;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -46,6 +54,12 @@ public class AdminController {
     private final ProfileService profileService;
     private final AdminRevenueService adminRevenueService;
     private final DocumentService documentService;
+    private final ErmAssignmentService ermAssignmentService;
+    private final CoachAssignmentService coachAssignmentService;
+    private final OnboardingService onboardingService;
+    private final UserRepository userRepository;
+    private final ErmAssignmentRepository ermAssignmentRepository;
+    private final CoachAssignmentRepository coachAssignmentRepository;
 
     // CSV timestamps render in IST. The DB stores LocalDateTime
     // (timezone-naive, server-local = UTC on Railway) so we rebase
@@ -337,5 +351,131 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(
                 "APPROVED".equals(newStatus) ? "Document approved" : "Document rejected",
                 ParticipantDocumentDTO.from(saved)));
+    }
+
+    // ─── Phase 4: assignment queue (manual ERM / coach assignment) ──
+
+    /**
+     * Returns participants whose onboarding chain is stuck waiting
+     * on a manual ERM / coach assignment. Used by the Operations
+     * admin "Assignments" tab.
+     */
+    @GetMapping("/assignments/queue")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> assignmentQueue() {
+        List<Map<String, Object>> rows = new java.util.ArrayList<>();
+        // Anyone who's past program-selection but not yet at
+        // DASHBOARD_ENABLED is potentially in the queue. We surface
+        // the workflow status + which slots are pending.
+        for (com.spire.backend.entity.User u : userRepository.findAll()) {
+            String status = u.getCurrentStatus();
+            if (status == null) continue;
+            boolean pending = "SIGNED_AGREEMENT_SENT_TO_ERM".equals(status)
+                    || "WELCOME_SENT".equals(status)
+                    || "DEEPTHI_INTRO_SENT".equals(status)
+                    || "ERM_ASSIGNED".equals(status)
+                    || "COACHES_ASSIGNED".equals(status);
+            if (!pending) continue;
+
+            Map<String, Object> row = new java.util.LinkedHashMap<>();
+            row.put("userId", u.getId());
+            row.put("participantId", u.getParticipantId());
+            row.put("fullName", u.getFullName());
+            row.put("email", u.getEmail());
+            row.put("skillset", u.getSelectedTechnology());
+            row.put("currentStatus", status);
+            row.put("ermAssigned", ermAssignmentService.getAssignedErm(u.getId()).isPresent());
+            row.put("coachesAssigned", coachAssignmentService.hasAnyCoach(u.getId()));
+            rows.add(row);
+        }
+        return ResponseEntity.ok(ApiResponse.success(rows));
+    }
+
+    /**
+     * Manually assigns an ERM to a participant. Body: {@code
+     * { ermUserId: 42 }}. After saving the assignment row, re-runs
+     * the OnboardingService chain so the participant's workflow
+     * rolls forward without waiting on a scheduled tick.
+     */
+    @PutMapping("/assignments/erm/{participantId}")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> assignErm(
+            @PathVariable Long participantId,
+            @RequestBody Map<String, Object> body) {
+        Object ermIdRaw = body.get("ermUserId");
+        if (ermIdRaw == null) throw new IllegalArgumentException("ermUserId is required");
+        Long ermUserId = ermIdRaw instanceof Number n ? n.longValue() : Long.parseLong(ermIdRaw.toString());
+
+        com.spire.backend.entity.User participant = userRepository.findById(participantId)
+                .orElseThrow(() -> new com.spire.backend.exception.ResourceNotFoundException(
+                        "User", "id", participantId));
+        com.spire.backend.entity.User erm = userRepository.findById(ermUserId)
+                .orElseThrow(() -> new com.spire.backend.exception.ResourceNotFoundException(
+                        "User", "id", ermUserId));
+
+        ErmAssignment row = ermAssignmentRepository
+                .findFirstByUserIdOrderByAssignedDateDesc(participantId)
+                .orElseGet(() -> ErmAssignment.builder().userId(participantId).build());
+        row.setErmUserId(erm.getId());
+        row.setIntroEmailStatus("SENT");
+        ermAssignmentRepository.save(row);
+
+        // Push the chain forward — this also fires the intro
+        // emails and (if a coach was also assigned) opens the
+        // dashboard.
+        onboardingService.completeOnboarding(participant);
+        com.spire.backend.entity.User refreshed = userRepository.findById(participantId).orElse(participant);
+        return ResponseEntity.ok(ApiResponse.success(
+                "ERM assigned",
+                Map.of(
+                        "ermUserId", erm.getId(),
+                        "ermName", erm.getFullName() == null ? "" : erm.getFullName(),
+                        "workflowStatus", refreshed.getCurrentStatus()
+                )));
+    }
+
+    /**
+     * Manually assigns a coach to a participant for a specific
+     * coach_role. Body: {@code { coachUserId: 42, coachRole:
+     * "CAREER_COACH" }}. Re-runs the OnboardingService chain after.
+     */
+    @PutMapping("/assignments/coach/{participantId}")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> assignCoach(
+            @PathVariable Long participantId,
+            @RequestBody Map<String, Object> body) {
+        Object coachIdRaw = body.get("coachUserId");
+        String coachRole = (String) body.get("coachRole");
+        if (coachIdRaw == null || coachRole == null || coachRole.isBlank()) {
+            throw new IllegalArgumentException("coachUserId and coachRole are required");
+        }
+        Long coachUserId = coachIdRaw instanceof Number n ? n.longValue() : Long.parseLong(coachIdRaw.toString());
+        com.spire.backend.entity.User participant = userRepository.findById(participantId)
+                .orElseThrow(() -> new com.spire.backend.exception.ResourceNotFoundException(
+                        "User", "id", participantId));
+        userRepository.findById(coachUserId)
+                .orElseThrow(() -> new com.spire.backend.exception.ResourceNotFoundException(
+                        "User", "id", coachUserId));
+
+        // Replace any existing assignment for that role.
+        coachAssignmentRepository
+                .findByUserIdAndStatus(participantId, "ACTIVE")
+                .stream()
+                .filter(a -> coachRole.equals(a.getCoachRole()))
+                .forEach(coachAssignmentRepository::delete);
+        CoachAssignment row = CoachAssignment.builder()
+                .userId(participantId)
+                .coachUserId(coachUserId)
+                .coachRole(coachRole)
+                .status("ACTIVE")
+                .build();
+        coachAssignmentRepository.save(row);
+
+        onboardingService.completeOnboarding(participant);
+        com.spire.backend.entity.User refreshed = userRepository.findById(participantId).orElse(participant);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Coach assigned",
+                Map.of(
+                        "coachUserId", coachUserId,
+                        "coachRole", coachRole,
+                        "workflowStatus", refreshed.getCurrentStatus()
+                )));
     }
 }
