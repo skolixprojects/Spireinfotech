@@ -48,4 +48,7 @@ public class PhaseCompletion {
 
     @Column(name = "erm_approved_date")
     private LocalDateTime ermApprovedDate;
+
+    @Column(name = "erm_notes", columnDefinition = "TEXT")
+    private String ermNotes;
 }

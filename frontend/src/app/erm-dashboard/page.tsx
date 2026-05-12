@@ -11,8 +11,11 @@ import { RoleDashboardShell, type RoleDashboardTab }
   from "@/components/dashboard/RoleDashboardShell";
 import { useAuth } from "@/lib/auth-context";
 import {
-  addErmNote, getErmParticipantDetail, getErmReports, getErmRoster,
-  reviewErmReport, type ErmRosterRow, type WeeklyReportDTO,
+  addErmNote, approvePhase1, getErmParticipantDetail,
+  getErmPendingEmployment, getErmPendingPhaseApprovals, getErmReports,
+  getErmRoster, reviewErmReport, verifyEmployment,
+  type ErmPendingEmploymentRow, type ErmPendingPhaseRow,
+  type ErmRosterRow, type WeeklyReportDTO,
 } from "@/lib/api";
 
 /**
@@ -88,10 +91,8 @@ export default function ErmDashboardPage() {
       {active === "reports" && <ReportsTab />}
       {active === "comms" && <CommsTab roster={roster} />}
       {active === "interviews" && <InterviewsTab />}
-      {active === "employment" && <Placeholder title="Employment acceptance"
-        copy="Verify and approve participant offers. This activates with Phase 6." />}
-      {active === "phase1" && <Placeholder title="Phase 1 completion"
-        copy="Approve participants ready for Phase 1 closure. Activates with Phase 6." />}
+      {active === "employment" && <EmploymentTab />}
+      {active === "phase1" && <Phase1Tab />}
       {active === "coaches" && <CoachesTab roster={roster} />}
       {active === "profile" && <Placeholder title="Profile"
         copy="Edit your ERM profile from the standard profile page."
@@ -482,6 +483,218 @@ function CommsTab({ roster }: { roster: ErmRosterRow[] }) {
             {saving ? "Logging…" : "Log note"}
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Employment tab (Phase 6) ────────────────────────────────── */
+
+function EmploymentTab() {
+  const [rows, setRows] = useState<ErmPendingEmploymentRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openId, setOpenId] = useState<number | null>(null);
+  const [notes, setNotes] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const refresh = async () => setRows(await getErmPendingEmployment());
+
+  useEffect(() => {
+    let cancelled = false;
+    refresh()
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Couldn't load queue"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const openVerify = (uid: number) => { setOpenId(uid); setNotes(""); };
+
+  const handleVerify = async () => {
+    if (openId == null) return;
+    setSaving(true); setError("");
+    try {
+      await verifyEmployment(openId, notes);
+      await refresh();
+      setOpenId(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Verify failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="text-center py-10"><Loader2 size={20} className="animate-spin text-[#0F766E] inline" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <h1 className="font-serif text-2xl font-bold text-gray-900">Employment verification</h1>
+      <p className="text-sm text-gray-500">
+        Pending employment acceptances from your assigned participants.
+        Verifying flips Gate 6 open and unlocks Phase 1 acknowledgment.
+      </p>
+      {error && <p className="inline-flex items-center gap-1.5 text-sm text-red-600">
+        <AlertCircle size={14} /> {error}</p>}
+      <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-[11px] uppercase tracking-wider font-semibold text-gray-500">
+            <tr>
+              <th className="text-left px-4 py-2">Participant</th>
+              <th className="text-left px-4 py-2">Employer</th>
+              <th className="text-left px-4 py-2">Job title</th>
+              <th className="text-left px-4 py-2">Start date</th>
+              <th className="text-left px-4 py-2">Submitted</th>
+              <th className="text-left px-4 py-2">Offer doc</th>
+              <th className="text-right px-4 py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.length === 0 ? (
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-sm text-gray-400 italic">
+                No pending verifications.
+              </td></tr>
+            ) : rows.map((r) => (
+              <tr key={r.userId}>
+                <td className="px-4 py-2">
+                  <div className="font-medium text-gray-900">{r.fullName ?? "—"}</div>
+                  <div className="font-mono text-[10px] text-gray-400">{r.participantId ?? "—"}</div>
+                </td>
+                <td className="px-4 py-2 text-gray-700">{r.employerClient ?? "—"}</td>
+                <td className="px-4 py-2 text-gray-700">{r.jobTitle ?? "—"}</td>
+                <td className="px-4 py-2 font-mono text-xs text-gray-700">{r.startDate ?? "—"}</td>
+                <td className="px-4 py-2 text-xs text-gray-500">
+                  {r.acceptanceDate
+                    ? new Date(r.acceptanceDate).toLocaleString("en-IN", {
+                        timeZone: "Asia/Kolkata", dateStyle: "medium",
+                      })
+                    : "—"}
+                </td>
+                <td className="px-4 py-2">
+                  {r.offerDocumentUrl
+                    ? <a href={r.offerDocumentUrl} target="_blank" rel="noreferrer"
+                        className="text-xs font-semibold text-[#0F766E] hover:underline">View</a>
+                    : <span className="text-xs text-gray-400">—</span>}
+                </td>
+                <td className="px-4 py-2 text-right">
+                  <button onClick={() => openVerify(r.userId)}
+                    className="px-3 py-1 rounded-md text-xs font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] cursor-pointer">
+                    Verify
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {openId != null && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setOpenId(null)}>
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-5"
+            onClick={(e) => e.stopPropagation()}>
+            <h2 className="font-serif text-lg font-bold text-gray-900">Verify employment</h2>
+            <p className="text-xs text-gray-500 mt-1">
+              Confirms the offer details on file and unlocks Phase 1 for the participant.
+            </p>
+            <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3}
+              className="mt-3 w-full px-3 py-2 text-sm rounded-md border border-gray-200 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E]"
+              placeholder="Optional ERM notes (audit trail)" />
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" onClick={() => setOpenId(null)}
+                className="px-3 py-1.5 rounded-md text-xs font-semibold text-gray-600 hover:text-gray-900 cursor-pointer">Cancel</button>
+              <button type="button" onClick={handleVerify} disabled={saving}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-60 cursor-pointer">
+                {saving ? <Loader2 size={12} className="animate-spin" /> : <CheckCircle2 size={12} />}
+                {saving ? "Verifying…" : "Verify ✓"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Phase 1 tab (Phase 6) ───────────────────────────────────── */
+
+function Phase1Tab() {
+  const [rows, setRows] = useState<ErmPendingPhaseRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<number | null>(null);
+  const [error, setError] = useState("");
+
+  const refresh = async () => setRows(await getErmPendingPhaseApprovals());
+
+  useEffect(() => {
+    let cancelled = false;
+    refresh()
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Couldn't load queue"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const approve = async (uid: number) => {
+    setBusy(uid); setError("");
+    try {
+      await approvePhase1(uid);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Approve failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  if (loading) return <div className="text-center py-10"><Loader2 size={20} className="animate-spin text-[#0F766E] inline" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <h1 className="font-serif text-2xl font-bold text-gray-900">Phase 1 approvals</h1>
+      <p className="text-sm text-gray-500">
+        Participants who self-attested Phase 1 completion. Approving
+        closes Phase 1 audit-side; the payment plan activation remains
+        with finance.
+      </p>
+      {error && <p className="inline-flex items-center gap-1.5 text-sm text-red-600">
+        <AlertCircle size={14} /> {error}</p>}
+      <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 text-[11px] uppercase tracking-wider font-semibold text-gray-500">
+            <tr>
+              <th className="text-left px-4 py-2">Participant</th>
+              <th className="text-left px-4 py-2">Accepted</th>
+              <th className="text-left px-4 py-2">Version</th>
+              <th className="text-right px-4 py-2">Action</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.length === 0 ? (
+              <tr><td colSpan={4} className="px-4 py-6 text-center text-sm text-gray-400 italic">
+                No Phase 1 approvals pending.
+              </td></tr>
+            ) : rows.map((r) => (
+              <tr key={r.userId}>
+                <td className="px-4 py-2">
+                  <div className="font-medium text-gray-900">{r.fullName ?? "—"}</div>
+                  <div className="font-mono text-[10px] text-gray-400">{r.participantId ?? "—"}</div>
+                </td>
+                <td className="px-4 py-2 text-xs text-gray-500">
+                  {r.acceptedAt ? new Date(r.acceptedAt).toLocaleString("en-IN", {
+                    timeZone: "Asia/Kolkata", dateStyle: "medium",
+                  }) : "—"}
+                </td>
+                <td className="px-4 py-2 font-mono text-xs text-gray-700">{r.acknowledgmentVersion ?? "—"}</td>
+                <td className="px-4 py-2 text-right">
+                  <button onClick={() => approve(r.userId)} disabled={busy === r.userId}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-60 cursor-pointer">
+                    {busy === r.userId ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
+                    Approve
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );

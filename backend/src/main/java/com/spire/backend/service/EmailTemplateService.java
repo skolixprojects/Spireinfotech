@@ -60,6 +60,11 @@ public class EmailTemplateService {
     @Value("${program.coordinator.name:Deepthi R}")
     private String coordinatorName;
 
+    /** Phase 6 — finance team inbox for Phase 1 completion + check
+     *  notifications. Empty default skips the finance copy. */
+    @Value("${program.finance.email:}")
+    private String financeEmail;
+
     // ── 1. Welcome (sent LAST, after agreement is fully accepted) ───
     /**
      * Final onboarding email. Fires after the user has completed
@@ -714,6 +719,92 @@ public class EmailTemplateService {
                 "You have a reply about " + courseTitle,
                 wrap("New message from " + instructorName, body)
         );
+    }
+
+    // ── 13. Employment / Phase 1 completion (Phase 6 Step 17) ────────
+    /**
+     * Email #13 — fires when a participant accepts the Phase 1
+     * completion acknowledgment. Three recipients with tailored bodies:
+     *   - Participant: congratulations + payment-plan heads-up.
+     *   - ERM: confirmation + reminder to action approvals.
+     *   - Finance: Phase 1 complete → payment-plan scheduling can begin.
+     *
+     * Each send is wrapped in try / ignored — a single failed recipient
+     * never stops the others.
+     */
+    public void sendPhase1CompletionEmails(
+            com.spire.backend.entity.User user,
+            com.spire.backend.entity.User erm,
+            com.spire.backend.entity.EmploymentAcceptance emp,
+            java.time.LocalDateTime acceptedAt) {
+
+        String fullName = safe(user.getFullName());
+        String participantId = safe(user.getParticipantId());
+        String employer = emp == null ? "—" : safe(emp.getEmployerClient());
+        String jobTitle = emp == null ? "—" : safe(emp.getJobTitle());
+        String startDate = emp == null || emp.getStartDate() == null
+                ? "—" : emp.getStartDate().toString();
+        String completionDate = acceptedAt == null
+                ? "" : acceptedAt.atZone(IST).format(DATE_FMT) + " IST";
+
+        // ── Participant ─────────────────────────────────────────
+        try {
+            String body = p("Dear " + fullName + ",")
+                    + p("Congratulations! Your Phase 1 pre-employment readiness "
+                            + "program is now complete.")
+                    + receipt(
+                            "Employment: " + employer + " — " + jobTitle,
+                            "Start date: " + startDate,
+                            "Phase 1 completed: " + completionDate)
+                    + p("Your payment plan will be activated shortly. You can view "
+                            + "your payment schedule in your dashboard once it's live.")
+                    + p("Phase 2 post-offer support is now available as per your agreement.")
+                    + button("Open your dashboard", appUrl + "/dashboard")
+                    + p("Regards,<br/>Spire Info Tech");
+            emailService.sendEmail(user.getEmail(),
+                    "Phase 1 completed — " + fullName + " — Spire Info Tech",
+                    wrap("Phase 1 complete — congratulations!", body));
+        } catch (Exception ignored) {}
+
+        // ── ERM ─────────────────────────────────────────────────
+        if (erm != null && erm.getEmail() != null && !erm.getEmail().isBlank()) {
+            try {
+                String body = p("Phase 1 completed for " + fullName
+                                + " (" + participantId + ").")
+                        + receipt(
+                                "Employer: " + employer,
+                                "Job title: " + jobTitle,
+                                "Start date: " + startDate,
+                                "Completion: " + completionDate)
+                        + p("Payment plan activation is pending. Approve the "
+                                + "Phase 1 acknowledgment from your ERM dashboard "
+                                + "if you haven't already.")
+                        + p("— Spire Info Tech");
+                emailService.sendEmail(erm.getEmail(),
+                        "Phase 1 completed: " + fullName + " (" + participantId + ")",
+                        wrap("Phase 1 complete — ERM heads-up", body));
+            } catch (Exception ignored) {}
+        }
+
+        // ── Finance ─────────────────────────────────────────────
+        if (financeEmail != null && !financeEmail.isBlank()) {
+            try {
+                String body = p("Phase 1 completed for " + fullName
+                                + " (" + participantId + ").")
+                        + receipt(
+                                "Employer: " + employer,
+                                "Job title: " + jobTitle,
+                                "Start date: " + startDate,
+                                "Completion: " + completionDate)
+                        + p("Payment plan scheduling can begin. The participant's "
+                                + "signed agreement and Phase 1 record are on file.")
+                        + p("— Spire Info Tech");
+                emailService.sendEmail(financeEmail,
+                        "Phase 1 complete — payment plan ready: "
+                                + fullName + " (" + participantId + ")",
+                        wrap("Phase 1 complete — finance heads-up", body));
+            } catch (Exception ignored) {}
+        }
     }
 
     // ───────────────────────────────────────────────────────────────

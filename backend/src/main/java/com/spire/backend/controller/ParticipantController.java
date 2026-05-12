@@ -72,6 +72,7 @@ public class ParticipantController {
     private final com.spire.backend.service.WeeklyReportService weeklyReportService;
     private final com.spire.backend.service.ErmAssignmentService ermAssignmentService;
     private final com.spire.backend.service.CoachAssignmentService coachAssignmentService;
+    private final com.spire.backend.service.EmploymentService employmentService;
 
     /** Public — anyone can enroll. Behind the scenes walks the workflow
      *  ladder DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING. */
@@ -499,6 +500,103 @@ public class ParticipantController {
         return ResponseEntity.ok(ApiResponse.success(
                 com.spire.backend.dto.WeeklyReportDTO.from(
                         weeklyReportService.getReport(userId, reportId))));
+    }
+
+    // ─── Phase 6: employment acceptance + Phase 1 completion ───────
+
+    /**
+     * Submit employment acceptance details. Optional offer document
+     * can be uploaded separately via {@code /employment/offer-upload}
+     * and the resulting URL passed in {@code offerDocumentUrl}.
+     */
+    @PostMapping("/employment/accept")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> acceptEmployment(
+            @RequestBody Map<String, Object> body,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        com.spire.backend.entity.EmploymentAcceptance in =
+                com.spire.backend.entity.EmploymentAcceptance.builder()
+                        .employerClient((String) body.get("employer"))
+                        .jobTitle((String) body.get("jobTitle"))
+                        .startDate(parseDate(body.get("startDate")))
+                        .location((String) body.get("location"))
+                        .employmentType((String) body.get("employmentType"))
+                        .offerDocumentUrl((String) body.get("offerDocumentUrl"))
+                        .notes((String) body.get("notes"))
+                        .build();
+        com.spire.backend.entity.EmploymentAcceptance saved =
+                employmentService.acceptEmployment(userId, in);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Employment acceptance submitted",
+                Map.of(
+                        "success", true,
+                        "pendingVerification", true,
+                        "employmentId", saved.getId()
+                )));
+    }
+
+    /** Upload an offer document (PDF / image). Stores via the shared
+     *  DocumentStorageService and returns the URL the caller should
+     *  pass to {@code /employment/accept} as {@code offerDocumentUrl}. */
+    @PostMapping("/employment/offer-upload")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> uploadOffer(
+            @RequestParam("file") MultipartFile file,
+            Authentication auth) throws java.io.IOException {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File is required");
+        }
+        if (file.getSize() > 5L * 1024 * 1024) {
+            throw new IllegalArgumentException("Offer document must be 5 MB or smaller");
+        }
+        String filename = file.getOriginalFilename() == null
+                ? "offer.pdf" : file.getOriginalFilename();
+        var stored = storageService.upload(userId, "offer-" + filename,
+                file.getBytes(), file.getContentType());
+        return ResponseEntity.ok(ApiResponse.success(
+                "Offer uploaded",
+                Map.of("url", stored.url())));
+    }
+
+    @GetMapping("/employment/status")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> employmentStatus(Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(employmentService.employmentStatus(userId)));
+    }
+
+    @PostMapping("/phases/phase-1-complete")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> acceptPhase1(
+            @RequestBody Map<String, Object> body,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        if (!Boolean.TRUE.equals(body.get("acknowledgmentAccepted"))) {
+            throw new IllegalArgumentException(
+                    "You must accept the Phase 1 acknowledgment to continue.");
+        }
+        String version = (String) body.getOrDefault("acknowledgmentVersion",
+                com.spire.backend.service.EmploymentService.PHASE_1_ACK_VERSION);
+        com.spire.backend.entity.PhaseCompletion saved =
+                employmentService.acceptPhase1Completion(userId, version);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Phase 1 completion accepted",
+                Map.of(
+                        "success", true,
+                        "paymentEnabled", true,
+                        "phaseCompletionId", saved.getId(),
+                        "acceptedAt", saved.getAcceptedAt()
+                )));
+    }
+
+    private static java.time.LocalDate parseDate(Object raw) {
+        if (raw == null) return null;
+        try { return java.time.LocalDate.parse(raw.toString()); }
+        catch (Exception e) {
+            throw new IllegalArgumentException("Date must be YYYY-MM-DD");
+        }
     }
 
     // ─── Phase 5A: profile read / edit (dashboard Profile tab) ─────

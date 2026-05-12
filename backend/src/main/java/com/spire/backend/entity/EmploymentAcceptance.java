@@ -41,6 +41,16 @@ public class EmploymentAcceptance {
     @Column(name = "offer_document_url", length = 500)
     private String offerDocumentUrl;
 
+    @Column(name = "location", length = 255)
+    private String location;
+
+    /** Full-time / Part-time / Contract / etc. */
+    @Column(name = "employment_type", length = 50)
+    private String employmentType;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
+
     @Column(name = "acceptance_date")
     private LocalDateTime acceptanceDate;
 
@@ -50,4 +60,8 @@ public class EmploymentAcceptance {
 
     @Column(name = "erm_verified_date")
     private LocalDateTime ermVerifiedDate;
+
+    /** ERM-side note captured at verification time. */
+    @Column(name = "erm_notes", columnDefinition = "TEXT")
+    private String ermNotes;
 }

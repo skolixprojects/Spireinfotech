@@ -680,6 +680,143 @@ export async function getWeeklyReport(id: number): Promise<WeeklyReportDTO> {
   return wrapper.data;
 }
 
+// ─── Phase 6: employment + Phase 1 completion ────────────────────
+
+export interface EmploymentAcceptRequest {
+  employer: string;
+  jobTitle: string;
+  startDate: string;        // YYYY-MM-DD
+  location?: string | null;
+  employmentType?: string | null;
+  offerDocumentUrl?: string | null;
+  notes?: string | null;
+}
+
+export interface EmploymentStatus {
+  submitted: boolean;
+  ermVerified: boolean;
+  ermName?: string | null;
+  ermEmail?: string | null;
+  details?: {
+    id: number;
+    employerClient: string | null;
+    jobTitle: string | null;
+    startDate: string | null;
+    location: string | null;
+    employmentType: string | null;
+    offerDocumentUrl: string | null;
+    notes: string | null;
+    acceptanceDate: string | null;
+    ermVerifiedDate: string | null;
+    ermNotes: string | null;
+  };
+  phase1?: {
+    acceptedAt: string | null;
+    acknowledgmentVersion: string | null;
+    ermApproved: boolean;
+    ermApprovedDate: string | null;
+  };
+}
+
+export async function acceptEmployment(body: EmploymentAcceptRequest): Promise<{
+  success: boolean; pendingVerification: boolean; employmentId: number;
+}> {
+  const wrapper = await apiFetch<ApiResponse<{
+    success: boolean; pendingVerification: boolean; employmentId: number;
+  }>>("/api/participants/employment/accept",
+    { method: "POST", body: JSON.stringify(body) });
+  return wrapper.data;
+}
+
+export async function uploadOfferDocument(file: File): Promise<{ url: string }> {
+  const token = typeof window === "undefined"
+    ? null : localStorage.getItem("access_token");
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_BASE_URL}/api/participants/employment/offer-upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    let msg = `Upload failed (${res.status})`;
+    try { const b = await res.json(); if (b?.message) msg = b.message; } catch {}
+    throw new Error(msg);
+  }
+  const body = (await res.json()) as ApiResponse<{ url: string }>;
+  return body.data;
+}
+
+export async function getEmploymentStatus(): Promise<EmploymentStatus> {
+  const wrapper = await apiFetch<ApiResponse<EmploymentStatus>>(
+    "/api/participants/employment/status");
+  return wrapper.data ?? { submitted: false, ermVerified: false };
+}
+
+export async function acceptPhase1Completion(version = "PH1-v1.0"): Promise<{
+  success: boolean; paymentEnabled: boolean; phaseCompletionId: number; acceptedAt: string;
+}> {
+  const wrapper = await apiFetch<ApiResponse<{
+    success: boolean; paymentEnabled: boolean; phaseCompletionId: number; acceptedAt: string;
+  }>>("/api/participants/phases/phase-1-complete",
+    { method: "POST", body: JSON.stringify({
+      acknowledgmentAccepted: true, acknowledgmentVersion: version,
+    }) });
+  return wrapper.data;
+}
+
+// ── ERM-side ─────────────────────────────────────────────────────
+
+export interface ErmPendingEmploymentRow {
+  userId: number;
+  participantId: string | null;
+  fullName: string | null;
+  employmentId: number;
+  employerClient: string | null;
+  jobTitle: string | null;
+  startDate: string | null;
+  location: string | null;
+  employmentType: string | null;
+  offerDocumentUrl: string | null;
+  notes: string | null;
+  acceptanceDate: string | null;
+}
+
+export async function getErmPendingEmployment(): Promise<ErmPendingEmploymentRow[]> {
+  const wrapper = await apiFetch<ApiResponse<ErmPendingEmploymentRow[]>>(
+    "/api/erm/employment/pending");
+  return wrapper.data ?? [];
+}
+
+export async function verifyEmployment(participantId: number, notes = ""): Promise<unknown> {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/erm/employment/${participantId}/verify`,
+    { method: "PUT", body: JSON.stringify({ verified: true, notes }) });
+  return wrapper.data;
+}
+
+export interface ErmPendingPhaseRow {
+  userId: number;
+  participantId: string | null;
+  fullName: string | null;
+  phaseCompletionId: number;
+  acceptedAt: string | null;
+  acknowledgmentVersion: string | null;
+}
+
+export async function getErmPendingPhaseApprovals(): Promise<ErmPendingPhaseRow[]> {
+  const wrapper = await apiFetch<ApiResponse<ErmPendingPhaseRow[]>>(
+    "/api/erm/phases/pending");
+  return wrapper.data ?? [];
+}
+
+export async function approvePhase1(participantId: number, notes = ""): Promise<unknown> {
+  const wrapper = await apiFetch<ApiResponse<unknown>>(
+    `/api/erm/phases/${participantId}/approve`,
+    { method: "PUT", body: JSON.stringify({ approved: true, notes }) });
+  return wrapper.data;
+}
+
 // ─── Phase 5B: ERM dashboard ─────────────────────────────────────
 
 export interface ErmRosterRow {

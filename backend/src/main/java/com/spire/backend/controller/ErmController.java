@@ -3,6 +3,7 @@ package com.spire.backend.controller;
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.entity.ErmAssignment;
 import com.spire.backend.entity.WeeklyReport;
+import com.spire.backend.service.EmploymentService;
 import com.spire.backend.service.ErmService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +26,7 @@ import java.util.Map;
 public class ErmController {
 
     private final ErmService ermService;
+    private final EmploymentService employmentService;
 
     @GetMapping("/participants")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> roster(Authentication auth) {
@@ -72,5 +74,57 @@ public class ErmController {
         return ResponseEntity.ok(ApiResponse.success(
                 "Note logged",
                 ermService.appendNote(me, participantId, note, escalation)));
+    }
+
+    // ── Phase 6 — employment verification + Phase 1 approval ────────
+
+    @GetMapping("/employment/pending")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> pendingEmployment(Authentication auth) {
+        Long me = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                employmentService.ermPendingVerifications(me)));
+    }
+
+    @PutMapping("/employment/{participantId}/verify")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyEmployment(
+            @PathVariable Long participantId,
+            @RequestBody Map<String, Object> body,
+            Authentication auth) {
+        Long me = Long.parseLong(auth.getPrincipal().toString());
+        Object notesRaw = body.get("notes");
+        String notes = notesRaw == null ? "" : notesRaw.toString();
+        var saved = employmentService.verifyEmployment(me, participantId, notes);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Employment verified",
+                Map.of(
+                        "success", true,
+                        "employmentId", saved.getId(),
+                        "ermVerifiedDate", saved.getErmVerifiedDate()
+                )));
+    }
+
+    @GetMapping("/phases/pending")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> pendingPhaseApprovals(Authentication auth) {
+        Long me = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                employmentService.ermPendingPhaseApprovals(me)));
+    }
+
+    @PutMapping("/phases/{participantId}/approve")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> approvePhase1(
+            @PathVariable Long participantId,
+            @RequestBody Map<String, Object> body,
+            Authentication auth) {
+        Long me = Long.parseLong(auth.getPrincipal().toString());
+        Object notesRaw = body.get("notes");
+        String notes = notesRaw == null ? "" : notesRaw.toString();
+        var saved = employmentService.approvePhase1(me, participantId, notes);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Phase 1 approved",
+                Map.of(
+                        "success", true,
+                        "phaseCompletionId", saved.getId(),
+                        "ermApprovedDate", saved.getErmApprovedDate()
+                )));
     }
 }
