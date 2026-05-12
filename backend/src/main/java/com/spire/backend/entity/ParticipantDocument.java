@@ -50,10 +50,21 @@ public class ParticipantDocument {
     @Column(name = "storage_path", length = 500)
     private String storagePath;
 
-    /** PENDING, APPROVED, REJECTED. */
+    /** PENDING, APPROVED, REJECTED, NOT_APPLICABLE. */
     @Column(name = "review_status", length = 30)
     @Builder.Default
     private String reviewStatus = "PENDING";
+
+    /**
+     * True when the participant explicitly marked this document type
+     * as not applicable (e.g. a domestic candidate selecting
+     * "Not applicable" for Work Authorization). The row carries no
+     * file_url / file_name in that case; the marker just unblocks
+     * the completeness check.
+     */
+    @Column(name = "not_applicable", nullable = false)
+    @Builder.Default
+    private Boolean notApplicable = false;
 
     @Column(name = "reviewer_id")
     private Long reviewerId;

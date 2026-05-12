@@ -10,4 +10,5 @@ import java.util.List;
 public interface ParticipantDocumentRepository extends JpaRepository<ParticipantDocument, Long> {
     List<ParticipantDocument> findByUserIdOrderByUploadedAtDesc(Long userId);
     List<ParticipantDocument> findByReviewStatus(String reviewStatus);
+    List<ParticipantDocument> findByUserIdAndDocumentType(Long userId, String documentType);
 }

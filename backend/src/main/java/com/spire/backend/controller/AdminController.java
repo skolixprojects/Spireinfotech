@@ -5,12 +5,15 @@ import com.spire.backend.dto.AdminSessionRow;
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.dto.CourseDTO;
 import com.spire.backend.dto.InstructorRequestDTO;
+import com.spire.backend.dto.ParticipantDocumentDTO;
 import com.spire.backend.dto.ProfileDTO;
 import com.spire.backend.dto.UserDTO;
+import com.spire.backend.entity.ParticipantDocument;
 import com.spire.backend.entity.Payment;
 import com.spire.backend.service.AdminRevenueService;
 import com.spire.backend.service.AdminService;
 import com.spire.backend.service.CourseService;
+import com.spire.backend.service.DocumentService;
 import com.spire.backend.service.InstructorRequestService;
 import com.spire.backend.service.ProfileService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -42,6 +45,7 @@ public class AdminController {
     private final InstructorRequestService instructorRequestService;
     private final ProfileService profileService;
     private final AdminRevenueService adminRevenueService;
+    private final DocumentService documentService;
 
     // CSV timestamps render in IST. The DB stores LocalDateTime
     // (timezone-naive, server-local = UTC on Railway) so we rebase
@@ -295,5 +299,43 @@ public class AdminController {
             s = "\"" + s.replace("\"", "\"\"") + "\"";
         }
         return s;
+    }
+
+    // ─── Phase 2B: document review queue ────────────────────────────
+
+    /**
+     * Returns all documents currently in PENDING review, oldest
+     * first. Drives the Operations Admin "Documents" tab. Filter
+     * by reviewStatus query param to view APPROVED / REJECTED /
+     * NOT_APPLICABLE buckets.
+     */
+    @GetMapping("/documents")
+    public ResponseEntity<ApiResponse<List<ParticipantDocumentDTO>>> listDocumentsForReview(
+            @RequestParam(value = "status", required = false, defaultValue = "PENDING") String status) {
+        List<ParticipantDocumentDTO> rows = adminService.getAllUsers(null).stream()
+                .flatMap(u -> documentService.listForUser(u.getId()).stream())
+                .filter(d -> status.equalsIgnoreCase(d.getReviewStatus()))
+                .map(ParticipantDocumentDTO::from)
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(rows));
+    }
+
+    /**
+     * Approve / reject a participant document. Body: { status:
+     * "APPROVED"|"REJECTED", notes: "..." }. The participant sees
+     * the notes on the rejected row so they know what to resubmit.
+     */
+    @PutMapping("/documents/{documentId}/review")
+    public ResponseEntity<ApiResponse<ParticipantDocumentDTO>> reviewDocument(
+            @PathVariable Long documentId,
+            @RequestBody Map<String, String> body,
+            Authentication auth) {
+        Long reviewerId = Long.parseLong(auth.getPrincipal().toString());
+        String newStatus = body.get("status");
+        String notes = body.get("notes");
+        ParticipantDocument saved = documentService.review(documentId, reviewerId, newStatus, notes);
+        return ResponseEntity.ok(ApiResponse.success(
+                "APPROVED".equals(newStatus) ? "Document approved" : "Document rejected",
+                ParticipantDocumentDTO.from(saved)));
     }
 }

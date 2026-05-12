@@ -251,6 +251,117 @@ export async function submitAcknowledgment(
   return wrapper.data;
 }
 
+// ─── Phase 2B: document vault ──────────────────────────────────────
+
+export type DocumentType =
+  | "GOVERNMENT_ID" | "WORK_AUTHORIZATION" | "RESUME"
+  | "SSN_DOCUMENT" | "DRIVERS_LICENSE" | "OTHER";
+
+export type DocumentReviewStatus =
+  | "PENDING" | "APPROVED" | "REJECTED" | "NOT_APPLICABLE";
+
+export interface ParticipantDocument {
+  id: number;
+  documentType: DocumentType;
+  fileName: string | null;
+  fileSize: number | null;
+  reviewStatus: DocumentReviewStatus;
+  reviewerNotes: string | null;
+  uploadedAt: string | null;
+  reviewedAt: string | null;
+  notApplicable: boolean;
+}
+
+/** Uploads a single file as the named documentType (multipart/form-data). */
+export async function uploadParticipantDocument(
+  documentType: DocumentType, file: File,
+): Promise<ParticipantDocument> {
+  const token = typeof window === "undefined"
+    ? null : localStorage.getItem("access_token");
+  const form = new FormData();
+  form.append("file", file);
+  form.append("documentType", documentType);
+  const res = await fetch(`${API_BASE_URL}/api/participants/documents/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+  if (!res.ok) {
+    let msg = `Upload failed (${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.message) msg = body.message;
+    } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  const body = (await res.json()) as ApiResponse<ParticipantDocument>;
+  return body.data;
+}
+
+export async function listParticipantDocuments(): Promise<ParticipantDocument[]> {
+  const wrapper = await apiFetch<ApiResponse<ParticipantDocument[]>>("/api/participants/documents");
+  return wrapper.data ?? [];
+}
+
+export async function deleteParticipantDocument(documentId: number): Promise<void> {
+  await apiFetch<ApiResponse<unknown>>(
+    `/api/participants/documents/${documentId}`,
+    { method: "DELETE" });
+}
+
+export async function markDocumentNotApplicable(
+  documentType: DocumentType,
+): Promise<ParticipantDocument> {
+  const wrapper = await apiFetch<ApiResponse<ParticipantDocument>>(
+    "/api/participants/documents/mark-na",
+    { method: "POST", body: JSON.stringify({ documentType }) },
+  );
+  return wrapper.data;
+}
+
+export interface CompleteDocumentsResponse {
+  success: boolean;
+  missing: DocumentType[];
+  message?: string;
+  nextStep?: string;
+}
+
+export async function completeDocuments(): Promise<CompleteDocumentsResponse> {
+  const wrapper = await apiFetch<ApiResponse<CompleteDocumentsResponse>>(
+    "/api/participants/documents/complete",
+    { method: "POST" },
+  );
+  return wrapper.data;
+}
+
+/**
+ * Streams the underlying file via the auth-gated view endpoint and
+ * opens it in a new tab. For Cloudinary-backed documents the server
+ * returns a 5-minute signed URL; for local-disk documents the
+ * server streams the bytes inline.
+ */
+export async function viewParticipantDocument(documentId: number): Promise<void> {
+  const token = typeof window === "undefined"
+    ? null : localStorage.getItem("access_token");
+  const res = await fetch(`${API_BASE_URL}/api/participants/documents/${documentId}/view`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`Couldn't load document (${res.status})`);
+  const contentType = res.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    // Cloudinary path: ApiResponse with { url, expiresIn }.
+    const body = (await res.json()) as ApiResponse<{ url: string }>;
+    const url = body?.data?.url;
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    return;
+  }
+  // Local-disk path: blob stream.
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  window.open(objectUrl, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+}
+
 /**
  * Maps a participant's workflow status to the onboarding page they
  * belong on. Mirrors the backend's WorkflowService.Status enum.
@@ -271,11 +382,12 @@ export function getOnboardingRoute(status: string | null | undefined): string {
     case "ID_EMAIL_SENT":
       return "/participant-id";
     case "ACKNOWLEDGMENT_ACCEPTED":
+      return "/document-upload";
     case "DOCUMENTS_SUBMITTED":
     case "DOC_REVIEW_PENDING":
-      // /document-upload ships with Phase 2B. Until then we route
-      // acknowledgment-completed users to /agreement so the
-      // downstream flow stays unblocked.
+      // Past document upload, before /program-selection ships
+      // (Phase 2C). Route forward to /agreement so the downstream
+      // flow stays unblocked.
       return "/agreement";
     case "PROGRAM_SELECTED":
     case "DOCUSIGN_SENT":

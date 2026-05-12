@@ -776,6 +776,20 @@ public class DataSeeder implements CommandLineRunner {
         } catch (Exception e) {
             log.debug("Couldn't add acknowledgments.signature_method: {}", e.getMessage());
         }
+
+        // Phase 2B: not_applicable flag on the documents vault row.
+        // Lets the participant mark a document type (e.g. Work
+        // Authorization for a domestic candidate) as N/A so the
+        // completeness gate can be satisfied without a file. Default
+        // false; existing rows are real uploads.
+        try {
+            jdbcTemplate.execute(
+                    "ALTER TABLE documents ADD COLUMN IF NOT EXISTS "
+                            + "not_applicable BOOLEAN NOT NULL DEFAULT FALSE");
+            log.info("Ensured documents.not_applicable exists");
+        } catch (Exception e) {
+            log.debug("Couldn't add documents.not_applicable: {}", e.getMessage());
+        }
     }
 
     /**
