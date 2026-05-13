@@ -4,6 +4,7 @@ import com.spire.backend.entity.CheckDocument;
 import com.spire.backend.entity.User;
 import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.exception.UnauthorizedException;
+import com.spire.backend.repository.AgreementAcceptanceRepository;
 import com.spire.backend.repository.CheckDocumentRepository;
 import com.spire.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -46,11 +47,13 @@ public class ParticipantCheckService {
     private static final Set<String> ACCEPTED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png");
 
     private final CheckDocumentRepository checkDocumentRepository;
+    private final AgreementAcceptanceRepository agreementRepository;
     private final UserRepository userRepository;
     private final DocumentStorageService storageService;
     private final WorkflowService workflowService;
     private final RecordService recordService;
     private final EmailTemplateService emailTemplateService;
+    private final OnboardingService onboardingService;
 
     // ── Upload ──────────────────────────────────────────────────
 
@@ -94,13 +97,9 @@ public class ParticipantCheckService {
         CheckDocument saved = checkDocumentRepository.save(row);
 
         // Workflow advance — first check upload bumps the user to
-        // CHECK_COPY_UPLOADED. Subsequent uploads are idempotent.
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.CHECK_COPY_UPLOADED)) {
-            workflowService.transition(user,
-                    WorkflowService.Status.CHECK_COPY_UPLOADED,
-                    "check_uploaded");
-        }
+        // CHECK_COPY_UPLOADED, then runs the post-agreement chain.
+        // Subsequent uploads are idempotent.
+        advancePastCheckUpload(user, "check_uploaded");
 
         // File metadata only on the audit row — actual amount /
         // check number are sensitive and stay in the check_documents
@@ -134,14 +133,56 @@ public class ParticipantCheckService {
         // distinction matters for finance reconciliation: a missing
         // row + CHECK_COPY_UPLOADED status means the participant
         // confirmed no check was applicable, vs. truly absent.
+        advancePastCheckUpload(user, "check_not_applicable");
+        recordService.logAction(userId, RecordService.Category.DOCUMENT,
+                "Check upload marked N/A", "user=" + userId, null);
+    }
+
+    /**
+     * Shared post-check-upload advance. Used by both the upload
+     * path and the N/A path. Idempotent — each step checks status
+     * first so re-running this is safe.
+     *
+     *   CHECK_COPY_UPLOADED
+     *   → flips agreement_records.erm_notified = true (the agreement
+     *     is now "fully done" once finance has the check details)
+     *   → SIGNED_AGREEMENT_SENT_TO_ERM
+     *   → runs OnboardingService.completeOnboarding chain
+     *     (welcome → coordinator intro → ERM → coaches → dashboard)
+     */
+    private void advancePastCheckUpload(User user, String triggerEvent) {
+        Long userId = user.getId();
         if (!workflowService.isStatusAtLeast(user,
                 WorkflowService.Status.CHECK_COPY_UPLOADED)) {
             workflowService.transition(user,
                     WorkflowService.Status.CHECK_COPY_UPLOADED,
-                    "check_not_applicable");
+                    triggerEvent);
         }
-        recordService.logAction(userId, RecordService.Category.DOCUMENT,
-                "Check upload marked N/A", "user=" + userId, null);
+
+        agreementRepository.findByUserId(userId).ifPresent(row -> {
+            if (!Boolean.TRUE.equals(row.getErmNotified())) {
+                row.setErmNotified(true);
+                agreementRepository.save(row);
+            }
+        });
+
+        if (!workflowService.isStatusAtLeast(user,
+                WorkflowService.Status.SIGNED_AGREEMENT_SENT_TO_ERM)) {
+            workflowService.transition(user,
+                    WorkflowService.Status.SIGNED_AGREEMENT_SENT_TO_ERM,
+                    "erm_routed");
+        }
+
+        // Kick off welcome → coordinator → ERM → coaches → dashboard.
+        // Refresh `user` so the in-memory copy reflects the latest
+        // current_status after the chain finishes.
+        try {
+            User fresh = userRepository.findById(userId).orElse(user);
+            onboardingService.completeOnboarding(fresh);
+        } catch (Exception e) {
+            log.warn("OnboardingService chain failed for user {}: {}",
+                    userId, e.getMessage());
+        }
     }
 
     // ── List own checks (no file URL — file fetch is separate) ──

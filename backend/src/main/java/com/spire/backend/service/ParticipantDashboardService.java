@@ -158,8 +158,8 @@ public class ParticipantDashboardService {
             case "DOCUMENTS_SUBMITTED", "DOC_REVIEW_PENDING" -> 5;
             case "PROGRAM_SELECTED" -> 6;
             case "AGREEMENT_SENT" -> 7;
-            case "CHECK_COPY_UPLOADED" -> 8;
-            case "AGREEMENT_COMPLETED" -> 9;
+            case "AGREEMENT_COMPLETED" -> 8;
+            case "CHECK_COPY_UPLOADED" -> 9;
             case "SIGNED_AGREEMENT_SENT_TO_ERM" -> 10;
             case "WELCOME_SENT" -> 11;
             case "DEEPTHI_INTRO_SENT" -> 12;

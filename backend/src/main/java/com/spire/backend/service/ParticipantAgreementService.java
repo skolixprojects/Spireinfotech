@@ -1,6 +1,5 @@
 package com.spire.backend.service;
 
-import com.spire.backend.entity.AgreementAcceptance;
 import com.spire.backend.entity.User;
 import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.exception.UnauthorizedException;
@@ -17,8 +16,12 @@ import java.util.Map;
  * One-click on-site agreement signing for the participant lifecycle.
  *
  *   sign() → AGREEMENT_SENT → AGREEMENT_COMPLETED
- *          → SIGNED_AGREEMENT_SENT_TO_ERM (erm_notified=true)
- *          → OnboardingService.completeOnboarding() chain
+ *
+ * Stops at AGREEMENT_COMPLETED — the participant then proceeds to
+ * /check-upload to either upload check soft-copies or mark them
+ * not applicable. {@link ParticipantCheckService} owns the next
+ * leg: CHECK_COPY_UPLOADED → SIGNED_AGREEMENT_SENT_TO_ERM →
+ * OnboardingService.completeOnboarding chain → /welcome.
  *
  * Wraps {@link AgreementService#signImmediate} so the legacy
  * /agreement-legacy email-reply path can keep using AgreementService
@@ -34,7 +37,6 @@ public class ParticipantAgreementService {
     private final UserRepository userRepository;
     private final WorkflowService workflowService;
     private final RecordService recordService;
-    private final OnboardingService onboardingService;
 
     @Transactional
     public Map<String, Object> sign(
@@ -47,13 +49,25 @@ public class ParticipantAgreementService {
     ) {
         User user = requireGatedUser(userId);
 
+        // Idempotent re-sign — if the user has already moved past
+        // AGREEMENT_COMPLETED (e.g. they're on the check-upload step
+        // already), route them forward without re-running anything.
         if (workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.SIGNED_AGREEMENT_SENT_TO_ERM)) {
+                WorkflowService.Status.CHECK_COPY_UPLOADED)) {
             return Map.of(
                     "success", true,
                     "alreadySigned", true,
                     "status", user.getCurrentStatus(),
                     "nextStep", "/welcome"
+            );
+        }
+        if (workflowService.isStatusAtLeast(user,
+                WorkflowService.Status.AGREEMENT_COMPLETED)) {
+            return Map.of(
+                    "success", true,
+                    "alreadySigned", true,
+                    "status", user.getCurrentStatus(),
+                    "nextStep", "/check-upload"
             );
         }
 
@@ -75,42 +89,25 @@ public class ParticipantAgreementService {
                     WorkflowService.Status.AGREEMENT_COMPLETED,
                     "agreement_completed");
         }
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.SIGNED_AGREEMENT_SENT_TO_ERM)) {
-            workflowService.transition(user,
-                    WorkflowService.Status.SIGNED_AGREEMENT_SENT_TO_ERM,
-                    "erm_routed");
-        }
 
+        // The agreement row records on-site signing; the
+        // ermNotified=true flag flips after check upload completes
+        // (or is marked N/A), not here.
         agreementRepository.findByUserId(userId).ifPresent(row -> {
-            if (!Boolean.TRUE.equals(row.getErmNotified())) {
-                row.setErmNotified(true);
-                agreementRepository.save(row);
-            }
+            agreementRepository.save(row);
         });
 
         recordService.logAction(userId, RecordService.Category.ACCOUNT,
-                "Agreement signed and routed to ERM",
-                "On-site signing completed",
-                Map.of(
-                        "workflowStatus", user.getCurrentStatus(),
-                        "ermNotified", true
-                ));
-
-        try {
-            onboardingService.completeOnboarding(user);
-            user = userRepository.findById(userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        } catch (Exception e) {
-            log.warn("OnboardingService chain failed for user {}: {}", userId, e.getMessage());
-        }
+                "Agreement signed on-site",
+                "Next step: check soft-copy upload",
+                Map.of("workflowStatus", user.getCurrentStatus()));
 
         log.info("Agreement signed on-site for user {} → currentStatus={}",
                 userId, user.getCurrentStatus());
         return Map.of(
                 "success", true,
                 "status", user.getCurrentStatus(),
-                "nextStep", "/welcome"
+                "nextStep", "/check-upload"
         );
     }
 
