@@ -1,12 +1,16 @@
 import Hero from "@/components/home/Hero";
-import PhaseCards from "@/components/home/PhaseCards";
+import HowSpireWorks from "@/components/home/HowSpireWorks";
+import WhySpire from "@/components/home/WhySpire";
+import WhatYouCanLearn from "@/components/home/WhatYouCanLearn";
 import CTASection from "@/components/home/CTASection";
 
 export default function Home() {
   return (
     <>
       <Hero />
-      <PhaseCards />
+      <HowSpireWorks />
+      <WhySpire />
+      <WhatYouCanLearn />
       <CTASection />
     </>
   );

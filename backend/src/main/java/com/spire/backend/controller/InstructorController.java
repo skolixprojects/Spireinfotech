@@ -9,12 +9,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-@ConditionalOnProperty(prefix = "legacy.lms", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequestMapping("/api/instructor")
 @RequiredArgsConstructor

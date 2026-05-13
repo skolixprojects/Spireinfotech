@@ -21,7 +21,7 @@ const FULLSCREEN_ROUTES = [
   "/learn", "/verify", "/agreement",
   "/enroll", "/verify-email", "/participant-id",
   "/acknowledgment", "/document-upload", "/program-selection",
-  "/welcome",
+  "/check-upload", "/welcome",
   // Phase 5A/B — role-scoped dashboards own their full chrome
   // (sidebar + main column). Don't wrap them in the marketing-site
   // Navbar/Footer, which would compete with the sidebar layout.

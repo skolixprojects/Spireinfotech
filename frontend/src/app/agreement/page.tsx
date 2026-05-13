@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  AlertCircle, ArrowDown, CheckCircle2, FileText, Loader2, Lock,
-  PenLine, Trash2, Upload as UploadIcon, X,
+  AlertCircle, ArrowDown, CheckCircle2, FileText, Loader2,
+  PenLine, Upload as UploadIcon, X,
 } from "lucide-react";
 import SignatureCanvas from "react-signature-canvas";
 
@@ -14,52 +14,28 @@ import OnboardingLayout from "@/components/layouts/OnboardingLayout";
 import { useAuth } from "@/lib/auth-context";
 import {
   getOnboardingRoute, getParticipantMe, getProgramSelection, getTerms,
-  isDashboardStatus, listMyChecks, markCheckNotApplicable,
-  signParticipantAgreement, uploadCheckSoftCopy,
-  type CheckDocumentDTO, type ProgramSelectionDTO, type TermsResponse,
-  type UserDTO,
+  isDashboardStatus, signParticipantAgreement,
+  type ProgramSelectionDTO, type TermsResponse, type UserDTO,
 } from "@/lib/api";
 
 /**
  * On-site agreement signing.
  *
- * Single screen:
- *   1. Participant + program summary
- *   2. Scrollable terms (must scroll to bottom)
- *   3. Check soft-copy upload (or mark N/A)
- *   4. Legal name + digital signature
- *   5. Confirmation checkbox
- *   6. "Sign Agreement →" button — server persists row, emails the
- *      signed PDF, routes to ERM, kicks off the onboarding chain,
- *      then we redirect to /welcome.
+ * One screen, one action: review the program details + agreement
+ * terms, type your legal name, sign, accept. Server persists the
+ * verified row, generates + emails the signed PDF, transitions
+ * workflow to AGREEMENT_COMPLETED, then we redirect to /check-upload
+ * (where the participant either uploads check soft-copies or marks
+ * the step not applicable).
+ *
+ * Check upload moved out of this page per PRD Section 4 — it lives
+ * on its own /check-upload page now.
  */
 
 const AGREEMENT_VERSION = "v1.0";
 const ACK_VERSION = "ACK-v1.0";
 const SVC_VERSION = "SVC-v1.0";
 const MAX_SIGNATURE_BYTES = 2 * 1024 * 1024;
-
-interface CheckDraft {
-  id: string;
-  file: File | null;
-  checkNumber: string;
-  amount: string;
-  checkDate: string;
-  notes: string;
-  uploading: boolean;
-  error: string;
-}
-
-const newDraft = (): CheckDraft => ({
-  id: Math.random().toString(36).slice(2),
-  file: null,
-  checkNumber: "",
-  amount: "",
-  checkDate: "",
-  notes: "",
-  uploading: false,
-  error: "",
-});
 
 export default function AgreementPage() {
   const router = useRouter();
@@ -75,10 +51,6 @@ export default function AgreementPage() {
   const [scrolledToBottom, setScrolledToBottom] = useState(false);
   const [confirmAccept, setConfirmAccept] = useState(false);
   const [legalName, setLegalName] = useState("");
-
-  const [checkMode, setCheckMode] = useState<"undecided" | "na" | "upload">("undecided");
-  const [checks, setChecks] = useState<CheckDocumentDTO[]>([]);
-  const [drafts, setDrafts] = useState<CheckDraft[]>([newDraft()]);
 
   const [signatureMethod, setSignatureMethod] = useState<"draw" | "upload">("draw");
   const [signatureData, setSignatureData] = useState<string | null>(null);
@@ -104,9 +76,7 @@ export default function AgreementPage() {
         const me = await getParticipantMe();
         if (cancelled) return;
         const status = me.currentStatus;
-        const eligible = [
-          "PROGRAM_SELECTED", "AGREEMENT_SENT", "CHECK_COPY_UPLOADED",
-        ].includes(status ?? "");
+        const eligible = ["PROGRAM_SELECTED", "AGREEMENT_SENT"].includes(status ?? "");
         if (!eligible && !isDashboardStatus(status)) {
           router.replace(getOnboardingRoute(status));
           return;
@@ -117,14 +87,12 @@ export default function AgreementPage() {
         }
         setProfile(me);
         if (me.fullName) setLegalName(me.fullName);
-        const [progRes, termsRes, checksRes] = await Promise.allSettled([
+        const [progRes, termsRes] = await Promise.allSettled([
           getProgramSelection(),
           getTerms(),
-          listMyChecks(),
         ]);
         if (progRes.status === "fulfilled") setProgram(progRes.value);
         if (termsRes.status === "fulfilled") setTerms(termsRes.value);
-        if (checksRes.status === "fulfilled") setChecks(checksRes.value);
         setGateChecked(true);
       } catch (err) {
         if (!cancelled) {
@@ -137,14 +105,11 @@ export default function AgreementPage() {
   }, [authLoading, isAuthenticated, router]);
 
   const nameWordCount = legalName.trim().split(/\s+/).filter(Boolean).length;
-  const checkPhaseSatisfied =
-    checkMode === "na" || (checkMode === "upload" && checks.length > 0);
   const canSign =
     scrolledToBottom
     && confirmAccept
     && nameWordCount >= 2
     && !!signatureData
-    && checkPhaseSatisfied
     && !signing
     && !signed;
 
@@ -193,43 +158,6 @@ export default function AgreementPage() {
     }
   };
 
-  const handleMarkCheckNA = async () => {
-    try {
-      await markCheckNotApplicable();
-      setCheckMode("na");
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Couldn't mark check as N/A");
-    }
-  };
-
-  const handleUploadCheck = async (draftId: string) => {
-    const draft = drafts.find((d) => d.id === draftId);
-    if (!draft || !draft.file) {
-      patchDraft(draftId, { error: "Pick a file first" });
-      return;
-    }
-    patchDraft(draftId, { uploading: true, error: "" });
-    try {
-      const result = await uploadCheckSoftCopy(draft.file, {
-        checkNumber: draft.checkNumber || undefined,
-        amount: draft.amount ? Number(draft.amount) : undefined,
-        checkDate: draft.checkDate || undefined,
-        notes: draft.notes || undefined,
-      });
-      setChecks((prev) => [...prev, result]);
-      setDrafts((prev) => prev.filter((d) => d.id !== draftId));
-      setCheckMode("upload");
-    } catch (err) {
-      patchDraft(draftId, { error: err instanceof Error ? err.message : "Upload failed" });
-    } finally {
-      patchDraft(draftId, { uploading: false });
-    }
-  };
-
-  const patchDraft = (id: string, patch: Partial<CheckDraft>) => {
-    setDrafts((prev) => prev.map((d) => d.id === id ? { ...d, ...patch } : d));
-  };
-
   const handleSign = async () => {
     if (!canSign || !signatureData) return;
     setSigning(true);
@@ -241,7 +169,10 @@ export default function AgreementPage() {
         signatureMethod,
       });
       setSigned(true);
-      setTimeout(() => { window.location.href = "/welcome"; }, 1200);
+      // Next step in the lifecycle is check upload; backend has
+      // transitioned to AGREEMENT_COMPLETED, the routing guard
+      // will route AGREEMENT_COMPLETED → /check-upload.
+      setTimeout(() => { window.location.href = "/check-upload"; }, 1200);
     } catch (err) {
       setSignError(err instanceof Error ? err.message : "Couldn't sign agreement");
     } finally {
@@ -262,7 +193,8 @@ export default function AgreementPage() {
         <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 text-center">
           <AlertCircle size={20} className="text-red-600 inline-block mb-2" />
           <p className="text-sm text-red-700">{gateError}</p>
-          <Link href="/program-selection" className="text-xs text-[#0F766E] font-semibold hover:underline mt-3 inline-block">
+          <Link href="/program-selection"
+            className="text-xs text-[#0F766E] font-semibold hover:underline mt-3 inline-block">
             ← Back to program selection
           </Link>
         </div>
@@ -286,8 +218,9 @@ export default function AgreementPage() {
               Review and sign your agreement
             </h1>
             <p className="text-gray-500 mt-1 text-sm">
-              Confirm your details, upload any required check soft-copies, add
-              your digital signature, then sign your agreement on this page.
+              Confirm your details, add your digital signature, then sign your
+              agreement. The next step is uploading check soft-copies (or marking
+              that step not applicable).
             </p>
 
             <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/60 p-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -459,114 +392,6 @@ export default function AgreementPage() {
               )}
             </div>
 
-            <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50/60 p-4">
-              <p className="text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-2">
-                Check soft-copies
-              </p>
-              <div className="flex items-center gap-2 mb-3">
-                <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="checkMode"
-                    checked={checkMode === "na"}
-                    onChange={handleMarkCheckNA}
-                    className="accent-[#0F766E]"
-                  />
-                  <span>Check upload is not applicable to me</span>
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                <label className="inline-flex items-center gap-1.5 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="checkMode"
-                    checked={checkMode === "upload"}
-                    onChange={() => setCheckMode("upload")}
-                    className="accent-[#0F766E]"
-                  />
-                  <span>Upload check soft-copies</span>
-                </label>
-              </div>
-
-              {checks.length > 0 && (
-                <div className="mt-3 space-y-1.5">
-                  {checks.map((c) => (
-                    <div key={c.id} className="flex items-center gap-2 text-xs rounded-lg border border-emerald-200 bg-emerald-50/50 px-3 py-2">
-                      <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
-                      <span className="font-medium text-gray-800">
-                        Check #{c.checkNumber || c.id} uploaded
-                      </span>
-                      <span className="text-gray-500 ml-auto">{c.reviewStatus}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {checkMode === "upload" && (
-                <div className="mt-3 space-y-3">
-                  {drafts.map((d) => (
-                    <div key={d.id} className="rounded-lg border border-gray-200 bg-white p-3">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div className="sm:col-span-2">
-                          <label className="block text-[11px] font-medium text-gray-700 mb-1">
-                            Check image <span className="text-red-500">*</span>
-                          </label>
-                          <input type="file" accept="application/pdf,image/png,image/jpeg,image/jpg"
-                            onChange={(e) => patchDraft(d.id, { file: e.target.files?.[0] ?? null, error: "" })}
-                            className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-[#0F766E] file:text-white hover:file:bg-[#0D9488] cursor-pointer"
-                          />
-                        </div>
-                        <input type="text" placeholder="Check number" value={d.checkNumber}
-                          onChange={(e) => patchDraft(d.id, { checkNumber: e.target.value })}
-                          className="px-3 py-1.5 text-xs rounded-md border border-gray-200" />
-                        <input type="number" placeholder="Amount" value={d.amount}
-                          onChange={(e) => patchDraft(d.id, { amount: e.target.value })}
-                          className="px-3 py-1.5 text-xs rounded-md border border-gray-200" />
-                        <input type="date" value={d.checkDate}
-                          onChange={(e) => patchDraft(d.id, { checkDate: e.target.value })}
-                          className="px-3 py-1.5 text-xs rounded-md border border-gray-200" />
-                        <input type="text" placeholder="Notes" value={d.notes}
-                          onChange={(e) => patchDraft(d.id, { notes: e.target.value })}
-                          className="px-3 py-1.5 text-xs rounded-md border border-gray-200" />
-                      </div>
-                      {d.error && (
-                        <p className="text-[11px] text-red-600 mt-1.5">{d.error}</p>
-                      )}
-                      <div className="mt-2 flex items-center gap-2">
-                        <button type="button" onClick={() => handleUploadCheck(d.id)}
-                          disabled={d.uploading || !d.file}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                        >
-                          {d.uploading ? <Loader2 size={12} className="animate-spin" /> : <UploadIcon size={12} />}
-                          {d.uploading ? "Uploading…" : "Upload check"}
-                        </button>
-                        {drafts.length > 1 && (
-                          <button type="button"
-                            onClick={() => setDrafts((prev) => prev.filter((x) => x.id !== d.id))}
-                            className="text-gray-400 hover:text-red-600 cursor-pointer"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  <button type="button"
-                    onClick={() => setDrafts((prev) => [...prev, newDraft()])}
-                    className="text-xs font-semibold text-[#0F766E] hover:text-[#0D9488] cursor-pointer"
-                  >
-                    + Add another check
-                  </button>
-                </div>
-              )}
-
-              <p className="mt-2 inline-flex items-start gap-1.5 text-[11px] text-gray-500">
-                <Lock size={11} className="mt-0.5 shrink-0" />
-                Check images are stored in a restricted vault. Only Finance and authorised
-                operations admins can view the underlying file.
-              </p>
-            </div>
-
             {signError && (
               <p className="mt-3 inline-flex items-center gap-1.5 text-sm text-red-600">
                 <AlertCircle size={14} /> {signError}
@@ -597,8 +422,8 @@ export default function AgreementPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Agreement signed</h1>
             <p className="text-sm text-gray-600 mt-2 max-w-md mx-auto">
-              Your signed agreement has been emailed to you and routed to the operations team.
-              Taking you to your welcome page…
+              Your signed agreement has been emailed to you. Next: upload check
+              soft-copies (or mark this step not applicable).
             </p>
           </motion.section>
         )}

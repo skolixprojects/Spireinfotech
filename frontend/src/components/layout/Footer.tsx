@@ -9,17 +9,19 @@ import { Mail, Phone } from "lucide-react";
 // don't have content for. Social icons were all href="#" — dropped.
 const columns = [
   {
-    title: "Programs",
+    title: "Browse",
     links: [
-      { label: "About", href: "/about" },
-      { label: "Support", href: "/support" },
+      { label: "Courses", href: "/courses" },
+      { label: "Services", href: "/services" },
     ],
   },
   {
-    title: "Account",
+    title: "Company",
     links: [
-      { label: "Get Started", href: "/enroll" },
+      { label: "About", href: "/about" },
+      { label: "Support", href: "/support" },
       { label: "Sign In", href: "/login" },
+      { label: "Sign Up", href: "/signup" },
     ],
   },
 ];
@@ -42,8 +44,7 @@ export function Footer() {
               <span>{APP_NAME}</span>
             </Link>
             <p className="mt-3 text-sm text-white/70 leading-relaxed max-w-xs">
-              Career development and staffing services — coaching, interview
-              preparation, and job-navigation support tailored to your goals.
+              Self-paced courses with real human mentorship.
             </p>
             <div className="mt-4 flex items-center gap-3 text-sm text-white/60">
               <Mail size={14} />

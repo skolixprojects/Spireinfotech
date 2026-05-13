@@ -49,18 +49,18 @@ export default function CTASection() {
 
         <div className="relative mx-auto max-w-3xl px-6 text-center">
           <h2 className="font-serif text-3xl sm:text-4xl lg:text-5xl font-bold text-white">
-            Ready to begin?
+            Ready to start learning?
           </h2>
 
           <p className="mt-5 text-[#14B8A6] text-lg sm:text-xl">
-            Create your participant profile and start the program in minutes.
+            Create your free account and browse courses with real mentorship.
           </p>
 
           <Link
             href="/enroll"
             className="mt-8 inline-flex items-center justify-center rounded-full bg-white px-10 py-4 text-base font-semibold text-[#0F766E] shadow-lg transition-all duration-200 hover:bg-[#F0EDE8] hover:scale-[1.02] hover:shadow-xl active:scale-[0.98]"
           >
-            Get Started →
+            Get Started
           </Link>
         </div>
       </motion.div>

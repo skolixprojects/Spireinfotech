@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-@ConditionalOnProperty(prefix = "legacy.lms", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequestMapping("/api/courses")
 @RequiredArgsConstructor

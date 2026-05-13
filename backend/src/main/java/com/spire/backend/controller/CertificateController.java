@@ -18,7 +18,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-@ConditionalOnProperty(prefix = "legacy.lms", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequestMapping("/api/certificates")
 @RequiredArgsConstructor

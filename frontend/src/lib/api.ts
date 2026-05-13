@@ -1405,17 +1405,21 @@ export function getOnboardingRoute(status: string | null | undefined): string {
       return "/program-selection";
     case "PROGRAM_SELECTED":
     case "AGREEMENT_SENT":
-    case "CHECK_COPY_UPLOADED":
-      // /agreement is the on-site signing surface — review, optional
-      // check upload, signature, accept.
+      // /agreement is the on-site signing surface — review,
+      // signature, accept. Check soft-copy upload moved to its
+      // own page (/check-upload) which sits after agreement.
       return "/agreement";
     case "AGREEMENT_COMPLETED":
+      // Step between signing and welcome — upload check
+      // soft-copies (or mark not applicable).
+      return "/check-upload";
+    case "CHECK_COPY_UPLOADED":
     case "SIGNED_AGREEMENT_SENT_TO_ERM":
     case "WELCOME_SENT":
     case "DEEPTHI_INTRO_SENT":
     case "ERM_ASSIGNED":
     case "COACHES_ASSIGNED":
-      // Phase 4 — between agreement completion and Gate 5
+      // Phase 4 — between check upload and Gate 5
       // (dashboard enabled), the participant stays on /welcome
       // which polls for team-assembly progress.
       return "/welcome";

@@ -15,7 +15,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
-@ConditionalOnProperty(prefix = "legacy.lms", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequiredArgsConstructor
 public class LessonController {
