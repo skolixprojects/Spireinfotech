@@ -1433,7 +1433,18 @@ export function getOnboardingRoute(status: string | null | undefined): string {
     case "PAYMENTS_TRACKED":
       return "/dashboard";
     default:
-      return "/enroll";
+      // Unknown / null status. We can't tell where the user is in
+      // their lifecycle. Returning "/enroll" was unsafe — it bounced
+      // signed-in users with a real participant_id back to the
+      // public enrollment page if there was ANY brief moment of
+      // missing currentStatus. Return "/dashboard" instead and let
+      // the dashboard guard run its own refresh + fallback to
+      // /enroll only when participantId is genuinely absent.
+      if (typeof window !== "undefined") {
+        console.warn("[onboarding] unknown status", status,
+                "— routing to /dashboard for re-evaluation");
+      }
+      return "/dashboard";
   }
 }
 

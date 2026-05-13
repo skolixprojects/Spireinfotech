@@ -82,13 +82,33 @@ export default function CheckUploadPage() {
           "AGREEMENT_COMPLETED", "CHECK_COPY_UPLOADED",
           "SIGNED_AGREEMENT_SENT_TO_ERM",
         ].includes(status ?? "");
-        if (!eligible && !isDashboardStatus(status)) {
-          router.replace(getOnboardingRoute(status));
-          return;
-        }
+        // Strictly past this step — go forward.
         if (isDashboardStatus(status)) {
           router.replace("/dashboard");
           return;
+        }
+        // Clearly earlier in the lifecycle (acknowledgment, docs,
+        // program, agreement-sent) — bounce back to that step.
+        const earlierSteps = [
+          "DRAFT_STARTED", "BASIC_INFO_SUBMITTED",
+          "EMAIL_VERIFICATION_PENDING", "EMAIL_VERIFIED",
+          "PARTICIPANT_ID_CREATED", "ID_EMAIL_SENT",
+          "ACKNOWLEDGMENT_ACCEPTED", "DOCUMENTS_SUBMITTED",
+          "DOC_REVIEW_PENDING", "PROGRAM_SELECTED",
+          "AGREEMENT_SENT",
+        ];
+        if (status && earlierSteps.includes(status)) {
+          router.replace(getOnboardingRoute(status));
+          return;
+        }
+        // Anything else (eligible OR null/unknown) — render. Don't
+        // punt back to /enroll on a transient missing status; the
+        // user got here legitimately from /agreement.
+        if (!eligible && status) {
+          // Genuinely unexpected — log so we can diagnose, but
+          // still render so the user isn't dead-ended.
+          console.warn("[check-upload] unexpected status", status,
+                  "— rendering anyway");
         }
         const existing = await listMyChecks().catch(() => []);
         if (!cancelled) {

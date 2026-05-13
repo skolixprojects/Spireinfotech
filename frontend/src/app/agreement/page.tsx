@@ -76,15 +76,40 @@ export default function AgreementPage() {
         const me = await getParticipantMe();
         if (cancelled) return;
         const status = me.currentStatus;
-        const eligible = ["PROGRAM_SELECTED", "AGREEMENT_SENT"].includes(status ?? "");
-        if (!eligible && !isDashboardStatus(status)) {
-          router.replace(getOnboardingRoute(status));
+        // Already past this step — forward.
+        if (status === "AGREEMENT_COMPLETED") {
+          router.replace("/check-upload");
+          return;
+        }
+        if (status === "CHECK_COPY_UPLOADED"
+            || status === "SIGNED_AGREEMENT_SENT_TO_ERM"
+            || status === "WELCOME_SENT"
+            || status === "DEEPTHI_INTRO_SENT"
+            || status === "ERM_ASSIGNED"
+            || status === "COACHES_ASSIGNED") {
+          router.replace("/welcome");
           return;
         }
         if (isDashboardStatus(status)) {
           router.replace("/dashboard");
           return;
         }
+        // Earlier in the lifecycle — bounce back to that step.
+        const earlierSteps = [
+          "DRAFT_STARTED", "BASIC_INFO_SUBMITTED",
+          "EMAIL_VERIFICATION_PENDING", "EMAIL_VERIFIED",
+          "PARTICIPANT_ID_CREATED", "ID_EMAIL_SENT",
+          "ACKNOWLEDGMENT_ACCEPTED", "DOCUMENTS_SUBMITTED",
+          "DOC_REVIEW_PENDING",
+        ];
+        if (status && earlierSteps.includes(status)) {
+          router.replace(getOnboardingRoute(status));
+          return;
+        }
+        // Anything else (PROGRAM_SELECTED, AGREEMENT_SENT, or null /
+        // unknown) — render the signing form. Don't punt to /enroll
+        // on a transient missing status; the user got here
+        // legitimately from /program-selection.
         setProfile(me);
         if (me.fullName) setLegalName(me.fullName);
         const [progRes, termsRes] = await Promise.allSettled([

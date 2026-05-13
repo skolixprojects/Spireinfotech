@@ -63,21 +63,26 @@ export default function WelcomePage() {
         const me = await getParticipantMe();
         if (cancelled) return;
         const s = me.currentStatus;
-        // Welcome is for users between agreement-completed and
-        // dashboard-enabled. Earlier statuses get bounced back.
-        const eligible = [
-          "AGREEMENT_COMPLETED", "SIGNED_AGREEMENT_SENT_TO_ERM",
-          "WELCOME_SENT", "DEEPTHI_INTRO_SENT",
-          "ERM_ASSIGNED", "COACHES_ASSIGNED",
-        ].includes(s ?? "");
+        // Past the welcome step — go to the dashboard.
         if (isDashboardStatus(s)) {
           router.replace("/dashboard");
           return;
         }
-        if (!eligible) {
+        // Earlier in the lifecycle — bounce back to that step.
+        const earlierSteps = [
+          "DRAFT_STARTED", "BASIC_INFO_SUBMITTED",
+          "EMAIL_VERIFICATION_PENDING", "EMAIL_VERIFIED",
+          "PARTICIPANT_ID_CREATED", "ID_EMAIL_SENT",
+          "ACKNOWLEDGMENT_ACCEPTED", "DOCUMENTS_SUBMITTED",
+          "DOC_REVIEW_PENDING", "PROGRAM_SELECTED",
+          "AGREEMENT_SENT", "AGREEMENT_COMPLETED",
+        ];
+        if (s && earlierSteps.includes(s)) {
           router.replace(getOnboardingRoute(s));
           return;
         }
+        // Eligible (CHECK_COPY_UPLOADED → COACHES_ASSIGNED) OR
+        // unknown/null. Render and let the poll loop show progress.
         setProfile(me);
         const [progRes, statusRes] = await Promise.allSettled([
           getProgramSelection(),
