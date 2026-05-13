@@ -21,6 +21,7 @@ import java.util.Map;
  * authenticated-only so any logged-in student can dry-run a code from
  * their cart page before committing to checkout.
  */
+@ConditionalOnProperty(prefix = "legacy.lms", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequiredArgsConstructor
 public class CouponController {

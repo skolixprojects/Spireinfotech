@@ -14,6 +14,7 @@ import javax.crypto.spec.SecretKeySpec;
 import java.util.HexFormat;
 import java.util.Map;
 
+@ConditionalOnProperty(prefix = "legacy.lms", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequestMapping("/api/webhooks")
 @RequiredArgsConstructor

@@ -17,6 +17,7 @@ import java.util.Map;
  * managing announcements. Method-level @PreAuthorize keeps the
  * mutating endpoints behind ROLE_ADMIN.
  */
+@ConditionalOnProperty(prefix = "legacy.lms", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequestMapping("/api/announcements")
 @RequiredArgsConstructor

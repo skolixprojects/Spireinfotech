@@ -18,6 +18,7 @@ import java.util.Map;
  * Keeps the student/instructor SalesController free of a mismatched
  * class-level @RequestMapping.
  */
+@ConditionalOnProperty(prefix = "legacy.lms", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequestMapping("/api/admin/sales")
 @RequiredArgsConstructor

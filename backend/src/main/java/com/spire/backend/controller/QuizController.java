@@ -31,6 +31,7 @@ import java.util.Map;
  * QuizOption / QuizAnswer model. The old QuizSection / QuizBuilder
  * frontend components are also retired in favor of the new pages.
  */
+@ConditionalOnProperty(prefix = "legacy.lms", name = "enabled", havingValue = "true", matchIfMissing = false)
 @RestController
 @RequiredArgsConstructor
 public class QuizController {
