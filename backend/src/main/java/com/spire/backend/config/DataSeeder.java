@@ -119,23 +119,52 @@ public class DataSeeder implements CommandLineRunner {
 
         try {
             // agreement_acceptances → agreement_records to match the
-            // PRD vocabulary. The entity now maps to agreement_records;
-            // this rename moves any pre-existing rows over. Postgres
-            // syntax; MySQL 8 also accepts RENAME TABLE … TO …. The
-            // CREATE-after-RENAME pattern handles the case where the
-            // entity already auto-created agreement_records on a
-            // fresh database (in which case there's no source table).
-            Integer count = jdbcTemplate.queryForObject(
+            // PRD vocabulary. The entity now maps to agreement_records.
+            // We have to reason about FOUR possible DB states:
+            //   1. Only old table exists (pre-rename DB) → rename it.
+            //   2. Only new table exists (fresh deploy, Hibernate auto-
+            //      created from @Table) → nothing to do.
+            //   3. Both exist (rolled-back deploy re-created the new
+            //      table while the old was still around) → drop the
+            //      empty legacy table; if it has rows, leave it and
+            //      log for manual reconciliation rather than fail the
+            //      whole startup.
+            //   4. Neither exists → nothing to do.
+            //
+            // Previous code only checked case 1. Hitting case 3 in
+            // production raised "relation agreement_records already
+            // exists", which Postgres treats as a fatal error inside
+            // the seeder's @Transactional, aborting the whole
+            // transaction and failing every later query (roles, etc.).
+            Integer oldExists = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM information_schema.tables "
                     + "WHERE table_name = 'agreement_acceptances'",
                     Integer.class);
-            if (count != null && count > 0) {
+            Integer newExists = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.tables "
+                    + "WHERE table_name = 'agreement_records'",
+                    Integer.class);
+            boolean haveOld = oldExists != null && oldExists > 0;
+            boolean haveNew = newExists != null && newExists > 0;
+            if (haveOld && !haveNew) {
                 jdbcTemplate.execute(
                         "ALTER TABLE agreement_acceptances RENAME TO agreement_records");
                 log.info("Renamed agreement_acceptances → agreement_records.");
+            } else if (haveOld && haveNew) {
+                Integer rows = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM agreement_acceptances", Integer.class);
+                if (rows == null || rows == 0) {
+                    jdbcTemplate.execute("DROP TABLE IF EXISTS agreement_acceptances");
+                    log.info("Dropped empty legacy agreement_acceptances "
+                            + "(agreement_records is canonical).");
+                } else {
+                    log.warn("Both agreement_acceptances ({} rows) and "
+                            + "agreement_records exist. Skipping rename; "
+                            + "manual reconciliation needed.", rows);
+                }
             }
         } catch (Exception e) {
-            log.warn("agreement_acceptances rename skipped: {}", e.getMessage());
+            log.warn("agreement_acceptances rename/cleanup skipped: {}", e.getMessage());
         }
 
         // Phase 4 — seed a starter ERM + coach team so dev / first
