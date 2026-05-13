@@ -576,12 +576,18 @@ public class DataSeeder implements CommandLineRunner {
         Role ermRole = roleRepository.findByName("ERM").orElse(null);
         Role coachRole = roleRepository.findByName("COACH").orElse(null);
         Role techAdvisorRole = roleRepository.findByName("TECHNICAL_ADVISOR").orElse(null);
+        Role financeRole = roleRepository.findByName("FINANCE").orElse(null);
+        Role opsAdminRole = roleRepository.findByName("OPERATIONS_ADMIN").orElse(null);
         if (ermRole == null || coachRole == null || techAdvisorRole == null) {
             log.warn("Phase 4 roles missing — skipping seed");
             return;
         }
         String defaultPassword = passwordEncoder.encode("spire-team-2026");
 
+        // Legacy dev seeds — kept for back-compat with any tests /
+        // scripts that hard-coded these addresses. Default password
+        // is the shared "spire-team-2026"; production should rotate
+        // through the admin panel.
         seedTeamUser("deepthi.erm@spire.dev", "Deepthi R", ermRole, defaultPassword,
                 "Program coordinator and Employee Relationship Manager.");
         seedTeamUser("arjun.coach@spire.dev", "Arjun Menon", coachRole, defaultPassword,
@@ -590,6 +596,34 @@ public class DataSeeder implements CommandLineRunner {
                 "Technical advisor — Java Full Stack, Python Full Stack, Cloud & DevOps.");
         seedTeamUser("rahul.interview@spire.dev", "Rahul Kapoor", coachRole, defaultPassword,
                 "Interview coach — mock interviews, communication training.");
+
+        // Production-style staff accounts — one per role, each with
+        // a distinct password so credentials can be handed out
+        // individually rather than sharing one password across the
+        // whole team. Operations should rotate these on first login.
+        seedTeamUser("erm@spireitco.com", "Deepthi R", ermRole,
+                passwordEncoder.encode("SpireERM@2026"),
+                "Employee Relationship Manager — primary participant point of contact.");
+        seedTeamUser("coach@spireitco.com", "Arjun Mehta", coachRole,
+                passwordEncoder.encode("SpireCoach@2026"),
+                "Career coach — resume, profile, interview prep.");
+        seedTeamUser("advisor@spireitco.com", "Priya Sharma", techAdvisorRole,
+                passwordEncoder.encode("SpireAdvisor@2026"),
+                "Technical advisor — Java, Python, Cloud & DevOps mentorship.");
+        if (financeRole != null) {
+            seedTeamUser("finance@spireitco.com", "Rahul Kumar", financeRole,
+                    passwordEncoder.encode("SpireFinance@2026"),
+                    "Finance — payment plans, invoices, check tracking.");
+        } else {
+            log.warn("FINANCE role missing — finance@spireitco.com not seeded");
+        }
+        if (opsAdminRole != null) {
+            seedTeamUser("admin@spireitco.com", "Admin User", opsAdminRole,
+                    passwordEncoder.encode("SpireAdmin@2026"),
+                    "Operations admin — enrollment queue, document review, assignments.");
+        } else {
+            log.warn("OPERATIONS_ADMIN role missing — admin@spireitco.com not seeded");
+        }
     }
 
     private void seedTeamUser(String email, String fullName, Role role,
