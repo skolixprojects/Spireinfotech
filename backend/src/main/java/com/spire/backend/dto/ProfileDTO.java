@@ -34,6 +34,23 @@ public class ProfileDTO {
     private LocalDateTime createdAt;
     private Boolean onboardingCompleted;
 
+    // ── UserDTO parity fields ───────────────────────────────────
+    // Critical for the auth-context refresh path: the frontend
+    // calls /api/users/profile and stores the response as the
+    // user object. Missing these would cascade into the dashboard
+    // routing guard reading user.currentStatus = undefined and
+    // sending the user to the "Complete your enrollment" fallback
+    // even after they finish onboarding.
+    private Boolean isActive;
+    private Boolean instructorApproved;
+    private Boolean agreementAccepted;
+    private LocalDateTime deactivatedAt;
+    private String participantId;
+    private String currentStatus;
+    private Boolean emailVerified;
+    private String selectedTechnology;
+    private String availability;
+
     private Integer enrolledCoursesCount;
     private Integer completedCoursesCount;
     private Integer certificatesCount;
@@ -154,6 +171,15 @@ public class ProfileDTO {
                 .location(user.getLocation())
                 .createdAt(user.getCreatedAt())
                 .onboardingCompleted(Boolean.TRUE.equals(user.getOnboardingCompleted()))
+                .isActive(Boolean.TRUE.equals(user.getIsActive()))
+                .instructorApproved(Boolean.TRUE.equals(user.getInstructorApproved()))
+                .agreementAccepted(Boolean.TRUE.equals(user.getAgreementAccepted()))
+                .deactivatedAt(user.getDeactivatedAt())
+                .participantId(user.getParticipantId())
+                .currentStatus(user.getCurrentStatus())
+                .emailVerified(Boolean.TRUE.equals(user.getEmailVerified()))
+                .selectedTechnology(user.getSelectedTechnology())
+                .availability(user.getAvailability())
                 .enrolledCoursesCount(enrolledCoursesCount)
                 .completedCoursesCount(completedCoursesCount)
                 .certificatesCount(certificatesCount)
