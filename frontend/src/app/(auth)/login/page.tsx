@@ -67,17 +67,19 @@ function LoginForm() {
       //   - Staff roles → role-specific dashboard.
       //   - Everyone else → original redirect target.
       const status = auth.user?.currentStatus;
-      const role = (auth.user?.role ?? "").toUpperCase();
+      const role = auth.user?.role ?? "";
       // Lazy import to avoid pulling the helpers into every page
       // bundle just for this branch.
       const { getOnboardingRoute, isDashboardStatus, dashboardRouteForRole } =
         await import("@/lib/api");
       // Staff roles route to their own dashboards regardless of
       // currentStatus (they don't have a participant lifecycle).
-      if (role === "ERM" || role === "COACH" || role === "TECHNICAL_ADVISOR"
-          || role === "FINANCE" || role === "OPERATIONS_ADMIN"
-          || role === "SYSTEM_ADMIN" || role === "INSTRUCTOR") {
-        window.location.href = dashboardRouteForRole(role);
+      // Resolve via dashboardRouteForRole so legacy ADMIN, SYSTEM_ADMIN,
+      // OPERATIONS_ADMIN, INSTRUCTOR, etc. all funnel through the
+      // same map — no hand-maintained role list to forget on.
+      const roleRoute = dashboardRouteForRole(role);
+      if (roleRoute !== "/dashboard") {
+        window.location.href = roleRoute;
         return;
       }
       if (status) {
