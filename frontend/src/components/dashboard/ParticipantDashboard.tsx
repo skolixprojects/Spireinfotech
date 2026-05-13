@@ -862,61 +862,70 @@ function MyCoursesTab() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="font-serif text-2xl font-bold text-gray-900">My courses</h1>
-        <Link href="/courses"
-          className="text-xs font-semibold text-[#0F766E] hover:text-[#0D9488] cursor-pointer inline-flex items-center gap-1">
-          Browse courses →
-        </Link>
-      </div>
+      <h1 className="font-serif text-2xl font-bold text-gray-900">My courses</h1>
       <p className="text-sm text-gray-500">
-        Self-paced technical development modules from the LMS catalog.
-        These complement your Phase-1 weekly coaching plan.
+        Self-paced technical development modules. These complement your
+        Phase-1 weekly coaching plan.
       </p>
       {error && <p className="inline-flex items-center gap-1.5 text-sm text-red-600">
         <AlertCircle size={14} /> {error}</p>}
 
       {rows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 p-6 text-center">
-          <BookOpen size={20} className="text-gray-400 inline-block mb-2" />
+        <div className="rounded-2xl border border-dashed border-gray-200 bg-gray-50/60 p-8 text-center">
+          <BookOpen size={28} className="text-gray-400 inline-block mb-2" />
           <p className="text-sm text-gray-600">You haven&apos;t enrolled in any courses yet.</p>
-          <Link href="/courses"
-            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] cursor-pointer">
-            Browse courses →
+          <p className="text-xs text-gray-500 mt-1">
+            Browse our catalog to get started.
+          </p>
+          <Link href="/courses" target="_blank" rel="noopener"
+            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-md text-xs font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] cursor-pointer">
+            Browse Courses →
           </Link>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {rows.map((r) => {
-            const cid = r.courseId ?? (typeof r.id === "number" ? r.id : 0);
-            const pct = typeof r.progressPercent === "number"
-              ? r.progressPercent
-              : typeof r.progress === "number" ? r.progress : 0;
-            return (
-              <Link key={String(r.id ?? cid)} href={`/courses/${cid}`}
-                className="block rounded-2xl border border-gray-100 bg-white p-4 hover:shadow-md transition">
-                <div className="aspect-video rounded-lg bg-gray-100 mb-3 overflow-hidden flex items-center justify-center">
-                  {r.thumbnailUrl
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    ? <img src={r.thumbnailUrl} alt={r.courseTitle ?? r.title ?? ""}
-                        className="w-full h-full object-cover" />
-                    : <BookOpen size={24} className="text-gray-400" />}
-                </div>
-                <p className="text-sm font-semibold text-gray-900 line-clamp-2">
-                  {r.courseTitle ?? r.title ?? "Untitled course"}
-                </p>
-                <div className="mt-2">
-                  <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
-                    <div className="h-full bg-[#0F766E]" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {rows.map((r) => {
+              const cid = r.courseId ?? (typeof r.id === "number" ? r.id : 0);
+              const pct = typeof r.progressPercent === "number"
+                ? r.progressPercent
+                : typeof r.progress === "number" ? r.progress : 0;
+              return (
+                <div key={String(r.id ?? cid)}
+                  className="flex flex-col rounded-2xl border border-gray-100 bg-white p-4 hover:shadow-md transition">
+                  <div className="aspect-video rounded-lg bg-gray-100 mb-3 overflow-hidden flex items-center justify-center">
+                    {r.thumbnailUrl
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      ? <img src={r.thumbnailUrl} alt={r.courseTitle ?? r.title ?? ""}
+                          className="w-full h-full object-cover" />
+                      : <BookOpen size={24} className="text-gray-400" />}
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-1">
-                    {pct}% complete{r.completed ? " · ✅" : ""}
+                  <p className="text-sm font-semibold text-gray-900 line-clamp-2 mb-2">
+                    {r.courseTitle ?? r.title ?? "Untitled course"}
                   </p>
+                  <div className="mt-auto">
+                    <div className="h-1.5 w-full rounded-full bg-gray-100 overflow-hidden">
+                      <div className="h-full bg-[#0F766E]" style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+                    </div>
+                    <p className="text-[10px] text-gray-500 mt-1 mb-2">
+                      {pct}% complete{r.completed ? " · ✅" : ""}
+                    </p>
+                    <Link href={`/courses/${cid}`} target="_blank" rel="noopener"
+                      className="inline-flex items-center justify-center gap-1.5 w-full px-3 py-1.5 rounded-md text-xs font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] cursor-pointer">
+                      {pct > 0 ? "Continue Learning" : "Start Course"} →
+                    </Link>
+                  </div>
                 </div>
-              </Link>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+          <div className="pt-2">
+            <Link href="/courses" target="_blank" rel="noopener"
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-white border border-gray-200 text-[#0F766E] hover:border-[#0F766E] cursor-pointer">
+              Browse More Courses →
+            </Link>
+          </div>
+        </>
       )}
     </div>
   );
