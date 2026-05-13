@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
+import { getOnboardingRoute, isDashboardStatus } from "@/lib/api";
 import ParticipantDashboard from "@/components/dashboard/ParticipantDashboard";
 
 /**
@@ -42,6 +43,18 @@ export default function DashboardPage() {
       router.replace("/admin"); return;
     }
     if (role === "INSTRUCTOR") { router.replace("/instructor"); return; }
+
+    // Participant lifecycle guard: if the user has a currentStatus
+    // but it isn't a dashboard-tier status (i.e. they're mid-
+    // onboarding), bounce them to the right step. Without this, a
+    // user manually typing /dashboard or hitting a stale bookmark
+    // could see the "Complete your enrollment" prompt instead of
+    // the actual page they need to be on.
+    const status = user.currentStatus;
+    if (status && !isDashboardStatus(status)) {
+      router.replace(getOnboardingRoute(status));
+      return;
+    }
   }, [isLoading, user, router]);
 
   if (isLoading) {
