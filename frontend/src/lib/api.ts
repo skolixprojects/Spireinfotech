@@ -1370,7 +1370,14 @@ export function dashboardRouteForRole(role: string | null | undefined): string {
   if (r === "ERM") return "/erm-dashboard";
   if (r === "COACH" || r === "TECHNICAL_ADVISOR") return "/coach-dashboard";
   if (r === "FINANCE") return "/finance-dashboard";
-  if (r === "OPERATIONS_ADMIN" || r === "SYSTEM_ADMIN" || r === "ADMIN") return "/admin";
+  // OPERATIONS_ADMIN / SYSTEM_ADMIN run the participant-lifecycle
+  // operations console at /operations (enrollment queue, doc review,
+  // agreement queue, assignments, audit, exceptions). The legacy
+  // ADMIN role keeps /admin, which still hosts the LMS surface
+  // (courses, sessions, revenue, mentor pools, instructor approvals).
+  // Two distinct routes so the two admin personas don't collide.
+  if (r === "OPERATIONS_ADMIN" || r === "SYSTEM_ADMIN") return "/operations";
+  if (r === "ADMIN") return "/admin";
   if (r === "INSTRUCTOR") return "/instructor";
   return "/dashboard";
 }

@@ -48,9 +48,10 @@ export default function DashboardPage() {
         router.replace("/coach-dashboard"); return;
       }
       if (role === "FINANCE") { router.replace("/finance-dashboard"); return; }
-      if (role === "OPERATIONS_ADMIN" || role === "SYSTEM_ADMIN" || role === "ADMIN") {
-        router.replace("/admin"); return;
+      if (role === "OPERATIONS_ADMIN" || role === "SYSTEM_ADMIN") {
+        router.replace("/operations"); return;
       }
+      if (role === "ADMIN") { router.replace("/admin"); return; }
       if (role === "INSTRUCTOR") { router.replace("/instructor"); return; }
 
       // Participant lifecycle. Pull a fresh profile if the in-memory

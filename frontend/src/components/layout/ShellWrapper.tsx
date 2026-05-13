@@ -26,6 +26,7 @@ const FULLSCREEN_ROUTES = [
   // (sidebar + main column). Don't wrap them in the marketing-site
   // Navbar/Footer, which would compete with the sidebar layout.
   "/dashboard", "/erm-dashboard", "/coach-dashboard", "/finance-dashboard",
+  "/operations",
 ];
 
 export function ShellWrapper({ children }: { children: React.ReactNode }) {
