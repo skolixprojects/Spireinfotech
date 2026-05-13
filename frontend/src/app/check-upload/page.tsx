@@ -56,7 +56,7 @@ const newDraft = (): CheckDraft => ({
 
 export default function CheckUploadPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, refreshUser } = useAuth();
 
   const [gateChecked, setGateChecked] = useState(false);
   const [gateError, setGateError] = useState("");
@@ -142,6 +142,9 @@ export default function CheckUploadPage() {
     setError("");
     try {
       await markCheckNotApplicable();
+      // Refresh auth before navigating so /welcome sees the
+      // CHECK_COPY_UPLOADED (and onward) status.
+      await refreshUser();
       router.push("/welcome");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't mark N/A");
@@ -150,9 +153,12 @@ export default function CheckUploadPage() {
     }
   };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     // Already uploaded — backend has flipped workflow to
-    // CHECK_COPY_UPLOADED on the first successful upload.
+    // CHECK_COPY_UPLOADED on the first successful upload. Refresh
+    // the auth context so downstream routing guards see the new
+    // status before the soft navigation.
+    await refreshUser();
     router.push("/welcome");
   };
 

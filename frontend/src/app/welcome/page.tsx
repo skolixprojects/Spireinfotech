@@ -41,7 +41,7 @@ const COACH_LABELS = [
 
 export default function WelcomePage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
 
   const [gateChecked, setGateChecked] = useState(false);
   const [gateError, setGateError] = useState("");
@@ -115,9 +115,15 @@ export default function WelcomePage() {
   // ── Auto-redirect once ready ─────────────────────────────────
   useEffect(() => {
     if (!status.dashboardReady) return;
-    const t = setTimeout(() => router.replace("/dashboard"), 2200);
+    const t = setTimeout(async () => {
+      // Refresh the auth context so /dashboard sees the new
+      // DASHBOARD_ENABLED status; without this its routing guard
+      // would still see the prior status and bounce the user back.
+      await refreshUser();
+      router.replace("/dashboard");
+    }, 2200);
     return () => clearTimeout(t);
-  }, [status.dashboardReady, router]);
+  }, [status.dashboardReady, router, refreshUser]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -249,7 +255,10 @@ export default function WelcomePage() {
             </button>
             <button
               type="button"
-              onClick={() => router.replace("/dashboard")}
+              onClick={async () => {
+                await refreshUser();
+                router.replace("/dashboard");
+              }}
               disabled={!dashboardReady}
               className={
                 "inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition "

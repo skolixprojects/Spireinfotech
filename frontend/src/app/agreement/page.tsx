@@ -39,7 +39,7 @@ const MAX_SIGNATURE_BYTES = 2 * 1024 * 1024;
 
 export default function AgreementPage() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
 
   const [gateChecked, setGateChecked] = useState(false);
   const [gateError, setGateError] = useState("");
@@ -169,10 +169,15 @@ export default function AgreementPage() {
         signatureMethod,
       });
       setSigned(true);
+      // Refresh the in-memory user so the auth context picks up
+      // the new currentStatus (AGREEMENT_COMPLETED) before we
+      // navigate. Without this, /dashboard's guard would see the
+      // stale PROGRAM_SELECTED status on the next soft-navigation.
+      await refreshUser();
       // Next step in the lifecycle is check upload; backend has
       // transitioned to AGREEMENT_COMPLETED, the routing guard
       // will route AGREEMENT_COMPLETED → /check-upload.
-      setTimeout(() => { window.location.href = "/check-upload"; }, 1200);
+      setTimeout(() => { router.push("/check-upload"); }, 1200);
     } catch (err) {
       setSignError(err instanceof Error ? err.message : "Couldn't sign agreement");
     } finally {

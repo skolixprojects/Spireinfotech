@@ -39,6 +39,15 @@ interface AuthContextValue {
   // Establishes a session from an AuthResponse. Used by the verify
   // page after a successful OTP submission.
   setSession: (data: AuthResponse) => void;
+  /**
+   * Re-fetches /api/users/profile and updates the user object in
+   * the context. Callers should run this after any backend write
+   * that changes participant-lifecycle fields (currentStatus,
+   * participantId, etc.) before navigating, so the next page's
+   * routing guards read fresh data. Returns the refreshed user
+   * (or null if the fetch fails / the user isn't signed in).
+   */
+  refreshUser: () => Promise<AuthUser | null>;
   logout: () => void;
 }
 
@@ -127,6 +136,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     storeTokens(data);
   }, []);
 
+  // Refresh the in-memory user from the backend. Used between
+  // soft-navigations after status-changing writes (agreement sign,
+  // check upload, welcome poll, etc.) so the next page's routing
+  // guards see the current state instead of the stale login-time
+  // copy.
+  const refreshUser = useCallback(async (): Promise<AuthUser | null> => {
+    const token = typeof window === "undefined"
+      ? null : localStorage.getItem("access_token");
+    if (!token) return null;
+    try {
+      const profile = await getProfile();
+      setUser(profile);
+      return profile;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const logout = useCallback(() => {
     apiLogout();
     clearAuth();
@@ -135,7 +162,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, isAuthenticated: !!user, isLoading, login, register, setSession, logout }}
+      value={{
+        user,
+        isAuthenticated: !!user,
+        isLoading,
+        login,
+        register,
+        setSession,
+        refreshUser,
+        logout,
+      }}
     >
       {children}
     </AuthContext.Provider>
