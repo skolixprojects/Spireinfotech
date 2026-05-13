@@ -122,7 +122,7 @@ export default function ProgramSelectionPage() {
 
         // Eligible: status is at DOCUMENTS_SUBMITTED or already
         // PROGRAM_SELECTED (so a returning user can edit). Past
-        // DOCUSIGN_SENT means the selection is locked.
+        // AGREEMENT_SENT means the selection is locked.
         const eligible = [
           "DOCUMENTS_SUBMITTED", "DOC_REVIEW_PENDING", "PROGRAM_SELECTED",
         ].includes(status ?? "");
@@ -131,7 +131,7 @@ export default function ProgramSelectionPage() {
           return;
         }
         const lockedAhead = [
-          "DOCUSIGN_SENT", "CHECK_COPY_UPLOADED", "DOCUSIGN_COMPLETED",
+          "AGREEMENT_SENT", "CHECK_COPY_UPLOADED", "AGREEMENT_COMPLETED",
           "SIGNED_AGREEMENT_SENT_TO_ERM", "WELCOME_SENT", "DEEPTHI_INTRO_SENT",
           "ERM_ASSIGNED", "COACHES_ASSIGNED",
         ];

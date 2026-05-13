@@ -76,6 +76,68 @@ public class DataSeeder implements CommandLineRunner {
         }
         log.info("Phase 1A roles ensured: {}", String.join(", ", phase1aRoles));
 
+        // ── Audit cleanup migrations (idempotent) ───────────────────
+        // Rename legacy workflow status strings to match the PRD
+        // vocabulary, and drop the never-used docusign_envelopes
+        // shadow table. All statements are no-ops if the rows / table
+        // don't exist, so re-running the seeder is safe.
+        try {
+            int u1 = jdbcTemplate.update(
+                    "UPDATE users SET current_status = 'AGREEMENT_SENT' "
+                    + "WHERE current_status = 'DOCUSIGN_SENT'");
+            int u2 = jdbcTemplate.update(
+                    "UPDATE users SET current_status = 'AGREEMENT_COMPLETED' "
+                    + "WHERE current_status = 'DOCUSIGN_COMPLETED'");
+            int w1 = jdbcTemplate.update(
+                    "UPDATE workflow_states SET from_status = 'AGREEMENT_SENT' "
+                    + "WHERE from_status = 'DOCUSIGN_SENT'");
+            int w2 = jdbcTemplate.update(
+                    "UPDATE workflow_states SET to_status = 'AGREEMENT_SENT' "
+                    + "WHERE to_status = 'DOCUSIGN_SENT'");
+            int w3 = jdbcTemplate.update(
+                    "UPDATE workflow_states SET from_status = 'AGREEMENT_COMPLETED' "
+                    + "WHERE from_status = 'DOCUSIGN_COMPLETED'");
+            int w4 = jdbcTemplate.update(
+                    "UPDATE workflow_states SET to_status = 'AGREEMENT_COMPLETED' "
+                    + "WHERE to_status = 'DOCUSIGN_COMPLETED'");
+            log.info("Workflow status rename: users updated = {} + {}, "
+                    + "workflow_states updated = {} + {} + {} + {}",
+                    u1, u2, w1, w2, w3, w4);
+        } catch (Exception e) {
+            log.warn("Status rename migration skipped: {}", e.getMessage());
+        }
+
+        try {
+            // Postgres + MySQL both accept this form. The IF EXISTS
+            // keeps the call no-op-safe across fresh databases that
+            // never had the table.
+            jdbcTemplate.execute("DROP TABLE IF EXISTS docusign_envelopes");
+            log.info("Dropped legacy docusign_envelopes table (if it existed).");
+        } catch (Exception e) {
+            log.warn("docusign_envelopes drop skipped: {}", e.getMessage());
+        }
+
+        try {
+            // agreement_acceptances → agreement_records to match the
+            // PRD vocabulary. The entity now maps to agreement_records;
+            // this rename moves any pre-existing rows over. Postgres
+            // syntax; MySQL 8 also accepts RENAME TABLE … TO …. The
+            // CREATE-after-RENAME pattern handles the case where the
+            // entity already auto-created agreement_records on a
+            // fresh database (in which case there's no source table).
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.tables "
+                    + "WHERE table_name = 'agreement_acceptances'",
+                    Integer.class);
+            if (count != null && count > 0) {
+                jdbcTemplate.execute(
+                        "ALTER TABLE agreement_acceptances RENAME TO agreement_records");
+                log.info("Renamed agreement_acceptances → agreement_records.");
+            }
+        } catch (Exception e) {
+            log.warn("agreement_acceptances rename skipped: {}", e.getMessage());
+        }
+
         // Phase 4 — seed a starter ERM + coach team so dev / first
         // production deploys have a non-empty assignment pool. The
         // OnboardingService chain picks from these candidates when

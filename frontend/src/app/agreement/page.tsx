@@ -105,7 +105,7 @@ export default function AgreementPage() {
         if (cancelled) return;
         const status = me.currentStatus;
         const eligible = [
-          "PROGRAM_SELECTED", "DOCUSIGN_SENT", "CHECK_COPY_UPLOADED",
+          "PROGRAM_SELECTED", "AGREEMENT_SENT", "CHECK_COPY_UPLOADED",
         ].includes(status ?? "");
         if (!eligible && !isDashboardStatus(status)) {
           router.replace(getOnboardingRoute(status));

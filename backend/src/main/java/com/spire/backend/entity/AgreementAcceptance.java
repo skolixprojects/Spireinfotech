@@ -23,7 +23,7 @@ import java.time.LocalDateTime;
  * signature.
  */
 @Entity
-@Table(name = "agreement_acceptances",
+@Table(name = "agreement_records",
         uniqueConstraints = @UniqueConstraint(columnNames = "user_id"))
 @Data
 @NoArgsConstructor

@@ -50,6 +50,7 @@ public class ParticipantCheckService {
     private final DocumentStorageService storageService;
     private final WorkflowService workflowService;
     private final RecordService recordService;
+    private final EmailTemplateService emailTemplateService;
 
     // ── Upload ──────────────────────────────────────────────────
 
@@ -113,6 +114,14 @@ public class ParticipantCheckService {
                         "fileSize", file.getSize()
                 ));
         log.info("Check upload user={} id={} size={}", userId, saved.getId(), file.getSize());
+
+        // Email #6 — participant-facing receipt. Best-effort; SMTP
+        // outage shouldn't roll back the upload itself.
+        try { emailTemplateService.sendCheckUploadConfirmationEmail(user); }
+        catch (Exception e) {
+            log.warn("Check upload confirmation email failed for user {}: {}",
+                    userId, e.getMessage());
+        }
         return saved;
     }
 

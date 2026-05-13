@@ -63,7 +63,7 @@ public class ProgramSelectionService {
         User user = requireGatedUser(userId);
         // Past-the-finish-line guard: don't let a stray draft call
         // mutate a finalised row once the workflow has moved on.
-        if (workflowService.isStatusAtLeast(user, WorkflowService.Status.DOCUSIGN_SENT)) {
+        if (workflowService.isStatusAtLeast(user, WorkflowService.Status.AGREEMENT_SENT)) {
             throw new UnauthorizedException(
                     "Program selection has already been locked for agreement signing.");
         }

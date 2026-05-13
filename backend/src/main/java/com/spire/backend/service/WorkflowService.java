@@ -19,7 +19,7 @@ import java.util.Map;
  * {@code user_records} audit log always agree. The 6 {@code can…}
  * gate methods are the canonical authority for "is this action
  * allowed yet?" — controllers must call them before mutating any
- * downstream resource (creating a participant ID, sending DocuSign,
+ * downstream resource (creating a participant ID, sending the agreement,
  * enabling the dashboard, …).
  *
  * The ordering of {@link Status} values reflects the on-paper
@@ -56,9 +56,9 @@ public class WorkflowService {
         DOCUMENTS_SUBMITTED,
         DOC_REVIEW_PENDING,
         PROGRAM_SELECTED,
-        DOCUSIGN_SENT,
+        AGREEMENT_SENT,
         CHECK_COPY_UPLOADED,
-        DOCUSIGN_COMPLETED,
+        AGREEMENT_COMPLETED,
         SIGNED_AGREEMENT_SENT_TO_ERM,
         WELCOME_SENT,
         DEEPTHI_INTRO_SENT,
@@ -111,8 +111,8 @@ public class WorkflowService {
         return isStatusAtLeast(user, Status.ACKNOWLEDGMENT_ACCEPTED);
     }
 
-    /** Program selected — required before issuing a DocuSign envelope. */
-    public boolean canStartDocuSign(User user) {
+    /** Program selected — required before issuing an agreement envelope. */
+    public boolean canStartAgreement(User user) {
         return isStatusAtLeast(user, Status.PROGRAM_SELECTED);
     }
 

@@ -119,11 +119,11 @@ export async function apiFetch<T = unknown>(
     // lifecycle is exempt from this gate server-side, so this
     // branch should only trip for legacy-only users.
     //
-    // We no longer auto-redirect on this code — the old fallback
-    // to /agreement-legacy interrupted the new onboarding flow
-    // when any background fetch raced ahead of the page logic.
-    // The throw is preserved so the auth context's init useEffect
-    // can keep its tokens intact (it special-cases this message).
+    // We no longer auto-redirect on this code — the throw is
+    // preserved so the auth context's init useEffect can keep its
+    // tokens intact (it special-cases this message). Legacy users
+    // hitting this branch land on /dashboard, which renders the
+    // "complete your enrollment" prompt.
     if (res.status === 403 && body?.message === "AGREEMENT_REQUIRED") {
       throw new Error("AGREEMENT_REQUIRED");
     }
@@ -1404,13 +1404,12 @@ export function getOnboardingRoute(status: string | null | undefined): string {
     case "DOCUMENTS_SUBMITTED":
       return "/program-selection";
     case "PROGRAM_SELECTED":
-    case "DOCUSIGN_SENT":
+    case "AGREEMENT_SENT":
     case "CHECK_COPY_UPLOADED":
-      // The /agreement page IS the Phase 3B signing UI — review,
-      // optional check upload, signature, send email, OTP. The
-      // OLD Terms-of-Service flow lives at /agreement-legacy.
+      // /agreement is the on-site signing surface — review, optional
+      // check upload, signature, accept.
       return "/agreement";
-    case "DOCUSIGN_COMPLETED":
+    case "AGREEMENT_COMPLETED":
     case "SIGNED_AGREEMENT_SENT_TO_ERM":
     case "WELCOME_SENT":
     case "DEEPTHI_INTRO_SENT":

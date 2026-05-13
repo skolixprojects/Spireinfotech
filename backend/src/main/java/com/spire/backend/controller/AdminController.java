@@ -517,7 +517,7 @@ public class AdminController {
         for (com.spire.backend.entity.User u : userRepository.findAll()) {
             String status = u.getCurrentStatus();
             if (status == null) continue;
-            boolean inFlight = "DOCUSIGN_SENT".equals(status)
+            boolean inFlight = "AGREEMENT_SENT".equals(status)
                     || "CHECK_COPY_UPLOADED".equals(status);
             if (!inFlight) continue;
             com.spire.backend.entity.AgreementAcceptance a =
@@ -595,7 +595,7 @@ public class AdminController {
                 rows.add(r);
             }
             // Agreement window past 48h with no completion.
-            if ("DOCUSIGN_SENT".equals(status)) {
+            if ("AGREEMENT_SENT".equals(status)) {
                 com.spire.backend.entity.AgreementAcceptance a =
                         agreementAcceptanceRepository.findByUserId(u.getId()).orElse(null);
                 if (a != null && a.getAgreementEmailSentAt() != null

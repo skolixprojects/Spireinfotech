@@ -310,7 +310,7 @@ public class ParticipantController {
      * Sign the agreement on the website. One round-trip:
      *   - persists VERIFIED row with full audit trail
      *   - generates signed PDF and emails it
-     *   - advances workflow through DOCUSIGN_SENT → DOCUSIGN_COMPLETED
+     *   - advances workflow through AGREEMENT_SENT → AGREEMENT_COMPLETED
      *     → SIGNED_AGREEMENT_SENT_TO_ERM
      *   - kicks off the onboarding chain (welcome, coordinator,
      *     ERM, coaches, dashboard)

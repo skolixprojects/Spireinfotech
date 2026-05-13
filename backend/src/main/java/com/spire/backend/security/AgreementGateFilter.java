@@ -59,7 +59,7 @@ public class AgreementGateFilter extends OncePerRequestFilter {
                 // Phase 1A+: the entire participant lifecycle API
                 // surface is exempt. In the new 26-status flow,
                 // {@code agreement_accepted} doesn't flip to true
-                // until Step 9 (DocuSign), so participants need to
+                // until Step 9 (agreement signed), so participants need to
                 // call /acknowledgments, /documents/*, and
                 // /program-selection while the legacy boolean is
                 // still false. Workflow-state gates on each

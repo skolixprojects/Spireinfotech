@@ -2,6 +2,7 @@ package com.spire.backend.controller;
 
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.exception.UnauthorizedException;
+import com.spire.backend.service.DocumentReminderJob;
 import com.spire.backend.service.WeeklyReminderJob;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,6 +25,7 @@ import java.util.Map;
 public class InternalCronController {
 
     private final WeeklyReminderJob weeklyReminderJob;
+    private final DocumentReminderJob documentReminderJob;
 
     @Value("${agreement.cron.secret:}")
     private String cronSecret;
@@ -40,6 +42,24 @@ public class InternalCronController {
             throw new UnauthorizedException("Invalid cron secret");
         }
         int sent = weeklyReminderJob.sendReminders();
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "ok", true,
+                "sent", sent
+        )));
+    }
+
+    /**
+     * Triggers the document-upload reminder sweep. Idempotent — the
+     * job's per-user cooldown prevents back-to-back nudges.
+     */
+    @PostMapping("/api/internal/document-reminder")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> runDocumentReminder(
+            @RequestHeader(value = "X-Cron-Secret", required = false) String headerSecret) {
+        if (cronSecret == null || cronSecret.isBlank()
+                || !cronSecret.equals(headerSecret)) {
+            throw new UnauthorizedException("Invalid cron secret");
+        }
+        int sent = documentReminderJob.sendReminders();
         return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "ok", true,
                 "sent", sent

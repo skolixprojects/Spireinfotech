@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * One row per transition. {@code fromStatus} is null on the very
  * first row (DRAFT_STARTED has no predecessor). {@code triggerEvent}
  * names the high-level cause ("EMAIL_VERIFIED", "ACK_ACCEPTED",
- * "DOCUSIGN_COMPLETED", …) so an admin can reconstruct the chain
+ * "AGREEMENT_COMPLETED", …) so an admin can reconstruct the chain
  * without joining against {@code user_records}.
  */
 @Entity

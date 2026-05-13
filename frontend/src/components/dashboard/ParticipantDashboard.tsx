@@ -61,8 +61,8 @@ interface NavItem {
 const NAV: ReadonlyArray<NavItem> = [
   { id: "home",       label: "Dashboard",      Icon: LayoutDashboard },
   { id: "weekly",     label: "Weekly Report",  Icon: ClipboardList },
-  { id: "resume",     label: "Resume / Profile", Icon: BookOpen },
-  { id: "interview",  label: "Interview",      Icon: Target },
+  { id: "resume",     label: "Resume",         Icon: BookOpen },
+  { id: "interview",  label: "Interviews",     Icon: Target },
   { id: "employment", label: "Employment",     Icon: Briefcase },
   { id: "payments",   label: "Payments",       Icon: CreditCard },
   { id: "documents",  label: "Documents",      Icon: FileText },

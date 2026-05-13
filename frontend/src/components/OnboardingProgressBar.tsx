@@ -58,9 +58,9 @@ export function stepFromStatus(status: string | null | undefined): number {
       return 5;
     case "PROGRAM_SELECTED":
       return 6;
-    case "DOCUSIGN_SENT":
+    case "AGREEMENT_SENT":
     case "CHECK_COPY_UPLOADED":
-    case "DOCUSIGN_COMPLETED":
+    case "AGREEMENT_COMPLETED":
     case "SIGNED_AGREEMENT_SENT_TO_ERM":
       return 7;
     case "WELCOME_SENT":

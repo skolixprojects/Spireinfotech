@@ -86,7 +86,7 @@ export default function AcknowledgmentPage() {
         const alreadyAccepted =
           status && [
             "ACKNOWLEDGMENT_ACCEPTED", "DOCUMENTS_SUBMITTED", "DOC_REVIEW_PENDING",
-            "PROGRAM_SELECTED", "DOCUSIGN_SENT", "DOCUSIGN_COMPLETED",
+            "PROGRAM_SELECTED", "AGREEMENT_SENT", "AGREEMENT_COMPLETED",
             "SIGNED_AGREEMENT_SENT_TO_ERM", "WELCOME_SENT", "DEEPTHI_INTRO_SENT",
             "ERM_ASSIGNED", "COACHES_ASSIGNED", "DASHBOARD_ENABLED",
           ].includes(status);

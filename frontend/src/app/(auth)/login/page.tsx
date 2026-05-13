@@ -64,8 +64,7 @@ function LoginForm() {
       // Routing after login:
       //   - New participant lifecycle (has currentStatus) → route
       //     to whichever onboarding step matches the status.
-      //   - Legacy users without a currentStatus but without the
-      //     old Terms-of-Service acceptance → /agreement-legacy.
+      //   - Staff roles → role-specific dashboard.
       //   - Everyone else → original redirect target.
       const status = auth.user?.currentStatus;
       const role = (auth.user?.role ?? "").toUpperCase();
@@ -86,9 +85,6 @@ function LoginForm() {
           window.location.href = getOnboardingRoute(status);
           return;
         }
-      } else if (!auth.user?.agreementAccepted) {
-        window.location.href = "/agreement-legacy";
-        return;
       }
       window.location.href = redirect;
     } catch (err: unknown) {

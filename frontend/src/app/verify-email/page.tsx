@@ -141,10 +141,11 @@ function VerifyEmailInner() {
       // Routing after OTP verify:
       //   - Already agreement-accepted (legacy users) → /dashboard
       //   - New participant lifecycle (has participantId) → /participant-id
-      //   - Pre-Phase-1B legacy fallback → /agreement-legacy (old Terms flow)
+      //   - No participant ID yet → /participant-id (the page will
+      //     mint the ID on first load via the existing handshake)
       const target = auth.user?.agreementAccepted
         ? "/dashboard"
-        : (auth.user?.participantId ? "/participant-id" : "/agreement-legacy");
+        : "/participant-id";
       setTimeout(() => { window.location.href = target; }, 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");

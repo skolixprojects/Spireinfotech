@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * One-click on-site agreement signing for the participant lifecycle.
  *
- *   sign() → DOCUSIGN_SENT → DOCUSIGN_COMPLETED
+ *   sign() → AGREEMENT_SENT → AGREEMENT_COMPLETED
  *          → SIGNED_AGREEMENT_SENT_TO_ERM (erm_notified=true)
  *          → OnboardingService.completeOnboarding() chain
  *
@@ -64,15 +64,15 @@ public class ParticipantAgreementService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.DOCUSIGN_SENT)) {
+                WorkflowService.Status.AGREEMENT_SENT)) {
             workflowService.transition(user,
-                    WorkflowService.Status.DOCUSIGN_SENT,
+                    WorkflowService.Status.AGREEMENT_SENT,
                     "agreement_sent");
         }
         if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.DOCUSIGN_COMPLETED)) {
+                WorkflowService.Status.AGREEMENT_COMPLETED)) {
             workflowService.transition(user,
-                    WorkflowService.Status.DOCUSIGN_COMPLETED,
+                    WorkflowService.Status.AGREEMENT_COMPLETED,
                     "agreement_completed");
         }
         if (!workflowService.isStatusAtLeast(user,

@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
 /**
  * Captures the participant's program choice up-front. Used to scope
  * later phases (skillset, target role, coaching preference) and to
- * decide which DocuSign template + payment plan to issue.
+ * decide which agreement template + payment plan to issue.
  *
  * One row per selection — admins can re-issue a participant on a
  * new program by inserting a new row rather than mutating the old

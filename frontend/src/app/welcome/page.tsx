@@ -66,7 +66,7 @@ export default function WelcomePage() {
         // Welcome is for users between agreement-completed and
         // dashboard-enabled. Earlier statuses get bounced back.
         const eligible = [
-          "DOCUSIGN_COMPLETED", "SIGNED_AGREEMENT_SENT_TO_ERM",
+          "AGREEMENT_COMPLETED", "SIGNED_AGREEMENT_SENT_TO_ERM",
           "WELCOME_SENT", "DEEPTHI_INTRO_SENT",
           "ERM_ASSIGNED", "COACHES_ASSIGNED",
         ].includes(s ?? "");
