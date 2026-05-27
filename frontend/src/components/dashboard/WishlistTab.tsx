@@ -34,7 +34,17 @@ export default function WishlistTab({ onContinueSetup }: Props) {
       const res = await getWishlist();
       setItems(res);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't load wishlist");
+      // Never surface raw backend codes — apiFetch already
+      // translates most of them, but the gating literals
+      // ("PROFILE_INCOMPLETE", "AGREEMENT_REQUIRED") slip through
+      // intentionally. Render the wishlist as empty in those cases
+      // rather than a red error banner.
+      const raw = err instanceof Error ? err.message : "";
+      if (raw === "PROFILE_INCOMPLETE" || raw === "AGREEMENT_REQUIRED") {
+        setItems([]);
+        return;
+      }
+      setError("We couldn't load your wishlist. Please try again.");
     }
   };
 
@@ -61,7 +71,12 @@ export default function WishlistTab({ onContinueSetup }: Props) {
         await reload();
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't enroll");
+      const raw = err instanceof Error ? err.message : "";
+      if (raw === "PROFILE_INCOMPLETE") {
+        onContinueSetup?.();
+        return;
+      }
+      setError("We couldn't enroll right now. Please try again.");
     } finally {
       setBusy(false);
     }

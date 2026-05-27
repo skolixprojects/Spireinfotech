@@ -87,6 +87,41 @@ export interface InstructorStudent {
   enrolledAt: string;
 }
 
+// ─── Friendly-error translation ─────────────────────────────────────
+
+/**
+ * Translates a raw backend message / status into a human-readable
+ * sentence. Keeps the small set of "gating" codes ({@code AGREEMENT_REQUIRED},
+ * {@code PROFILE_INCOMPLETE}) un-translated so the dashboard's
+ * LockedTabView can detect them; everything else gets a friendly
+ * fallback.
+ */
+function friendlyApiMessage(raw: string, status: number): string {
+  if (!raw && status === 500) return "Something went wrong. Please try again.";
+  if (!raw) return `Couldn't reach the server (${status}). Please try again.`;
+  // Common backend codes — translate the all-caps shouty form, leave
+  // human-readable messages alone.
+  const map: Record<string, string> = {
+    VALIDATION_ERROR: "Please check your inputs and try again.",
+    DUPLICATE_EMAIL: "An account with this email already exists.",
+    EMAIL_NOT_VERIFIED: "Please verify your email before continuing.",
+    UNAUTHORIZED: "Please sign in to continue.",
+    FORBIDDEN: "You don't have access to this action.",
+    NOT_FOUND: "We couldn't find what you were looking for.",
+    INTERNAL_ERROR: "Something went wrong. Please try again.",
+  };
+  if (map[raw]) return map[raw];
+  // Heuristic — anything that looks like a constant-case error code
+  // (UPPERCASE_WITH_UNDERSCORES, no spaces) is unlikely to be a
+  // sentence the user should see. Render a generic message instead.
+  if (/^[A-Z][A-Z0-9_]+$/.test(raw)) {
+    return status >= 500
+      ? "Something went wrong. Please try again."
+      : "We couldn't complete that. Please try again.";
+  }
+  return raw;
+}
+
 // ─── Core fetch helper ──────────────────────────────────────────────
 
 export async function apiFetch<T = unknown>(
@@ -128,19 +163,28 @@ export async function apiFetch<T = unknown>(
     const body = await res.json().catch(() => ({}));
     // 403 AGREEMENT_REQUIRED — backend legacy gate still fires for
     // some non-participant endpoints (courses, lessons, …) when a
-    // user has agreement_accepted=false. The new participant
-    // lifecycle is exempt from this gate server-side, so this
-    // branch should only trip for legacy-only users.
-    //
-    // We no longer auto-redirect on this code — the throw is
-    // preserved so the auth context's init useEffect can keep its
-    // tokens intact (it special-cases this message). Legacy users
-    // hitting this branch land on /dashboard, which renders the
-    // "complete your enrollment" prompt.
+    // user has agreement_accepted=false. The throw preserves the
+    // literal "AGREEMENT_REQUIRED" string so the auth context's
+    // init useEffect (which special-cases this code) and the
+    // dashboard tabs (which render a friendly LockedTabView when
+    // they see it) can detect the gating without parsing a copy
+    // sentence. UI surfaces translate this string before rendering.
     if (res.status === 403 && body?.message === "AGREEMENT_REQUIRED") {
       throw new Error("AGREEMENT_REQUIRED");
     }
-    throw new Error(body.message || body.detail || `API error ${res.status}`);
+    // 403 PROFILE_INCOMPLETE — Phase 1C gate (course enroll, cart
+    // checkout, wishlist enroll-all). Same translation contract:
+    // the gating string is preserved for callers that branch on it.
+    if (res.status === 403 && body?.message === "PROFILE_INCOMPLETE") {
+      throw new Error("PROFILE_INCOMPLETE");
+    }
+    // Friendly-message map for the remaining common codes. We
+    // translate before throwing so generic catch blocks can
+    // display the result directly without each call site
+    // repeating the same lookup.
+    const raw = body?.message || body?.detail || "";
+    const friendly = friendlyApiMessage(raw, res.status);
+    throw new Error(friendly);
   }
 
   if (res.status === 204) return undefined as T;

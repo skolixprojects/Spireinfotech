@@ -11,6 +11,7 @@ import {
   Users, BookOpen, LayoutDashboard, X,
 } from "lucide-react";
 
+import LockedTabView from "./LockedTabView";
 import ProfileCompletionBanner from "./ProfileCompletionBanner";
 import ProfileCompletionChecklist from "./ProfileCompletionChecklist";
 import WishlistTab from "./WishlistTab";
@@ -267,8 +268,29 @@ export default function ParticipantDashboard() {
           {active === "wishlist" && (
             <WishlistTab onContinueSetup={() => setActive("complete-profile")} />
           )}
-          {active === "courses" && <MyCoursesTab />}
-          {active === "weekly" && <WeeklyTab dashboardData={data} />}
+          {active === "courses" && (
+            <MyCoursesTab
+              profileComplete={Boolean(user?.profileComplete)}
+              onContinueSetup={() => setActive("complete-profile")}
+            />
+          )}
+          {active === "weekly" && (
+            user?.profileComplete
+              ? <WeeklyTab dashboardData={data} />
+              : <LockedTabView
+                  title="Weekly Report"
+                  subtitle="Log your job applications, resume updates, and interview prep each week."
+                  headline="Weekly reports unlock after profile completion"
+                  body={
+                    <>
+                      Phase 1 weekly check-ins start once your profile is
+                      complete and your team is assigned.
+                    </>
+                  }
+                  onContinueSetup={() => setActive("complete-profile")}
+                  hideBrowseCatalog
+                />
+          )}
           {active === "team" && <TeamTab team={team} data={data} />}
           {active === "documents" && <DocumentsTab />}
           {active === "agreement" && <AgreementTab participantId={data.participantId} />}
@@ -901,10 +923,19 @@ interface CourseRow {
   rating?: number;
 }
 
-function MyCoursesTab() {
+interface MyCoursesTabProps {
+  profileComplete: boolean;
+  onContinueSetup: () => void;
+}
+
+function MyCoursesTab({ profileComplete, onContinueSetup }: MyCoursesTabProps) {
   const [mode, setMode] = useState<"enrolled" | "browse">("enrolled");
   const [enrolledRows, setEnrolledRows] = useState<EnrollmentRow[]>([]);
   const [enrolledLoading, setEnrolledLoading] = useState(true);
+  // Note: the backend's legacy AGREEMENT_REQUIRED gate also blocks
+  // /api/enrollments for a small number of grandfathered users. We
+  // translate that error code to a friendly message — never let the
+  // raw "AGREEMENT_REQUIRED" string land in the UI.
   const [error, setError] = useState("");
 
   const refreshEnrolled = async () => {
@@ -913,13 +944,49 @@ function MyCoursesTab() {
       const r = await getEnrollments();
       setEnrolledRows((r ?? []) as EnrollmentRow[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't load enrollments");
+      const raw = e instanceof Error ? e.message : "";
+      if (raw === "AGREEMENT_REQUIRED" || raw === "PROFILE_INCOMPLETE") {
+        // These are gating signals, not real errors — the locked
+        // view above handles the messaging. Swallow here so we
+        // don't render a red banner on top of the locked card.
+        setError("");
+      } else {
+        setError("We couldn't load your courses. Please try again in a moment.");
+      }
     } finally {
       setEnrolledLoading(false);
     }
   };
 
-  useEffect(() => { refreshEnrolled(); }, []);
+  useEffect(() => {
+    // Don't even attempt the fetch for incomplete-profile users —
+    // the backend would return 403 AGREEMENT_REQUIRED and pollute
+    // the error state. The locked view below is what they should see.
+    if (!profileComplete) {
+      setEnrolledLoading(false);
+      return;
+    }
+    refreshEnrolled();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileComplete]);
+
+  if (!profileComplete) {
+    return (
+      <LockedTabView
+        title="My Courses"
+        subtitle="Track your enrolled courses and learning progress."
+        headline="Complete your profile to enroll in courses"
+        body={
+          <>
+            Finish a few more steps to unlock course enrollment. You can
+            still browse the catalog and save courses to your wishlist
+            in the meantime.
+          </>
+        }
+        onContinueSetup={onContinueSetup}
+      />
+    );
+  }
 
   if (mode === "browse") {
     return <BrowseCoursesView
