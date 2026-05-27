@@ -59,6 +59,19 @@ export interface UserDTO {
   phone?: string | null;
   /** Free-form city / region, editable from the Profile tab. */
   location?: string | null;
+
+  // ── Phase 1C progressive-completion flags ─────────────────────
+  // Mirrored from the backend so the dashboard banner, gate modal,
+  // and sidebar badge can all read off the auth-context user
+  // object without an extra /completion fetch on every render.
+  profileComplete?: boolean;
+  profileCompletionPct?: number;
+  basicInfoComplete?: boolean;
+  acknowledgmentComplete?: boolean;
+  documentsComplete?: boolean;
+  programSelectionComplete?: boolean;
+  agreementComplete?: boolean;
+  checkUploadComplete?: boolean;
 }
 
 export interface AuthResponse {
@@ -194,10 +207,6 @@ export interface ParticipantEnrollRequest {
   email: string;
   phone: string;
   password: string;
-  location?: string;
-  availability: string;
-  selectedTechnology: string;
-  targetExperienceLevel: string;
 }
 
 /**
@@ -222,6 +231,104 @@ export async function enrollParticipant(
 /** Fetches the caller's full profile incl. participantId + currentStatus. */
 export async function getParticipantMe(): Promise<UserDTO> {
   const wrapper = await apiFetch<ApiResponse<UserDTO>>("/api/participants/me");
+  return wrapper.data;
+}
+
+// ─── Phase 1C: progressive profile completion ──────────────────────
+
+export interface ProfileCompletionStep {
+  key:
+    | "BASIC_INFO"
+    | "ACKNOWLEDGMENT"
+    | "DOCUMENTS"
+    | "PROGRAM_SELECTION"
+    | "AGREEMENT"
+    | "CHECK_UPLOAD";
+  title: string;
+  description: string;
+  estimatedTime: string;
+  completed: boolean;
+}
+
+export interface ProfileCompletion {
+  completionPercentage: number;
+  completedSteps: number;
+  totalSteps: number;
+  /** Backend ships {@code isComplete} (Jackson serialises {@code isXxx}). */
+  isComplete?: boolean;
+  /** Lombok-generated alternate name. Some downstream wrappers re-key as {@code complete}. */
+  complete?: boolean;
+  nextStep: ProfileCompletionStep["key"] | "COMPLETE";
+  steps: ProfileCompletionStep[];
+}
+
+/** Reads the participant's progressive-completion snapshot. */
+export async function getProfileCompletion(): Promise<ProfileCompletion> {
+  const wrapper = await apiFetch<ApiResponse<ProfileCompletion>>(
+    "/api/participants/profile/completion",
+  );
+  return wrapper.data;
+}
+
+export interface BasicInfoSubmit {
+  location?: string;
+  availability: string;
+  selectedTechnology: string;
+  targetExperienceLevel: string;
+}
+
+/** Submits Step 1 ("About You") of the dashboard checklist. */
+export async function submitBasicInfo(
+  data: BasicInfoSubmit,
+): Promise<{ success: boolean; completion: ProfileCompletion }> {
+  const wrapper = await apiFetch<
+    ApiResponse<{ success: boolean; completion: ProfileCompletion }>
+  >("/api/participants/profile/basic-info", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return wrapper.data;
+}
+
+// ─── Phase 1C: wishlist ────────────────────────────────────────────
+
+export interface WishlistItem {
+  id: number;
+  kind: "COURSE" | "SERVICE";
+  targetId: number;
+  title: string;
+  thumbnailUrl: string | null;
+  price: number | null;
+  addedAt: string;
+}
+
+export async function getWishlist(): Promise<WishlistItem[]> {
+  const wrapper = await apiFetch<ApiResponse<WishlistItem[]>>("/api/participants/wishlist");
+  return wrapper.data ?? [];
+}
+
+export async function addToWishlist(courseId: number): Promise<void> {
+  await apiFetch<ApiResponse<Record<string, unknown>>>("/api/participants/wishlist/add", {
+    method: "POST",
+    body: JSON.stringify({ courseId }),
+  });
+}
+
+export async function removeFromWishlist(courseId: number): Promise<void> {
+  await apiFetch<ApiResponse<Record<string, unknown>>>(
+    `/api/participants/wishlist/${courseId}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function enrollAllFromWishlist(): Promise<{
+  success: boolean;
+  enrolledCount: number;
+  skipped: string[];
+}> {
+  const wrapper = await apiFetch<
+    ApiResponse<{ success: boolean; enrolledCount: number; skipped: string[] }>
+  >("/api/participants/wishlist/enroll-all", { method: "POST" });
   return wrapper.data;
 }
 
@@ -1397,39 +1504,26 @@ export function getOnboardingRoute(status: string | null | undefined): string {
       return "/enroll";
     case "EMAIL_VERIFICATION_PENDING":
       return "/verify-email";
+    // Phase 1C: every post-verification status lands on /dashboard.
+    // The remaining onboarding steps (acknowledgment, documents,
+    // program selection, agreement, check upload) live inside the
+    // "Complete Your Profile" tab and are no longer a hard gate.
+    // The dashboard's gate banner + checklist tab handle the rest.
     case "EMAIL_VERIFIED":
     case "PARTICIPANT_ID_CREATED":
     case "ID_EMAIL_SENT":
-      return "/participant-id";
     case "ACKNOWLEDGMENT_ACCEPTED":
-      return "/document-upload";
     case "DOC_REVIEW_PENDING":
-      // Docs went out for review — send the user back to the
-      // upload page so they can see review status and resubmit
-      // if Operations rejected anything.
-      return "/document-upload";
     case "DOCUMENTS_SUBMITTED":
-      return "/program-selection";
     case "PROGRAM_SELECTED":
     case "AGREEMENT_SENT":
-      // /agreement is the on-site signing surface — review,
-      // signature, accept. Check soft-copy upload moved to its
-      // own page (/check-upload) which sits after agreement.
-      return "/agreement";
     case "AGREEMENT_COMPLETED":
-      // Step between signing and welcome — upload check
-      // soft-copies (or mark not applicable).
-      return "/check-upload";
     case "CHECK_COPY_UPLOADED":
     case "SIGNED_AGREEMENT_SENT_TO_ERM":
     case "WELCOME_SENT":
     case "DEEPTHI_INTRO_SENT":
     case "ERM_ASSIGNED":
     case "COACHES_ASSIGNED":
-      // Phase 4 — between check upload and Gate 5
-      // (dashboard enabled), the participant stays on /welcome
-      // which polls for team-assembly progress.
-      return "/welcome";
     case "DASHBOARD_ENABLED":
     case "WEEKLY_REPORTING_ACTIVE":
     case "EMPLOYMENT_ACCEPTED":

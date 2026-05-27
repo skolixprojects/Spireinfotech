@@ -6,34 +6,27 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { CheckCircle2, Copy, Loader2, Mail } from "lucide-react";
 
-import OnboardingLayout from "@/components/layouts/OnboardingLayout";
-import { stepFromStatus } from "@/components/OnboardingProgressBar";
 import { useAuth } from "@/lib/auth-context";
-import { getParticipantMe, getOnboardingRoute, isDashboardStatus } from "@/lib/api";
+import { getParticipantMe } from "@/lib/api";
 
 /**
- * Step 3 — confirmation screen shown after OTP verification.
+ * Phase 1C — read-only participant-ID display. The page is no longer
+ * part of the main onboarding flow (verify-email now routes straight
+ * to /dashboard), but stays reachable for users who want to look
+ * their ID up. Linked from the profile menu + sidebar.
  *
- * Reads the freshly-issued participant ID from
- * {@code GET /api/participants/me}. Includes a routing-guard
- * useEffect that bounces the user to the correct onboarding page
- * if their {@code currentStatus} says they don't belong here yet
- * (or are already past it).
- *
- * Wrapped in {@link OnboardingLayout} so the logo + progress bar +
- * footer are consistent across every onboarding step.
+ * No routing guard — anyone signed-in can view this page, regardless
+ * of where their currentStatus says they are.
  */
 export default function ParticipantIdPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [participantId, setParticipantId] = useState<string | null>(null);
-  const [status, setStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // ── Auth + routing guard ──────────────────────────────────────────
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
@@ -46,15 +39,6 @@ export default function ParticipantIdPage() {
       .then((profile) => {
         if (cancelled) return;
         setParticipantId(profile.participantId ?? null);
-        setStatus(profile.currentStatus ?? null);
-
-        // Routing guard — bounce the user to whichever onboarding
-        // page matches their current status. Dashboard-grade legacy
-        // users without an ID still see this page (don't break them).
-        const target = getOnboardingRoute(profile.currentStatus);
-        if (target !== "/participant-id" && !isDashboardStatus(profile.currentStatus)) {
-          router.replace(target);
-        }
       })
       .catch((err) => {
         if (cancelled) return;
@@ -84,35 +68,31 @@ export default function ParticipantIdPage() {
   }
 
   return (
-    <OnboardingLayout
-      currentStep={stepFromStatus(status ?? "PARTICIPANT_ID_CREATED")}
-      contentMaxWidth="xl"
-    >
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#F8FAFC] px-4">
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-10 text-center"
+        className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8 text-center"
       >
         <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 mb-4">
           <CheckCircle2 size={22} />
         </div>
-        <h1 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900">
-          Your Participant ID has been created
+        <h1 className="font-serif text-2xl font-bold text-gray-900">
+          Your Participant ID
         </h1>
-        <p className="text-sm text-gray-500 mt-2 max-w-md mx-auto">
-          We&apos;ve sent this ID to your email as well. Please save it — it&apos;ll
-          appear in all future communications and documents.
+        <p className="text-sm text-gray-500 mt-2">
+          Use this ID in all future communications. A copy was also emailed to you.
         </p>
 
         {error && (
-          <div className="mt-5 mx-auto max-w-md p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm text-left">
+          <div className="mt-5 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm text-left">
             {error}
           </div>
         )}
 
         <div className="mt-6 inline-flex items-center gap-3 rounded-xl border border-gray-200 bg-[#f0fdf9] px-5 py-4 shadow-sm">
-          <code className="font-mono font-bold text-xl sm:text-2xl tracking-[0.2em] text-[#0F766E]">
+          <code className="font-mono font-bold text-xl tracking-[0.2em] text-[#0F766E]">
             {participantId ?? "—"}
           </code>
           <button
@@ -126,16 +106,16 @@ export default function ParticipantIdPage() {
         </div>
 
         <p className="mt-4 inline-flex items-center gap-1.5 text-xs text-gray-500">
-          <Mail size={12} /> A copy of this ID has been emailed to {user?.email ?? "your inbox"}.
+          <Mail size={12} /> Emailed to {user?.email ?? "your inbox"}.
         </p>
 
         <Link
-          href="/acknowledgment"
-          className="mt-8 inline-flex items-center justify-center gap-2 bg-[#0F766E] hover:bg-[#0D9488] text-white text-sm font-bold px-6 py-3 rounded-lg shadow-sm hover:shadow-md transition"
+          href="/dashboard"
+          className="mt-7 inline-flex items-center justify-center gap-2 bg-[#0F766E] hover:bg-[#0D9488] text-white text-sm font-bold px-6 py-2.5 rounded-lg shadow-sm hover:shadow-md transition"
         >
-          Continue to Acknowledgment →
+          ← Back to Dashboard
         </Link>
       </motion.section>
-    </OnboardingLayout>
+    </div>
   );
 }

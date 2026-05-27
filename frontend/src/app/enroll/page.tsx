@@ -11,34 +11,16 @@ import { useState } from "react";
 import OnboardingLayout from "@/components/layouts/OnboardingLayout";
 import { enrollParticipant } from "@/lib/api";
 
-const TECHNOLOGY_OPTIONS = [
-  "Java Full Stack",
-  "Python Full Stack",
-  ".NET Full Stack",
-  "Data Engineering",
-  "Cloud & DevOps",
-  "React / Angular Frontend",
-  "QA / Testing",
-  "Data Science & AI",
-  "Salesforce",
-  "ServiceNow",
-  "Cybersecurity",
-  "Other",
-] as const;
+const QUICK_SIGNUP_STEPS = ["Sign Up", "Verify"] as const;
 
-const AVAILABILITY_OPTIONS = [
-  "Full-time",
-  "Part-time",
-  "Weekends only",
-  "Flexible",
-] as const;
-
-const EXPERIENCE_OPTIONS = [
-  "Entry Level (0-2 years)",
-  "Mid Level (3-5 years)",
-  "Senior Level (6+ years)",
-] as const;
-
+/**
+ * Phase 1C — quick signup. Only four fields here; location,
+ * availability, technology preference, and target experience level
+ * moved to the dashboard "Complete Your Profile" → "About You"
+ * step so the public form is short and friction-free. The user
+ * lands on /dashboard immediately after verifying email and can
+ * fill the rest in at their own pace.
+ */
 const enrollSchema = z.object({
   fullName: z
     .string()
@@ -52,17 +34,10 @@ const enrollSchema = z.object({
     .min(7, "Phone number is required")
     .regex(/^[+\d\s()-]{7,20}$/, "Use only digits, spaces, +, -, or parentheses"),
   password: z.string().min(8, "Password must be at least 8 characters"),
-  location: z.string().optional(),
-  availability: z.enum(AVAILABILITY_OPTIONS),
-  selectedTechnology: z.enum(TECHNOLOGY_OPTIONS),
-  targetExperienceLevel: z.enum(EXPERIENCE_OPTIONS),
 });
 
 type EnrollValues = z.infer<typeof enrollSchema>;
 
-// Tailwind helpers shared by every input so the visual rhythm stays
-// constant across labels / inputs / selects. Compact py so the
-// 8-field two-column grid fits one viewport without scrolling.
 const INPUT_CLASS =
   "w-full px-3.5 py-2.5 text-sm rounded-lg border border-gray-200 bg-white " +
   "text-gray-900 placeholder-gray-400 transition focus:outline-none " +
@@ -86,38 +61,34 @@ export default function EnrollPage() {
   const onSubmit = async (data: EnrollValues) => {
     setError("");
     try {
-      const result = await enrollParticipant({
+      await enrollParticipant({
         fullName: data.fullName.trim(),
         email: data.email.trim(),
         phone: data.phone.trim(),
         password: data.password,
-        location: data.location?.trim() || undefined,
-        availability: data.availability,
-        selectedTechnology: data.selectedTechnology,
-        targetExperienceLevel: data.targetExperienceLevel,
       });
-      const target = result?.requiresVerification
-        ? `/verify-email?email=${encodeURIComponent(data.email.trim())}`
-        : "/participant-id";
-      router.push(target);
+      router.push(`/verify-email?email=${encodeURIComponent(data.email.trim())}`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Enrollment failed. Please try again.");
     }
   };
 
   return (
-    <OnboardingLayout currentStep={1} contentMaxWidth="3xl">
+    <OnboardingLayout currentStep={1} steps={QUICK_SIGNUP_STEPS} contentMaxWidth="xl">
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="bg-white rounded-2xl shadow-lg border border-gray-100 px-5 py-5 sm:px-7 sm:py-6"
+        className="bg-white rounded-2xl shadow-lg border border-gray-100 px-6 py-7 sm:px-8 sm:py-8"
       >
-        <h1 className="font-serif text-xl sm:text-2xl font-bold text-gray-900 text-center">
-          Start your journey with Spire Info Tech
+        <p className="text-[11px] uppercase tracking-wider font-semibold text-[#0F766E] text-center">
+          Step 1 of 2 · Sign Up
+        </p>
+        <h1 className="font-serif text-2xl sm:text-3xl font-bold text-gray-900 text-center mt-1.5">
+          Create your account
         </h1>
-        <p className="text-gray-500 mt-1 mb-4 text-center text-xs sm:text-sm">
-          Tell us a bit about yourself — this kicks off your participant lifecycle.
+        <p className="text-gray-500 mt-1.5 mb-5 text-center text-sm">
+          Just a few quick details to get started — you can complete your profile later.
         </p>
 
         {error && (
@@ -126,134 +97,71 @@ export default function EnrollPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-          {/* Two-column grid: identity row, contact row, location +
-              availability row, technology + experience row, then the
-              full-width Create Account button. Single column on phones. */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
-            <div>
-              <label className={LABEL_CLASS}>
-                Full legal name <span className="text-red-500">*</span>
-              </label>
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+          <div>
+            <label className={LABEL_CLASS}>
+              Full legal name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              autoComplete="name"
+              {...register("fullName")}
+              className={INPUT_CLASS + (errors.fullName ? " !border-red-500" : "")}
+              placeholder="Arjun Mehta"
+            />
+            {errors.fullName && <p className="text-[11px] text-red-500 mt-1">{errors.fullName.message}</p>}
+          </div>
+
+          <div>
+            <label className={LABEL_CLASS}>
+              Email address <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              autoComplete="email"
+              {...register("email")}
+              className={INPUT_CLASS + (errors.email ? " !border-red-500" : "")}
+              placeholder="you@example.com"
+            />
+            {errors.email && <p className="text-[11px] text-red-500 mt-1">{errors.email.message}</p>}
+          </div>
+
+          <div>
+            <label className={LABEL_CLASS}>
+              Phone number <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="tel"
+              autoComplete="tel"
+              {...register("phone")}
+              className={INPUT_CLASS + (errors.phone ? " !border-red-500" : "")}
+              placeholder="+91 90000 00000"
+            />
+            {errors.phone && <p className="text-[11px] text-red-500 mt-1">{errors.phone.message}</p>}
+          </div>
+
+          <div>
+            <label className={LABEL_CLASS}>
+              Password <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
               <input
-                type="text"
-                autoComplete="name"
-                {...register("fullName")}
-                className={INPUT_CLASS + (errors.fullName ? " !border-red-500" : "")}
-                placeholder="Arjun Mehta"
+                type={showPassword ? "text" : "password"}
+                autoComplete="new-password"
+                {...register("password")}
+                className={INPUT_CLASS + " pr-10" + (errors.password ? " !border-red-500" : "")}
+                placeholder="At least 8 characters"
               />
-              {errors.fullName && <p className="text-[11px] text-red-500 mt-1">{errors.fullName.message}</p>}
-            </div>
-
-            <div>
-              <label className={LABEL_CLASS}>
-                Email address <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="email"
-                autoComplete="email"
-                {...register("email")}
-                className={INPUT_CLASS + (errors.email ? " !border-red-500" : "")}
-                placeholder="you@example.com"
-              />
-              {errors.email && <p className="text-[11px] text-red-500 mt-1">{errors.email.message}</p>}
-            </div>
-
-            <div>
-              <label className={LABEL_CLASS}>
-                Phone number <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="tel"
-                autoComplete="tel"
-                {...register("phone")}
-                className={INPUT_CLASS + (errors.phone ? " !border-red-500" : "")}
-                placeholder="+91 90000 00000"
-              />
-              {errors.phone && <p className="text-[11px] text-red-500 mt-1">{errors.phone.message}</p>}
-            </div>
-
-            <div>
-              <label className={LABEL_CLASS}>
-                Password <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  {...register("password")}
-                  className={INPUT_CLASS + " pr-10" + (errors.password ? " !border-red-500" : "")}
-                  placeholder="At least 8 characters"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.password && <p className="text-[11px] text-red-500 mt-1">{errors.password.message}</p>}
-            </div>
-
-            <div>
-              <label className={LABEL_CLASS}>
-                Location <span className="text-gray-400 text-[11px]">(optional)</span>
-              </label>
-              <input
-                type="text"
-                autoComplete="address-level2"
-                {...register("location")}
-                className={INPUT_CLASS}
-                placeholder="City, state, country"
-              />
-            </div>
-
-            <div>
-              <label className={LABEL_CLASS}>
-                Availability <span className="text-red-500">*</span>
-              </label>
-              <select
-                {...register("availability")}
-                defaultValue=""
-                className={INPUT_CLASS + (errors.availability ? " !border-red-500" : "")}
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                <option value="" disabled>Choose availability…</option>
-                {AVAILABILITY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-              {errors.availability && <p className="text-[11px] text-red-500 mt-1">{errors.availability.message}</p>}
+                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
             </div>
-
-            <div>
-              <label className={LABEL_CLASS}>
-                Technology / Skillset <span className="text-red-500">*</span>
-              </label>
-              <select
-                {...register("selectedTechnology")}
-                defaultValue=""
-                className={INPUT_CLASS + (errors.selectedTechnology ? " !border-red-500" : "")}
-              >
-                <option value="" disabled>Choose a track…</option>
-                {TECHNOLOGY_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-              {errors.selectedTechnology && <p className="text-[11px] text-red-500 mt-1">{errors.selectedTechnology.message}</p>}
-            </div>
-
-            <div>
-              <label className={LABEL_CLASS}>
-                Target Experience Level <span className="text-red-500">*</span>
-              </label>
-              <select
-                {...register("targetExperienceLevel")}
-                defaultValue=""
-                className={INPUT_CLASS + (errors.targetExperienceLevel ? " !border-red-500" : "")}
-              >
-                <option value="" disabled>Choose experience level…</option>
-                {EXPERIENCE_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
-              </select>
-              {errors.targetExperienceLevel && <p className="text-[11px] text-red-500 mt-1">{errors.targetExperienceLevel.message}</p>}
-            </div>
+            {errors.password && <p className="text-[11px] text-red-500 mt-1">{errors.password.message}</p>}
           </div>
 
           <button
@@ -266,7 +174,10 @@ export default function EnrollPage() {
           </button>
         </form>
 
-        <p className="text-xs text-center text-gray-500 mt-3">
+        <p className="text-[11px] text-center text-gray-400 mt-4">
+          By signing up, you agree to start your profile setup in the dashboard.
+        </p>
+        <p className="text-xs text-center text-gray-500 mt-2">
           Already have an account?{" "}
           <Link href="/login" className="text-[#0F766E] font-semibold hover:underline">Sign in</Link>
         </p>

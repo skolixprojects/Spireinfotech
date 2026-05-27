@@ -16,6 +16,7 @@ import { friendlyEnrollmentError } from "@/lib/utils";
 import type { MentorInfo, SessionRequest } from "@/lib/types";
 import { ContactSalesModal } from "@/components/sales/ContactSalesModal";
 import { RequestSessionModal } from "@/components/mentorship/RequestSessionModal";
+import ProfileGateModal from "@/components/dashboard/ProfileGateModal";
 import {
   CourseSalesView,
   type SalesCourseData, type SalesModule, type SalesLesson,
@@ -113,6 +114,9 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   const [enrolled, setEnrolled] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollMsg, setEnrollMsg] = useState("");
+  // Phase 1C — pop the profile-completion gate modal whenever an
+  // incomplete-profile user tries to enroll.
+  const [showProfileGate, setShowProfileGate] = useState(false);
   const [generatingCert, setGeneratingCert] = useState(false);
   const [certError, setCertError] = useState("");
   const [showContactSales, setShowContactSales] = useState(false);
@@ -202,6 +206,14 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
       router.push(`/login?redirect=/courses/${id}`);
       return;
     }
+    // Phase 1C gate — incomplete profile pops the modal instead of
+    // hitting the backend. The backend ships the same 403 if we get
+    // through anyway (race against the auth context), and the catch
+    // below also pops the modal in that case.
+    if (user && user.profileComplete === false) {
+      setShowProfileGate(true);
+      return;
+    }
     setEnrolling(true);
     setEnrollMsg("");
     try {
@@ -220,6 +232,13 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
       if (a.status === "fulfilled") setAssignments((a.value ?? []) as LearningAssignment[]);
       if (qs.status === "fulfilled") setQuizzes(qs.value ?? []);
     } catch (err) {
+      // Phase 1C — backend ships 403 PROFILE_INCOMPLETE if the gate
+      // wasn't caught client-side. Pop the same modal.
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes("PROFILE_INCOMPLETE")) {
+        setShowProfileGate(true);
+        return;
+      }
       const msg = friendlyEnrollmentError(err);
       setEnrollMsg(msg);
       if (msg.startsWith("You're already enrolled")) {
@@ -405,6 +424,10 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
         courseId={course.id}
         courseTitle={course.title}
         listedPrice={course.price}
+      />
+      <ProfileGateModal
+        open={showProfileGate}
+        onClose={() => setShowProfileGate(false)}
       />
     </>
   );

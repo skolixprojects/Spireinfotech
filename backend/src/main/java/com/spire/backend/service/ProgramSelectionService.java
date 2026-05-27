@@ -48,6 +48,7 @@ public class ProgramSelectionService {
     private final WorkflowService workflowService;
     private final RecordService recordService;
     private final EmailTemplateService emailTemplateService;
+    private final ProfileCompletionService profileCompletionService;
 
     // ── Reads ───────────────────────────────────────────────────
 
@@ -120,6 +121,7 @@ public class ProgramSelectionService {
         workflowService.transition(user,
                 WorkflowService.Status.PROGRAM_SELECTED,
                 "program_selected");
+        profileCompletionService.markStepComplete(user, "PROGRAM_SELECTION");
 
         Map<String, Object> details = new HashMap<>();
         details.put("program", saved.getProgram());

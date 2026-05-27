@@ -229,7 +229,10 @@ export default function DocumentUploadPage() {
     try {
       const res = await completeDocuments();
       if (res.success) {
-        router.replace(res.nextStep ?? "/program-selection");
+        // Phase 1C — back to the checklist regardless of the old
+        // "nextStep" hint, since the next surface is now an item in
+        // the dashboard tab, not a separate page.
+        router.replace("/dashboard?tab=complete-profile");
       } else {
         setCompleteError(res.message ?? "Some required documents are still missing.");
       }

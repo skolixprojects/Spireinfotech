@@ -51,6 +51,20 @@ public class ProfileDTO {
     private String selectedTechnology;
     private String availability;
 
+    // ── Phase 1C progressive-completion flags ───────────────────
+    // Read by the dashboard banner / completion tab / gate modal.
+    // Mirrored on both ProfileDTO and UserDTO so the auth context
+    // can drive the gate without a separate /completion call on
+    // every page render.
+    private Boolean profileComplete;
+    private Integer profileCompletionPct;
+    private Boolean basicInfoComplete;
+    private Boolean acknowledgmentComplete;
+    private Boolean documentsComplete;
+    private Boolean programSelectionComplete;
+    private Boolean agreementComplete;
+    private Boolean checkUploadComplete;
+
     private Integer enrolledCoursesCount;
     private Integer completedCoursesCount;
     private Integer certificatesCount;
@@ -180,6 +194,15 @@ public class ProfileDTO {
                 .emailVerified(Boolean.TRUE.equals(user.getEmailVerified()))
                 .selectedTechnology(user.getSelectedTechnology())
                 .availability(user.getAvailability())
+                .profileComplete(Boolean.TRUE.equals(user.getProfileComplete()))
+                .profileCompletionPct(user.getProfileCompletionPct() == null
+                        ? 0 : user.getProfileCompletionPct())
+                .basicInfoComplete(Boolean.TRUE.equals(user.getBasicInfoComplete()))
+                .acknowledgmentComplete(Boolean.TRUE.equals(user.getAcknowledgmentComplete()))
+                .documentsComplete(Boolean.TRUE.equals(user.getDocumentsComplete()))
+                .programSelectionComplete(Boolean.TRUE.equals(user.getProgramSelectionComplete()))
+                .agreementComplete(Boolean.TRUE.equals(user.getAgreementComplete()))
+                .checkUploadComplete(Boolean.TRUE.equals(user.getCheckUploadComplete()))
                 .enrolledCoursesCount(enrolledCoursesCount)
                 .completedCoursesCount(completedCoursesCount)
                 .certificatesCount(certificatesCount)

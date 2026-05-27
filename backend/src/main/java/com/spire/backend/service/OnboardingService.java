@@ -44,6 +44,30 @@ public class OnboardingService {
     private final RecordService recordService;
 
     /**
+     * Phase 1C entry point. Fires when the participant reaches 100%
+     * profile completion (all six per-step flags set). Runs the same
+     * welcome → coordinator → ERM → coaches chain that used to fire
+     * straight after agreement signing, plus a celebratory
+     * "profile complete" email so the user knows everything is now
+     * unlocked.
+     *
+     * Internally delegates to {@link #completeOnboarding} so the
+     * single canonical chain runs from both entry points without
+     * code duplication. Idempotent: safe to re-run.
+     */
+    @Transactional
+    public void triggerProfileCompletionFlow(User user) {
+        log.info("Profile-complete chain starting for user {}", user.getId());
+        try {
+            emailTemplateService.sendProfileCompleteEmail(user);
+        } catch (Exception e) {
+            log.warn("Profile-complete celebration email failed for user {}: {}",
+                    user.getId(), e.getMessage());
+        }
+        completeOnboarding(user);
+    }
+
+    /**
      * Fired right after Phase 3B verify-code completes. Idempotent
      * — safe to re-run if a later step previously failed (e.g.
      * no ERM was available at first agreement-completion time but

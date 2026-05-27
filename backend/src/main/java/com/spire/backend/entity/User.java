@@ -190,4 +190,60 @@ public class User {
     @Column(name = "current_status", length = 50)
     @Builder.Default
     private String currentStatus = "DRAFT_STARTED";
+
+    // ── Phase 1C: progressive profile completion ────────────────────
+    // After the 2-step signup (enroll + verify), the participant lands
+    // on the dashboard immediately. The remaining 6 lifecycle steps
+    // (basic info, acknowledgment, documents, program selection,
+    // agreement, check upload) become "Complete Your Profile" cards
+    // — browse-allowed, enroll-gated. Each per-step boolean flips
+    // when its endpoint reports done; profileComplete is the
+    // computed "all six checked" gate that unlocks course enrollment
+    // + triggers the welcome / ERM / coaches chain.
+
+    @Column(name = "profile_complete", nullable = false)
+    @Builder.Default
+    private Boolean profileComplete = false;
+
+    @Column(name = "profile_completion_pct", nullable = false)
+    @Builder.Default
+    private Integer profileCompletionPct = 0;
+
+    @Column(name = "profile_completed_at")
+    private LocalDateTime profileCompletedAt;
+
+    @Column(name = "basic_info_complete", nullable = false)
+    @Builder.Default
+    private Boolean basicInfoComplete = false;
+
+    @Column(name = "acknowledgment_complete", nullable = false)
+    @Builder.Default
+    private Boolean acknowledgmentComplete = false;
+
+    @Column(name = "documents_complete", nullable = false)
+    @Builder.Default
+    private Boolean documentsComplete = false;
+
+    @Column(name = "program_selection_complete", nullable = false)
+    @Builder.Default
+    private Boolean programSelectionComplete = false;
+
+    @Column(name = "agreement_complete", nullable = false)
+    @Builder.Default
+    private Boolean agreementComplete = false;
+
+    @Column(name = "check_upload_complete", nullable = false)
+    @Builder.Default
+    private Boolean checkUploadComplete = false;
+
+    /**
+     * How many profile-reminder emails we've sent. Capped at 3 by the
+     * cron job so a stalled signup doesn't get pinged forever.
+     */
+    @Column(name = "profile_reminder_count", nullable = false)
+    @Builder.Default
+    private Integer profileReminderCount = 0;
+
+    @Column(name = "last_profile_reminder_at")
+    private LocalDateTime lastProfileReminderAt;
 }

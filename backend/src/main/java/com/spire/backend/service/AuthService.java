@@ -143,10 +143,6 @@ public class AuthService {
                 .fullName(request.getFullName().trim())
                 .role(participantRole)
                 .phone(request.getPhone())
-                .location(request.getLocation())
-                .availability(request.getAvailability())
-                .selectedTechnology(request.getSelectedTechnology())
-                .targetExperienceLevel(request.getTargetExperienceLevel())
                 .isActive(true)
                 .emailVerified(false)
                 .currentStatus("DRAFT_STARTED")
@@ -163,10 +159,7 @@ public class AuthService {
                 Map.of(
                         "email", user.getEmail(),
                         "fullName", user.getFullName(),
-                        "phone", user.getPhone() != null ? user.getPhone() : "",
-                        "technology", user.getSelectedTechnology() != null ? user.getSelectedTechnology() : "",
-                        "experience", user.getTargetExperienceLevel() != null ? user.getTargetExperienceLevel() : "",
-                        "availability", user.getAvailability() != null ? user.getAvailability() : ""
+                        "phone", user.getPhone() != null ? user.getPhone() : ""
                 ));
 
         // Workflow ladder: DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING
@@ -297,6 +290,23 @@ public class AuthService {
                 // The participant_id page will simply show "—" and
                 // an admin can re-mint via /api/participants/me.
             }
+        }
+
+        // Phase 1C: lift the user straight to DASHBOARD_ENABLED so
+        // the frontend lands them on /dashboard immediately after
+        // verifying email. The remaining lifecycle (acknowledgment,
+        // documents, program, agreement, check upload) becomes the
+        // progressive "Complete Your Profile" surface inside the
+        // dashboard — not a gate that blocks login. The welcome →
+        // ERM → coaches chain is deferred to triggerProfileCompletionFlow,
+        // fired only when all six profile sub-steps are checked off.
+        try {
+            workflowService.transition(saved,
+                    WorkflowService.Status.DASHBOARD_ENABLED, "dashboard_enabled_quick_signup");
+        } catch (Exception ignored) {
+            // Tolerant of pre-existing users whose workflow already
+            // advanced past DASHBOARD_ENABLED — the transition row
+            // still records the event but doesn't roll them backward.
         }
 
         return buildAuthResponse(saved);

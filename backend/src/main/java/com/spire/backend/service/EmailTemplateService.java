@@ -118,6 +118,55 @@ public class EmailTemplateService {
         emailService.sendEmail(user.getEmail(), subject, wrap(title, body));
     }
 
+    // ── Phase 1C: profile reminder (cron) ────────────────────────────
+    /**
+     * Daily reminder for participants still under 100% profile
+     * completion. Cron-driven; subject mirrors the on-dashboard
+     * banner copy. Sent at most 3 times per user (controlled by the
+     * cron caller, not here).
+     */
+    public void sendProfileReminderEmail(User user, int completionPct,
+                                         java.util.List<String> remainingSteps) {
+        String first = firstName(user);
+        StringBuilder steps = new StringBuilder();
+        for (String step : remainingSteps) {
+            steps.append(bullet(escape(step)));
+        }
+        String body = p("Hi " + escape(first) + ",")
+                + p("Your Spire Info Tech profile is "
+                        + "<strong>" + completionPct + "%</strong> complete.")
+                + p("To start enrolling in courses, finish these quick steps:")
+                + steps.toString()
+                + button("Continue Setup", appUrl + "/dashboard?tab=complete-profile")
+                + muted("— Spire Info Tech");
+        String subject = "You're " + completionPct
+                + "% there — finish your profile in 10 minutes";
+        emailService.sendEmail(user.getEmail(), subject,
+                wrap("Finish your Spire profile", body));
+    }
+
+    // ── Phase 1C: profile-complete celebration ──────────────────────
+    /**
+     * Fired the moment the participant ticks the last of the six
+     * profile-completion boxes. The welcome chain is a separate
+     * email (sendWelcomeEmail) sent right after — this one just
+     * confirms the gate has been crossed.
+     */
+    public void sendProfileCompleteEmail(User user) {
+        String first = firstName(user);
+        String body = p("Hi " + escape(first) + ",")
+                + p("Your profile is complete! You can now enroll in courses, "
+                        + "request mentor sessions, and access every feature on Spire Info Tech.")
+                + p("Your team — Relationship Manager, Career Coach, "
+                        + "Technical Advisor — is being assembled. You'll hear from "
+                        + "them shortly with personalised intros.")
+                + button("Open Dashboard", appUrl + "/dashboard")
+                + muted("— Spire Info Tech");
+        emailService.sendEmail(user.getEmail(),
+                "Welcome aboard, " + first + "! Your profile is complete",
+                wrap("Profile complete!", body));
+    }
+
     // ── 12. Weekly report reminder (Phase 5A — Mondays) ─────────────
     /**
      * Monday nudge for participants in WEEKLY_REPORTING_ACTIVE who

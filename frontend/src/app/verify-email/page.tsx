@@ -24,6 +24,7 @@ import { resendVerificationCode, verifyCode } from "@/lib/api";
 
 const RESEND_COOLDOWN_SECONDS = 150;
 const CODE_LENGTH = 6;
+const QUICK_SIGNUP_STEPS = ["Sign Up", "Verify"] as const;
 
 function maskEmail(email: string | null | undefined): string {
   if (!email) return "your email";
@@ -134,19 +135,12 @@ function VerifyEmailInner() {
       const auth = await verifyCode(email, code);
       setSuccess(true);
       setSession(auth);
-      // Phase 1B: verify-code now also mints the participant ID
-      // and walks the workflow to ID_EMAIL_SENT, so route into the
-      // /participant-id confirmation page next. Legacy users who'd
-      // already accepted the agreement skip to /dashboard.
-      // Routing after OTP verify:
-      //   - Already agreement-accepted (legacy users) → /dashboard
-      //   - New participant lifecycle (has participantId) → /participant-id
-      //   - No participant ID yet → /participant-id (the page will
-      //     mint the ID on first load via the existing handshake)
-      const target = auth.user?.agreementAccepted
-        ? "/dashboard"
-        : "/participant-id";
-      setTimeout(() => { window.location.href = target; }, 800);
+      // Phase 1C: verify-code mints the participant ID AND walks
+      // the workflow straight to DASHBOARD_ENABLED. The participant
+      // lands on /dashboard immediately; the remaining lifecycle
+      // steps live inside the "Complete Your Profile" tab. No more
+      // bouncing through /participant-id, /acknowledgment, etc.
+      setTimeout(() => { window.location.href = "/dashboard"; }, 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");
       setShake((n) => n + 1);
@@ -182,7 +176,7 @@ function VerifyEmailInner() {
   // ── Render ──────────────────────────────────────────────────────
 
   return (
-    <OnboardingLayout currentStep={2} contentMaxWidth="xl">
+    <OnboardingLayout currentStep={2} steps={QUICK_SIGNUP_STEPS} contentMaxWidth="xl">
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}

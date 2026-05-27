@@ -165,7 +165,7 @@ export default function CheckUploadPage() {
       // Refresh auth before navigating so /welcome sees the
       // CHECK_COPY_UPLOADED (and onward) status.
       await refreshUser();
-      router.push("/welcome");
+      router.push("/dashboard?tab=complete-profile");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't mark N/A");
     } finally {

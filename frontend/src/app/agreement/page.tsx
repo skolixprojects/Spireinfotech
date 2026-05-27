@@ -199,10 +199,10 @@ export default function AgreementPage() {
       // navigate. Without this, /dashboard's guard would see the
       // stale PROGRAM_SELECTED status on the next soft-navigation.
       await refreshUser();
-      // Next step in the lifecycle is check upload; backend has
-      // transitioned to AGREEMENT_COMPLETED, the routing guard
-      // will route AGREEMENT_COMPLETED → /check-upload.
-      setTimeout(() => { router.push("/check-upload"); }, 1200);
+      // Phase 1C — back to the dashboard checklist. The agreement
+      // step has flipped agreement_complete = true; the user sees
+      // the next item (check upload) lit up on return.
+      setTimeout(() => { router.push("/dashboard?tab=complete-profile"); }, 1200);
     } catch (err) {
       setSignError(err instanceof Error ? err.message : "Couldn't sign agreement");
     } finally {

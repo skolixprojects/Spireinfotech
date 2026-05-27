@@ -69,6 +69,7 @@ public class DocumentService {
     private final DocumentStorageService storageService;
     private final WorkflowService workflowService;
     private final RecordService recordService;
+    private final ProfileCompletionService profileCompletionService;
 
     // ── Upload ───────────────────────────────────────────────────
 
@@ -225,6 +226,7 @@ public class DocumentService {
         workflowService.transition(user,
                 WorkflowService.Status.DOCUMENTS_SUBMITTED,
                 "docs_complete");
+        profileCompletionService.markStepComplete(user, "DOCUMENTS");
         return Map.of(
                 "success", true,
                 "missing", List.of(),

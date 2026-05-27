@@ -53,7 +53,7 @@ public class ParticipantCheckService {
     private final WorkflowService workflowService;
     private final RecordService recordService;
     private final EmailTemplateService emailTemplateService;
-    private final OnboardingService onboardingService;
+    private final ProfileCompletionService profileCompletionService;
 
     // ── Upload ──────────────────────────────────────────────────
 
@@ -173,16 +173,16 @@ public class ParticipantCheckService {
                     "erm_routed");
         }
 
-        // Kick off welcome → coordinator → ERM → coaches → dashboard.
-        // Refresh `user` so the in-memory copy reflects the latest
-        // current_status after the chain finishes.
-        try {
-            User fresh = userRepository.findById(userId).orElse(user);
-            onboardingService.completeOnboarding(fresh);
-        } catch (Exception e) {
-            log.warn("OnboardingService chain failed for user {}: {}",
-                    userId, e.getMessage());
-        }
+        // Phase 1C: the welcome → coordinator → ERM → coaches chain
+        // no longer fires from here. It moved to
+        // OnboardingService.triggerProfileCompletionFlow, which
+        // ProfileCompletionService kicks when the user reaches 100%
+        // (all six per-step booleans true). The mark-step call below
+        // is the gate — if the user finished every other step first,
+        // this flip will trigger the chain; otherwise the chain stays
+        // dormant until the remaining boxes are checked.
+        User fresh = userRepository.findById(userId).orElse(user);
+        profileCompletionService.markStepComplete(fresh, "CHECK_UPLOAD");
     }
 
     // ── List own checks (no file URL — file fetch is separate) ──

@@ -17,6 +17,12 @@ import { Check } from "lucide-react";
  * having the component read auth context — keeps it pure and lets
  * a page short-circuit the auto-derived step if it needs to.
  */
+/**
+ * Default labels — historical 9-step lifecycle, kept so any caller
+ * that doesn't pass an explicit {@code steps} prop renders the same
+ * progress bar it always did. Phase 1C's quick-signup pages pass a
+ * compact 2-step list instead.
+ */
 const STEPS: ReadonlyArray<string> = [
   "Enroll",
   "Verify",
@@ -30,8 +36,10 @@ const STEPS: ReadonlyArray<string> = [
 ];
 
 export interface OnboardingProgressBarProps {
-  /** 1-indexed step the user is currently on. Values outside [1, STEPS.length] clamp. */
+  /** 1-indexed step the user is currently on. Clamped to the steps array. */
   currentStep: number;
+  /** Optional override — pass a shorter list (e.g. ["Sign Up", "Verify"]) to render a 2-step bar. */
+  steps?: ReadonlyArray<string>;
 }
 
 /**
@@ -82,9 +90,13 @@ export function stepFromStatus(status: string | null | undefined): number {
   }
 }
 
-export default function OnboardingProgressBar({ currentStep }: OnboardingProgressBarProps) {
-  const clamped = Math.max(1, Math.min(STEPS.length, currentStep));
-  const activeLabel = STEPS[clamped - 1];
+export default function OnboardingProgressBar({
+  currentStep,
+  steps,
+}: OnboardingProgressBarProps) {
+  const STEPS_TO_RENDER = steps && steps.length > 0 ? steps : STEPS;
+  const clamped = Math.max(1, Math.min(STEPS_TO_RENDER.length, currentStep));
+  const activeLabel = STEPS_TO_RENDER[clamped - 1];
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 shadow-sm px-4 py-3 sm:px-5 sm:py-3.5">
@@ -96,18 +108,18 @@ export default function OnboardingProgressBar({ currentStep }: OnboardingProgres
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-[11px] uppercase tracking-wider text-gray-500 font-semibold">
-            Step {clamped} of {STEPS.length}
+            Step {clamped} of {STEPS_TO_RENDER.length}
           </p>
           <p className="text-sm font-bold text-[#0F766E] truncate">{activeLabel}</p>
         </div>
         <div className="text-xs text-gray-500 font-mono">
-          {clamped}/{STEPS.length}
+          {clamped}/{STEPS_TO_RENDER.length}
         </div>
       </div>
 
       {/* Desktop layout: 9 circles + short labels inline. */}
       <ol className="hidden sm:flex items-start justify-between gap-1">
-        {STEPS.map((label, idx) => {
+        {STEPS_TO_RENDER.map((label, idx) => {
           const stepNumber = idx + 1;
           const isCompleted = stepNumber < clamped;
           const isActive = stepNumber === clamped;
@@ -145,7 +157,7 @@ export default function OnboardingProgressBar({ currentStep }: OnboardingProgres
                 >
                   {isCompleted ? <Check size={14} /> : stepNumber}
                 </div>
-                {stepNumber < STEPS.length ? (
+                {stepNumber < STEPS_TO_RENDER.length ? (
                   <div
                     className={
                       "flex-1 h-[2px] " + (rightConnectorActive ? "bg-[#0F766E]" : "bg-gray-200")
@@ -164,7 +176,7 @@ export default function OnboardingProgressBar({ currentStep }: OnboardingProgres
       </ol>
 
       <p className="hidden sm:block mt-2 text-[11px] text-gray-500 text-center">
-        Step {clamped} of {STEPS.length}: <span className="font-semibold text-gray-700">{activeLabel}</span>
+        Step {clamped} of {STEPS_TO_RENDER.length}: <span className="font-semibold text-gray-700">{activeLabel}</span>
       </p>
     </div>
   );

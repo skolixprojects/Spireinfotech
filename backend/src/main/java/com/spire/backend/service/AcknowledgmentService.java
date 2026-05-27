@@ -47,6 +47,7 @@ public class AcknowledgmentService {
     private final UserRepository userRepository;
     private final WorkflowService workflowService;
     private final RecordService recordService;
+    private final ProfileCompletionService profileCompletionService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Transactional
@@ -101,6 +102,9 @@ public class AcknowledgmentService {
         workflowService.transition(user,
                 WorkflowService.Status.ACKNOWLEDGMENT_ACCEPTED,
                 "acknowledgment");
+
+        // ── Progressive profile flag (Phase 1C) ─────────────────────
+        profileCompletionService.markStepComplete(user, "ACKNOWLEDGMENT");
 
         recordService.record(user.getId(), "ACKNOWLEDGMENT_ACCEPTED",
                 RecordService.Category.ACCOUNT,

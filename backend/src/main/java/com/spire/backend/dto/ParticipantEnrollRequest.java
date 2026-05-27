@@ -9,12 +9,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Body of POST /api/participants/enroll. Extends the legacy
- * RegisterRequest payload with the additional participant-lifecycle
- * fields (phone, location, availability, technology, experience
- * level). The fullName / email / password trio mirrors
- * {@link RegisterRequest} so the user creation path can re-use the
- * same hashing + OTP primitives without duplication.
+ * Body of POST /api/participants/enroll. Quick-signup payload — just
+ * the four fields needed to create an account and dispatch the OTP.
+ * Location, availability, technology, and target experience level
+ * used to live here but moved to the progressive
+ * {@code /profile/basic-info} endpoint so the public enrollment form
+ * fits on one screen with no overwhelm.
  */
 @Data
 @NoArgsConstructor
@@ -35,15 +35,4 @@ public class ParticipantEnrollRequest {
     @NotBlank(message = "Password is required")
     @Size(min = 8, message = "Password must be at least 8 characters")
     private String password;
-
-    private String location;
-
-    @NotBlank(message = "Availability is required")
-    private String availability;
-
-    @NotBlank(message = "Technology / skillset is required")
-    private String selectedTechnology;
-
-    @NotBlank(message = "Target experience level is required")
-    private String targetExperienceLevel;
 }

@@ -28,4 +28,14 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> error(String message) {
         return ApiResponse.<T>builder().success(false).message(message).build();
     }
+
+    /**
+     * Error response that ships a structured payload — used by the
+     * profile-completion gate so the frontend can read
+     * {@code data.completion} and render the same banner everywhere
+     * without a second round-trip.
+     */
+    public static <T> ApiResponse<T> error(String message, T data) {
+        return ApiResponse.<T>builder().success(false).message(message).data(data).build();
+    }
 }

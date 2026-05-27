@@ -1,14 +1,19 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
   AlertCircle, ArrowRight, Bell, Briefcase, CheckCircle2, ClipboardList,
-  CreditCard, FileText, Loader2, Mail, Menu, MessageSquare, Plus, Save,
-  Send, Settings, ShieldCheck, Target, Trash2, Upload as UploadIcon,
+  CreditCard, FileText, Heart, Loader2, Mail, Menu, MessageSquare, Plus, Save,
+  Send, Settings, ShieldCheck, Sparkles, Target, Trash2, Upload as UploadIcon,
   Users, BookOpen, LayoutDashboard, X,
 } from "lucide-react";
+
+import ProfileCompletionBanner from "./ProfileCompletionBanner";
+import ProfileCompletionChecklist from "./ProfileCompletionChecklist";
+import WishlistTab from "./WishlistTab";
 
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -51,8 +56,9 @@ import {
  */
 
 type TabId =
-  | "home" | "courses" | "weekly" | "resume" | "interview" | "employment"
-  | "payments" | "documents" | "agreement" | "team" | "messages" | "profile";
+  | "home" | "complete-profile" | "courses" | "wishlist" | "weekly"
+  | "resume" | "interview" | "employment" | "payments" | "documents"
+  | "agreement" | "team" | "messages" | "profile";
 
 interface NavItem {
   id: TabId;
@@ -61,9 +67,11 @@ interface NavItem {
 }
 
 const NAV: ReadonlyArray<NavItem> = [
-  { id: "home",       label: "Dashboard",      Icon: LayoutDashboard },
-  { id: "courses",    label: "My Courses",     Icon: BookOpen },
-  { id: "weekly",     label: "Weekly Report",  Icon: ClipboardList },
+  { id: "home",              label: "Dashboard",        Icon: LayoutDashboard },
+  { id: "complete-profile",  label: "Complete Profile", Icon: Sparkles },
+  { id: "courses",           label: "My Courses",       Icon: BookOpen },
+  { id: "wishlist",          label: "My Wishlist",      Icon: Heart },
+  { id: "weekly",            label: "Weekly Report",    Icon: ClipboardList },
   { id: "resume",     label: "Resume",         Icon: BookOpen },
   { id: "interview",  label: "Interviews",     Icon: Target },
   { id: "employment", label: "Employment",     Icon: Briefcase },
@@ -84,7 +92,12 @@ function greeting(): string {
 
 export default function ParticipantDashboard() {
   const { user, logout } = useAuth();
-  const [active, setActive] = useState<TabId>("home");
+  const searchParams = useSearchParams();
+  // Sync the tab to the ?tab=... query param so the gate modal /
+  // banner / "Continue Setup" links can deep-link into the right
+  // section. Defaults to "home" otherwise.
+  const initialTab = (searchParams.get("tab") as TabId) || "home";
+  const [active, setActive] = useState<TabId>(initialTab);
   const [data, setData] = useState<DashboardData | null>(null);
   const [team, setTeam] = useState<ParticipantTeam | null>(null);
   const [loading, setLoading] = useState(true);
@@ -94,6 +107,14 @@ export default function ParticipantDashboard() {
   // Close the mobile drawer whenever the active tab changes — desktop
   // sidebar stays put because it isn't backed by this state.
   useEffect(() => { setDrawerOpen(false); }, [active]);
+
+  // Re-sync if the query param changes while the page is mounted
+  // (e.g. the gate modal pushes /dashboard?tab=complete-profile
+  // while the user is still on /dashboard).
+  useEffect(() => {
+    const t = searchParams.get("tab") as TabId | null;
+    if (t) setActive(t);
+  }, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,6 +170,12 @@ export default function ParticipantDashboard() {
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         {NAV.map((n) => {
           const isActive = active === n.id;
+          // Phase 1C — surface the completion percentage as a badge
+          // beside the "Complete Profile" tab. Hidden once the user
+          // is fully done.
+          const showBadge = n.id === "complete-profile"
+            && !user?.profileComplete
+            && typeof user?.profileCompletionPct === "number";
           return (
             <button
               key={n.id}
@@ -157,11 +184,21 @@ export default function ParticipantDashboard() {
                 "w-full inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer "
                 + (isActive
                     ? "bg-[#0F766E] text-white shadow-sm"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900")
+                    : showBadge
+                      ? "text-amber-800 bg-amber-50 hover:bg-amber-100"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900")
               }
             >
               <n.Icon size={14} />
-              <span className="truncate">{n.label}</span>
+              <span className="truncate flex-1 text-left">{n.label}</span>
+              {showBadge && (
+                <span className={
+                  "text-[10px] font-bold px-1.5 py-0.5 rounded-full "
+                  + (isActive ? "bg-white text-[#0F766E]" : "bg-amber-200 text-amber-900")
+                }>
+                  {user?.profileCompletionPct ?? 0}%
+                </span>
+              )}
             </button>
           );
         })}
@@ -218,10 +255,17 @@ export default function ParticipantDashboard() {
           </button>
           <span className="text-[10px] font-mono text-gray-400">{data.participantId ?? ""}</span>
         </div>
+        <ProfileCompletionBanner
+          onContinueSetup={() => setActive("complete-profile")}
+        />
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
           {active === "home" && (
             <HomeTab data={data} team={team} userEmail={user?.email ?? null}
               onJumpTo={(t) => setActive(t)} />
+          )}
+          {active === "complete-profile" && <ProfileCompletionChecklist />}
+          {active === "wishlist" && (
+            <WishlistTab onContinueSetup={() => setActive("complete-profile")} />
           )}
           {active === "courses" && <MyCoursesTab />}
           {active === "weekly" && <WeeklyTab dashboardData={data} />}

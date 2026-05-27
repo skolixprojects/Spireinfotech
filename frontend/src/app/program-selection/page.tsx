@@ -238,7 +238,9 @@ export default function ProgramSelectionPage() {
         serviceSummaryVersion: SUMMARY_VERSION,
         notes: notes.trim() || undefined,
       });
-      router.replace(result?.nextStep ?? "/agreement");
+      // Phase 1C — back to the dashboard checklist tab.
+      void result;
+      router.replace("/dashboard?tab=complete-profile");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't submit program selection");
     } finally {

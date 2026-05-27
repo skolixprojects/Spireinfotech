@@ -2,13 +2,16 @@ package com.spire.backend.controller;
 
 import com.spire.backend.dto.AcknowledgmentSubmitRequest;
 import com.spire.backend.dto.ApiResponse;
+import com.spire.backend.dto.BasicInfoRequest;
 import com.spire.backend.dto.CheckDocumentDTO;
 import com.spire.backend.dto.ParticipantDocumentDTO;
 import com.spire.backend.dto.ParticipantEnrollRequest;
+import com.spire.backend.dto.ProfileCompletionDto;
 import com.spire.backend.dto.ProgramSelectionDTO;
 import com.spire.backend.dto.ProgramSelectionRequest;
 import com.spire.backend.dto.RegistrationResponse;
 import com.spire.backend.dto.UserDTO;
+import com.spire.backend.dto.WishlistItemDto;
 import com.spire.backend.entity.Acknowledgment;
 import com.spire.backend.entity.CheckDocument;
 import com.spire.backend.entity.ParticipantDocument;
@@ -77,6 +80,9 @@ public class ParticipantController {
     private final com.spire.backend.service.CheckTrackingService checkTrackingService;
     private final com.spire.backend.repository.InvoiceRepository invoiceRepository;
     private final com.spire.backend.repository.PaymentLedgerRepository paymentLedgerRepository;
+    private final com.spire.backend.service.ProfileCompletionService profileCompletionService;
+    private final com.spire.backend.service.WishlistService wishlistService;
+    private final com.spire.backend.service.EnrollmentService enrollmentService;
 
     /** Public — anyone can enroll. Behind the scenes walks the workflow
      *  ladder DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING. */
@@ -745,6 +751,148 @@ public class ParticipantController {
         }
         userRepository.save(user);
         return ResponseEntity.ok(ApiResponse.success("Profile updated", UserDTO.from(user)));
+    }
+
+    // ── Phase 1C: progressive profile completion ───────────────────
+
+    /** Snapshot of the six completion steps + percentage. */
+    @GetMapping("/profile/completion")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<ProfileCompletionDto>> getProfileCompletion(
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        return ResponseEntity.ok(ApiResponse.success(
+                profileCompletionService.getStatus(user)));
+    }
+
+    /**
+     * Step 1 of the progressive flow — moved off the public enrollment
+     * form so the public sign-up is just 4 fields. Persists location,
+     * availability, technology, and target experience level onto the
+     * user row, then flips {@code basic_info_complete = true}.
+     */
+    @PostMapping("/profile/basic-info")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> submitBasicInfo(
+            @Valid @RequestBody BasicInfoRequest body,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        if (body.getLocation() != null) {
+            String loc = body.getLocation().trim();
+            user.setLocation(loc.isEmpty() ? null : loc);
+        }
+        user.setAvailability(body.getAvailability().trim());
+        user.setSelectedTechnology(body.getSelectedTechnology().trim());
+        user.setTargetExperienceLevel(body.getTargetExperienceLevel().trim());
+        userRepository.save(user);
+
+        profileCompletionService.markStepComplete(user, "BASIC_INFO");
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "Basic info saved",
+                Map.of(
+                        "success", true,
+                        "completion", profileCompletionService.getStatus(user)
+                )));
+    }
+
+    // ── Phase 1C: wishlist ─────────────────────────────────────────
+
+    @GetMapping("/wishlist")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<List<WishlistItemDto>>> listWishlist(
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        return ResponseEntity.ok(ApiResponse.success(
+                wishlistService.listForUser(userId)));
+    }
+
+    @PostMapping("/wishlist/add")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> addToWishlist(
+            @RequestBody Map<String, Object> body,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        Object courseRaw = body.get("courseId");
+        if (courseRaw == null) {
+            throw new IllegalArgumentException("courseId is required");
+        }
+        Long courseId = courseRaw instanceof Number n
+                ? n.longValue()
+                : Long.parseLong(courseRaw.toString());
+        var saved = wishlistService.addCourse(userId, courseId);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Added to wishlist",
+                Map.of(
+                        "success", true,
+                        "wishlistId", saved.getId(),
+                        "courseId", courseId
+                )));
+    }
+
+    @DeleteMapping("/wishlist/{courseId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> removeFromWishlist(
+            @PathVariable Long courseId,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        wishlistService.removeCourse(userId, courseId);
+        return ResponseEntity.ok(ApiResponse.success(
+                "Removed from wishlist",
+                Map.of("success", true, "courseId", courseId)));
+    }
+
+    /**
+     * Bulk-enroll every wishlisted course. Gated on profile
+     * completion so a half-set-up account can't ride the wishlist
+     * around the gate. Iterates the existing EnrollmentService so
+     * mentor-pool capacity, duplicate detection, and recordkeeping
+     * are reused unchanged.
+     */
+    @PostMapping("/wishlist/enroll-all")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> enrollAllFromWishlist(
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+        if (!profileCompletionService.canEnrollInCourses(user)) {
+            Map<String, Object> body = Map.of(
+                    "message", "Complete your profile to enroll",
+                    "completion", profileCompletionService.getStatus(user)
+            );
+            return ResponseEntity.status(403).body(
+                    ApiResponse.<Map<String, Object>>error("PROFILE_INCOMPLETE", body));
+        }
+        List<Long> courseIds = wishlistService.courseIdsForUser(userId);
+        int enrolled = 0;
+        List<String> skipped = new java.util.ArrayList<>();
+        for (Long courseId : courseIds) {
+            try {
+                // EnrollmentService.enrollUser is reused so mentor
+                // pool capacity, duplicates, and audit records all
+                // run through one canonical path.
+                if (enrollmentService != null) {
+                    enrollmentService.enrollUser(userId, courseId);
+                    wishlistService.removeCourse(userId, courseId);
+                    enrolled++;
+                }
+            } catch (Exception e) {
+                skipped.add(String.valueOf(courseId));
+            }
+        }
+        return ResponseEntity.ok(ApiResponse.success(
+                "Wishlist enrolled",
+                Map.of(
+                        "success", true,
+                        "enrolledCount", enrolled,
+                        "skipped", skipped
+                )));
     }
 
     // ── Shared helper ───────────────────────────────────────────────

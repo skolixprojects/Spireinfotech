@@ -3,6 +3,7 @@ package com.spire.backend.controller;
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.exception.UnauthorizedException;
 import com.spire.backend.service.DocumentReminderJob;
+import com.spire.backend.service.ProfileReminderJob;
 import com.spire.backend.service.WeeklyReminderJob;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,6 +27,7 @@ public class InternalCronController {
 
     private final WeeklyReminderJob weeklyReminderJob;
     private final DocumentReminderJob documentReminderJob;
+    private final ProfileReminderJob profileReminderJob;
 
     @Value("${agreement.cron.secret:}")
     private String cronSecret;
@@ -60,6 +62,26 @@ public class InternalCronController {
             throw new UnauthorizedException("Invalid cron secret");
         }
         int sent = documentReminderJob.sendReminders();
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "ok", true,
+                "sent", sent
+        )));
+    }
+
+    /**
+     * Triggers the profile-completion reminder sweep (Phase 1C).
+     * Sends at most 3 emails per user lifetime, throttled by the
+     * job's own cooldown so back-to-back invocations are no-ops for
+     * already-nudged users.
+     */
+    @PostMapping("/api/internal/profile-reminder")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> runProfileReminder(
+            @RequestHeader(value = "X-Cron-Secret", required = false) String headerSecret) {
+        if (cronSecret == null || cronSecret.isBlank()
+                || !cronSecret.equals(headerSecret)) {
+            throw new UnauthorizedException("Invalid cron secret");
+        }
+        int sent = profileReminderJob.sendReminders();
         return ResponseEntity.ok(ApiResponse.success(Map.of(
                 "ok", true,
                 "sent", sent

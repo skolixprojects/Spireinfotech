@@ -37,6 +37,7 @@ public class ParticipantAgreementService {
     private final UserRepository userRepository;
     private final WorkflowService workflowService;
     private final RecordService recordService;
+    private final ProfileCompletionService profileCompletionService;
 
     @Transactional
     public Map<String, Object> sign(
@@ -89,6 +90,7 @@ public class ParticipantAgreementService {
                     WorkflowService.Status.AGREEMENT_COMPLETED,
                     "agreement_completed");
         }
+        profileCompletionService.markStepComplete(user, "AGREEMENT");
 
         // The agreement row records on-site signing; the
         // ermNotified=true flag flips after check upload completes

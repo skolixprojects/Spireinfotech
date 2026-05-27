@@ -57,6 +57,20 @@ public class UserDTO {
     /** Free-form city / region — editable from the dashboard Profile tab. */
     private String location;
 
+    // ── Phase 1C progressive-completion flags ───────────────────
+    // Read everywhere — the dashboard banner, gate modal, sidebar
+    // badge, course enroll button. Lives on UserDTO so the auth
+    // context can refresh once and have everything the gating UI
+    // needs in one place.
+    private Boolean profileComplete;
+    private Integer profileCompletionPct;
+    private Boolean basicInfoComplete;
+    private Boolean acknowledgmentComplete;
+    private Boolean documentsComplete;
+    private Boolean programSelectionComplete;
+    private Boolean agreementComplete;
+    private Boolean checkUploadComplete;
+
     public static UserDTO from(User user) {
         return UserDTO.builder()
                 .id(user.getId())
@@ -78,6 +92,15 @@ public class UserDTO {
                 .availability(user.getAvailability())
                 .phone(user.getPhone())
                 .location(user.getLocation())
+                .profileComplete(Boolean.TRUE.equals(user.getProfileComplete()))
+                .profileCompletionPct(user.getProfileCompletionPct() == null
+                        ? 0 : user.getProfileCompletionPct())
+                .basicInfoComplete(Boolean.TRUE.equals(user.getBasicInfoComplete()))
+                .acknowledgmentComplete(Boolean.TRUE.equals(user.getAcknowledgmentComplete()))
+                .documentsComplete(Boolean.TRUE.equals(user.getDocumentsComplete()))
+                .programSelectionComplete(Boolean.TRUE.equals(user.getProgramSelectionComplete()))
+                .agreementComplete(Boolean.TRUE.equals(user.getAgreementComplete()))
+                .checkUploadComplete(Boolean.TRUE.equals(user.getCheckUploadComplete()))
                 .build();
     }
 }

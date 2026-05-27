@@ -28,12 +28,14 @@ import OnboardingProgressBar from "@/components/OnboardingProgressBar";
  * root for exactly that reason.
  */
 export interface OnboardingLayoutProps {
-  /** 1-9 step number — drives the progress bar. */
+  /** 1-indexed step number — drives the progress bar. */
   currentStep: number;
   /** Page-specific content (the form card, etc.). */
   children: ReactNode;
   /** Max width of the inner content area. Defaults to {@code 2xl}. */
   contentMaxWidth?: "xl" | "2xl" | "3xl";
+  /** Override the default 9-step lifecycle labels (used by the quick-signup 2-step flow). */
+  steps?: ReadonlyArray<string>;
 }
 
 const MAX_WIDTH_CLASS: Record<NonNullable<OnboardingLayoutProps["contentMaxWidth"]>, string> = {
@@ -46,6 +48,7 @@ export default function OnboardingLayout({
   currentStep,
   children,
   contentMaxWidth = "2xl",
+  steps,
 }: OnboardingLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
@@ -71,7 +74,7 @@ export default function OnboardingLayout({
 
       <main className={`flex-1 w-full mx-auto px-4 sm:px-6 pb-6 ${MAX_WIDTH_CLASS[contentMaxWidth]}`}>
         <div className="mb-4">
-          <OnboardingProgressBar currentStep={currentStep} />
+          <OnboardingProgressBar currentStep={currentStep} steps={steps} />
         </div>
         {children}
       </main>

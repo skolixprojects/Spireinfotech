@@ -192,12 +192,13 @@ export default function AcknowledgmentPage() {
         communicationConsent,
         acknowledgmentVersion: ACK_VERSION,
       });
-      // Refresh profile so the cached auth-context status moves
-      // forward, then route to whichever page comes next.
-      // Server typically returns nextStep="/document-upload";
-      // fall back to the same target if it doesn't.
-      const next = result?.nextStep ?? "/document-upload";
-      router.replace(next);
+      // Phase 1C — every standalone onboarding page now redirects
+      // back to the dashboard's "Complete Your Profile" checklist
+      // so the user sees the next step in context. The old "next
+      // page in the chain" routing only fires for direct deep links
+      // that explicitly opt in via ?from=other.
+      void result;
+      router.replace("/dashboard?tab=complete-profile");
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Couldn't submit acknowledgment");
     } finally {
