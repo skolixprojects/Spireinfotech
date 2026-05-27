@@ -200,47 +200,56 @@ public class User {
     // when its endpoint reports done; profileComplete is the
     // computed "all six checked" gate that unlocks course enrollment
     // + triggers the welcome / ERM / coaches chain.
+    //
+    // Nullable on purpose: Hibernate ddl-auto runs ALTER TABLE on
+    // existing prod rows, and Postgres refuses to add a NOT NULL
+    // column to a table with existing rows unless a DEFAULT is
+    // declared. Leaving these nullable lets the migration succeed;
+    // every consumer wraps the read in {@code Boolean.TRUE.equals(...)}
+    // so NULL behaves identically to false in business logic.
 
-    @Column(name = "profile_complete", nullable = false)
+    @Column(name = "profile_complete")
     @Builder.Default
     private Boolean profileComplete = false;
 
-    @Column(name = "profile_completion_pct", nullable = false)
+    @Column(name = "profile_completion_pct")
     @Builder.Default
     private Integer profileCompletionPct = 0;
 
     @Column(name = "profile_completed_at")
     private LocalDateTime profileCompletedAt;
 
-    @Column(name = "basic_info_complete", nullable = false)
+    @Column(name = "basic_info_complete")
     @Builder.Default
     private Boolean basicInfoComplete = false;
 
-    @Column(name = "acknowledgment_complete", nullable = false)
+    @Column(name = "acknowledgment_complete")
     @Builder.Default
     private Boolean acknowledgmentComplete = false;
 
-    @Column(name = "documents_complete", nullable = false)
+    @Column(name = "documents_complete")
     @Builder.Default
     private Boolean documentsComplete = false;
 
-    @Column(name = "program_selection_complete", nullable = false)
+    @Column(name = "program_selection_complete")
     @Builder.Default
     private Boolean programSelectionComplete = false;
 
-    @Column(name = "agreement_complete", nullable = false)
+    @Column(name = "agreement_complete")
     @Builder.Default
     private Boolean agreementComplete = false;
 
-    @Column(name = "check_upload_complete", nullable = false)
+    @Column(name = "check_upload_complete")
     @Builder.Default
     private Boolean checkUploadComplete = false;
 
     /**
      * How many profile-reminder emails we've sent. Capped at 3 by the
      * cron job so a stalled signup doesn't get pinged forever.
+     * Nullable for the same migration reason as the per-step flags
+     * above; ProfileReminderJob normalises NULL → 0 on read.
      */
-    @Column(name = "profile_reminder_count", nullable = false)
+    @Column(name = "profile_reminder_count")
     @Builder.Default
     private Integer profileReminderCount = 0;
 
