@@ -103,7 +103,7 @@ export default function ProfileCompletionBanner({ onContinueSetup }: Props) {
           </span>
           <div>
             <p className="text-sm font-bold text-amber-900">
-              Complete your profile to enroll in courses
+              Complete your profile to unlock the platform
             </p>
             <p className="text-[11px] text-amber-700">
               {data.completedSteps} of {data.totalSteps} done · {data.completionPercentage}%

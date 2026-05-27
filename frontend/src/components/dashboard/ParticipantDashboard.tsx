@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import {
   AlertCircle, ArrowRight, Bell, Briefcase, CheckCircle2, ClipboardList,
-  CreditCard, FileText, Heart, Loader2, Mail, Menu, MessageSquare, Plus, Save,
+  CreditCard, FileText, Loader2, Mail, Menu, MessageSquare, Plus, Save,
   Send, Settings, ShieldCheck, Sparkles, Target, Trash2, Upload as UploadIcon,
   Users, BookOpen, LayoutDashboard, X,
 } from "lucide-react";
@@ -14,7 +14,6 @@ import {
 import LockedTabView from "./LockedTabView";
 import ProfileCompletionBanner from "./ProfileCompletionBanner";
 import ProfileCompletionChecklist from "./ProfileCompletionChecklist";
-import WishlistTab from "./WishlistTab";
 
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -57,7 +56,7 @@ import {
  */
 
 type TabId =
-  | "home" | "complete-profile" | "courses" | "wishlist" | "weekly"
+  | "home" | "complete-profile" | "courses" | "weekly"
   | "resume" | "interview" | "employment" | "payments" | "documents"
   | "agreement" | "team" | "messages" | "profile";
 
@@ -71,7 +70,6 @@ const NAV: ReadonlyArray<NavItem> = [
   { id: "home",              label: "Dashboard",        Icon: LayoutDashboard },
   { id: "complete-profile",  label: "Complete Profile", Icon: Sparkles },
   { id: "courses",           label: "My Courses",       Icon: BookOpen },
-  { id: "wishlist",          label: "My Wishlist",      Icon: Heart },
   { id: "weekly",            label: "Weekly Report",    Icon: ClipboardList },
   { id: "resume",     label: "Resume",         Icon: BookOpen },
   { id: "interview",  label: "Interviews",     Icon: Target },
@@ -265,9 +263,6 @@ export default function ParticipantDashboard() {
               onJumpTo={(t) => setActive(t)} />
           )}
           {active === "complete-profile" && <ProfileCompletionChecklist />}
-          {active === "wishlist" && (
-            <WishlistTab onContinueSetup={() => setActive("complete-profile")} />
-          )}
           {active === "courses" && (
             <MyCoursesTab
               profileComplete={Boolean(user?.profileComplete)}
@@ -288,7 +283,6 @@ export default function ParticipantDashboard() {
                     </>
                   }
                   onContinueSetup={() => setActive("complete-profile")}
-                  hideBrowseCatalog
                 />
           )}
           {active === "team" && <TeamTab team={team} data={data} />}
@@ -975,12 +969,11 @@ function MyCoursesTab({ profileComplete, onContinueSetup }: MyCoursesTabProps) {
       <LockedTabView
         title="My Courses"
         subtitle="Track your enrolled courses and learning progress."
-        headline="Complete your profile to enroll in courses"
+        headline="Complete your profile to unlock courses"
         body={
           <>
-            Finish a few more steps to unlock course enrollment. You can
-            still browse the catalog and save courses to your wishlist
-            in the meantime.
+            Finish your profile setup to unlock course enrollment and
+            access the learning catalog.
           </>
         }
         onContinueSetup={onContinueSetup}

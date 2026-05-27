@@ -50,13 +50,28 @@ const ADMIN_LINKS = [
   { label: "Profile", href: "/profile" },
 ];
 
-function pickNavLinks(isAuthenticated: boolean, role?: string) {
+function pickNavLinks(
+  isAuthenticated: boolean,
+  role?: string,
+  profileComplete?: boolean,
+) {
   if (!isAuthenticated) return PUBLIC_LINKS;
-  switch (role?.toUpperCase()) {
+  const upper = role?.toUpperCase();
+  switch (upper) {
     case "ADMIN": return ADMIN_LINKS;
     case "INSTRUCTOR": return INSTRUCTOR_LINKS;
     case "TRAINER": return TRAINER_LINKS;
-    default: return STUDENT_LINKS;
+    default:
+      // Phase 1C: hide /courses, /services, and /cart from
+      // participant nav until the profile is 100% complete. They
+      // can still reach the marketing About / Support pages via
+      // their dropdown if needed.
+      if (!profileComplete) {
+        return STUDENT_LINKS.filter(
+          (l) => l.href !== "/courses" && l.href !== "/services" && l.href !== "/cart",
+        );
+      }
+      return STUDENT_LINKS;
   }
 }
 
@@ -67,7 +82,11 @@ export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
   const pathname = usePathname();
 
-  const navLinks = pickNavLinks(isAuthenticated, user?.role);
+  const navLinks = pickNavLinks(
+    isAuthenticated,
+    user?.role,
+    Boolean(user?.profileComplete),
+  );
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);
@@ -164,10 +183,14 @@ export function Navbar() {
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
                           <LayoutDashboard size={16} /> Dashboard
                         </Link>
-                        <Link href="/courses" onClick={() => setDropdownOpen(false)}
-                          className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
-                          <BookOpen size={16} /> Courses
-                        </Link>
+                        {(user.role?.toUpperCase() !== "STUDENT"
+                          && user.role?.toUpperCase() !== "PARTICIPANT")
+                          || user.profileComplete ? (
+                          <Link href="/courses" onClick={() => setDropdownOpen(false)}
+                            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
+                            <BookOpen size={16} /> Courses
+                          </Link>
+                        ) : null}
                         <Link href="/messages" onClick={() => setDropdownOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
                           <MessageSquare size={16} /> Messages

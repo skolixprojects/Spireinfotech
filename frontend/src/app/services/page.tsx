@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Briefcase, Loader2, PlusCircle } from "lucide-react";
 import { getServices } from "@/lib/api";
@@ -10,9 +11,25 @@ import { ServiceCard, type ServiceCardData } from "@/components/services/Service
 
 export default function ServicesPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [services, setServices] = useState<ServiceCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Phase 1C strict gate — same as /courses. Logged-in participants
+  // with an incomplete profile bounce to the Complete Profile tab;
+  // staff + anonymous visitors fall through.
+  const role = user?.role?.toUpperCase() ?? "";
+  const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
+    || role === "TRAINER" || role === "SYSTEM_ADMIN"
+    || role === "OPERATIONS_ADMIN" || role === "ERM"
+    || role === "COACH" || role === "TECHNICAL_ADVISOR"
+    || role === "FINANCE";
+  useEffect(() => {
+    if (user && !isStaff && user.profileComplete === false) {
+      router.replace("/dashboard?tab=complete-profile");
+    }
+  }, [user, isStaff, router]);
 
   useEffect(() => {
     setLoading(true);
@@ -22,7 +39,6 @@ export default function ServicesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const role = user?.role?.toUpperCase();
   const canCreate = role === "ADMIN" || role === "TRAINER";
 
   return (

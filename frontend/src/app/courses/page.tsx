@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useToast } from "@/components/ui/Toast";
 import { Search, Clock, Loader2, ShoppingCart, ShieldCheck, Eye } from "lucide-react";
@@ -35,7 +36,18 @@ interface CourseItem {
 export default function CoursesPage() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const router = useRouter();
   const isAdmin = user?.role?.toUpperCase() === "ADMIN";
+  const role = user?.role?.toUpperCase() ?? "";
+  // Staff roles (instructors authoring content, admins) need /courses
+  // unconditionally — the profile-completion gate only applies to
+  // participants. Anonymous visitors can still browse the catalog;
+  // they hit /enroll the moment they click "Enroll".
+  const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
+    || role === "TRAINER" || role === "SYSTEM_ADMIN"
+    || role === "OPERATIONS_ADMIN" || role === "ERM"
+    || role === "COACH" || role === "TECHNICAL_ADVISOR"
+    || role === "FINANCE";
   const [selectedLevel, setSelectedLevel] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [courses, setCourses] = useState<CourseItem[]>([]);
@@ -45,6 +57,15 @@ export default function CoursesPage() {
   // is route-protected so we can assume the user is authenticated;
   // worst case the fetch fails silently and we show no progress bars.
   const [progressByCourseId, setProgressByCourseId] = useState<Record<number, number>>({});
+
+  // Phase 1C strict gate — logged-in participants with an incomplete
+  // profile can't see the catalog. Bounce them to the dashboard's
+  // Complete Profile tab. Public visitors and staff fall through.
+  useEffect(() => {
+    if (user && !isStaff && user.profileComplete === false) {
+      router.replace("/dashboard?tab=complete-profile");
+    }
+  }, [user, isStaff, router]);
 
   useEffect(() => {
     getDashboardSummary()

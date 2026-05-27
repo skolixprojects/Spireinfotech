@@ -97,6 +97,22 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
 
+  // Phase 1C strict gate — logged-in participants with an incomplete
+  // profile cannot view course detail. Staff and anonymous visitors
+  // fall through (anonymous lands on the sales view; staff see the
+  // supervisor view). isStaff mirrors /courses page.
+  const role = user?.role?.toUpperCase() ?? "";
+  const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
+    || role === "TRAINER" || role === "SYSTEM_ADMIN"
+    || role === "OPERATIONS_ADMIN" || role === "ERM"
+    || role === "COACH" || role === "TECHNICAL_ADVISOR"
+    || role === "FINANCE";
+  useEffect(() => {
+    if (user && !isStaff && user.profileComplete === false) {
+      router.replace("/dashboard?tab=complete-profile");
+    }
+  }, [user, isStaff, router]);
+
   // ── Data state ─────────────────────────────────────────────────
   const [course, setCourse] = useState<CourseData | null>(null);
   const [lessons, setLessons] = useState<LessonData[]>([]);

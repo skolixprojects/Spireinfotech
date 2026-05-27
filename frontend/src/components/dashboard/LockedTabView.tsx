@@ -8,19 +8,14 @@ import { getProfileCompletion, ProfileCompletion } from "@/lib/api";
 
 /**
  * Reused "locked" empty state for dashboard tabs that need a complete
- * profile (or a future lifecycle milestone) before they show real
- * data. Shows a friendly lock card with the live completion %,
- * remaining steps + CTAs — no backend error codes ever leak to the
- * UI through this surface.
+ * profile before they show real data. Shows a friendly lock card with
+ * the live completion %, remaining steps, and a single CTA to
+ * Continue Setup. No backend error codes ever leak to the UI through
+ * this surface.
  *
- * Two CTAs by default:
- *   - "Continue Setup" → switches to the Complete Profile tab via
- *     {@code onContinueSetup} when supplied, falling back to the
- *     {@code /dashboard?tab=complete-profile} deep link.
- *   - "Browse Catalog" → /courses (unauthenticated browse is fine).
- *
- * Pass {@code hideBrowseCatalog} for tabs that don't have a catalog
- * to surface (e.g. Weekly Report).
+ * There's no "Browse Catalog" fallback by design — the strict gate
+ * blocks all course / service access until profile is 100% complete,
+ * so the only useful CTA is finishing the profile.
  */
 interface Props {
   title: string;
@@ -28,11 +23,9 @@ interface Props {
   headline: string;
   body: ReactNode;
   /** Tab-switch callback. Provided by ParticipantDashboard so the
-   *  click stays inside the SPA instead of a full navigation. */
+   *  click stays inside the SPA instead of a full navigation.
+   *  Falls back to a /dashboard?tab=complete-profile deep link. */
   onContinueSetup?: () => void;
-  /** Drop the secondary "Browse Catalog" button for tabs where it
-   *  doesn't make sense (Weekly, Employment, Payments). */
-  hideBrowseCatalog?: boolean;
 }
 
 export default function LockedTabView({
@@ -41,7 +34,6 @@ export default function LockedTabView({
   headline,
   body,
   onContinueSetup,
-  hideBrowseCatalog,
 }: Props) {
   const [data, setData] = useState<ProfileCompletion | null>(null);
 
@@ -112,7 +104,7 @@ export default function LockedTabView({
           </div>
         )}
 
-        <div className="mt-6 flex items-center justify-center gap-2 flex-wrap">
+        <div className="mt-6 flex items-center justify-center">
           {onContinueSetup ? (
             <button
               type="button"
@@ -127,14 +119,6 @@ export default function LockedTabView({
               className="inline-flex items-center gap-1 bg-[#0F766E] hover:bg-[#0D9488] text-white text-sm font-bold px-5 py-2.5 rounded-lg shadow-sm transition cursor-pointer"
             >
               Continue Setup <ChevronRight size={14} />
-            </Link>
-          )}
-          {!hideBrowseCatalog && (
-            <Link
-              href="/courses"
-              className="inline-flex items-center gap-1 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-sm font-semibold px-5 py-2.5 rounded-lg transition cursor-pointer"
-            >
-              Browse Catalog
             </Link>
           )}
         </div>
