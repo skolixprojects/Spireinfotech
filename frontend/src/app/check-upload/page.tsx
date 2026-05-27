@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -12,7 +12,7 @@ import {
 import OnboardingLayout from "@/components/layouts/OnboardingLayout";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getOnboardingRoute, getParticipantMe, isDashboardStatus,
+  getProfileCompletion,
   listMyChecks, markCheckNotApplicable, uploadCheckSoftCopy,
   type CheckDocumentDTO,
 } from "@/lib/api";
@@ -54,9 +54,11 @@ const newDraft = (): CheckDraft => ({
   error: "",
 });
 
-export default function CheckUploadPage() {
+function CheckUploadPageInner() {
   const router = useRouter();
-  const { isAuthenticated, isLoading, refreshUser } = useAuth();
+  const searchParams = useSearchParams();
+  const fromProfile = searchParams.get("from") === "profile";
+  const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
 
   const [gateChecked, setGateChecked] = useState(false);
   const [gateError, setGateError] = useState("");
@@ -72,44 +74,19 @@ export default function CheckUploadPage() {
       router.replace("/login");
       return;
     }
+    if (!user) return;
+    // Phase 1C — gate on checkUploadComplete + participantId.
+    if (user.checkUploadComplete) {
+      router.replace("/dashboard?tab=complete-profile");
+      return;
+    }
+    if (!user.participantId) {
+      router.replace("/enroll");
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
-        const me = await getParticipantMe();
-        if (cancelled) return;
-        const status = me.currentStatus;
-        const eligible = [
-          "AGREEMENT_COMPLETED", "CHECK_COPY_UPLOADED",
-          "SIGNED_AGREEMENT_SENT_TO_ERM",
-        ].includes(status ?? "");
-        // Strictly past this step — go forward.
-        if (isDashboardStatus(status)) {
-          router.replace("/dashboard");
-          return;
-        }
-        // Clearly earlier in the lifecycle (acknowledgment, docs,
-        // program, agreement-sent) — bounce back to that step.
-        const earlierSteps = [
-          "DRAFT_STARTED", "BASIC_INFO_SUBMITTED",
-          "EMAIL_VERIFICATION_PENDING", "EMAIL_VERIFIED",
-          "PARTICIPANT_ID_CREATED", "ID_EMAIL_SENT",
-          "ACKNOWLEDGMENT_ACCEPTED", "DOCUMENTS_SUBMITTED",
-          "DOC_REVIEW_PENDING", "PROGRAM_SELECTED",
-          "AGREEMENT_SENT",
-        ];
-        if (status && earlierSteps.includes(status)) {
-          router.replace(getOnboardingRoute(status));
-          return;
-        }
-        // Anything else (eligible OR null/unknown) — render. Don't
-        // punt back to /enroll on a transient missing status; the
-        // user got here legitimately from /agreement.
-        if (!eligible && status) {
-          // Genuinely unexpected — log so we can diagnose, but
-          // still render so the user isn't dead-ended.
-          console.warn("[check-upload] unexpected status", status,
-                  "— rendering anyway");
-        }
         const existing = await listMyChecks().catch(() => []);
         if (!cancelled) {
           setUploaded(existing);
@@ -124,7 +101,7 @@ export default function CheckUploadPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, user, router]);
 
   const patch = (id: string, p: Partial<CheckDraft>) =>
     setDrafts((prev) => prev.map((d) => (d.id === id ? { ...d, ...p } : d)));
@@ -157,15 +134,30 @@ export default function CheckUploadPage() {
     }
   };
 
+  // Shared post-finish nav — check-upload is the last profile step,
+  // so a 100% rollup here routes the user to /welcome for the
+  // celebration; otherwise back to the checklist tab.
+  const finishCheckStep = async () => {
+    await refreshUser();
+    try {
+      const completion = await getProfileCompletion();
+      const isComplete = completion.isComplete ?? completion.complete ?? false;
+      if (isComplete) {
+        router.push("/welcome?celebration=true");
+        return;
+      }
+    } catch {
+      /* fall through to the checklist */
+    }
+    router.push("/dashboard?tab=complete-profile");
+  };
+
   const handleSkipNotApplicable = async () => {
     setSubmitting(true);
     setError("");
     try {
       await markCheckNotApplicable();
-      // Refresh auth before navigating so /welcome sees the
-      // CHECK_COPY_UPLOADED (and onward) status.
-      await refreshUser();
-      router.push("/dashboard?tab=complete-profile");
+      await finishCheckStep();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't mark N/A");
     } finally {
@@ -174,12 +166,7 @@ export default function CheckUploadPage() {
   };
 
   const handleContinue = async () => {
-    // Already uploaded — backend has flipped workflow to
-    // CHECK_COPY_UPLOADED on the first successful upload. Refresh
-    // the auth context so downstream routing guards see the new
-    // status before the soft navigation.
-    await refreshUser();
-    router.push("/welcome");
+    await finishCheckStep();
   };
 
   if (isLoading || !gateChecked) {
@@ -466,5 +453,17 @@ function Input({
         />
       </div>
     </div>
+  );
+}
+
+export default function CheckUploadPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <Loader2 size={28} className="animate-spin text-[#0F766E]" />
+      </div>
+    }>
+      <CheckUploadPageInner />
+    </Suspense>
   );
 }

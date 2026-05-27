@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { CheckCircle2, ChevronRight, Lock, Loader2 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { CheckCircle2, ChevronRight, Lock, Loader2, PartyPopper } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -36,9 +37,15 @@ const STANDALONE_HREF: Record<ProfileCompletionStep["key"], string> = {
 
 export default function ProfileCompletionChecklist() {
   const { refreshUser } = useAuth();
+  const searchParams = useSearchParams();
+  // When a step page redirects back with ?step=DOCUMENTS, scroll
+  // that row into view + flash a "previous step completed" toast.
+  const stepParam = searchParams.get("step");
   const [data, setData] = useState<ProfileCompletion | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState<string | null>(null);
+  const handledStepRef = useRef<string | null>(null);
 
   const reload = async () => {
     setLoading(true);
@@ -57,6 +64,21 @@ export default function ProfileCompletionChecklist() {
     void reload();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Auto-scroll + toast once data is loaded and we have a step hint.
+  // Handled-step ref prevents repeats on re-render — once we've
+  // honoured a given ?step=XXX we ignore it until the value changes.
+  useEffect(() => {
+    if (!data || !stepParam || handledStepRef.current === stepParam) return;
+    handledStepRef.current = stepParam;
+    const target = document.getElementById(`step-${stepParam}`);
+    if (target) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    setToast("Step completed! Continue with the next one below.");
+    const t = setTimeout(() => setToast(null), 3500);
+    return () => clearTimeout(t);
+  }, [data, stepParam]);
 
   if (loading && !data) {
     return (
@@ -78,6 +100,11 @@ export default function ProfileCompletionChecklist() {
 
   return (
     <div className="space-y-4">
+      {toast && (
+        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 inline-flex items-center gap-2 shadow-sm">
+          <PartyPopper size={16} /> {toast}
+        </div>
+      )}
       <header>
         <h2 className="font-serif text-2xl font-bold text-gray-900">
           Complete Your Profile
@@ -105,8 +132,9 @@ export default function ProfileCompletionChecklist() {
           return (
             <li
               key={step.key}
+              id={`step-${step.key}`}
               className={
-                "rounded-xl border bg-white p-4 transition " +
+                "rounded-xl border bg-white p-4 transition scroll-mt-24 " +
                 (isCompleted
                   ? "border-emerald-200 bg-emerald-50/40"
                   : isActive

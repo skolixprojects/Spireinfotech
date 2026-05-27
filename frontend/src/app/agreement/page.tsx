@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -13,8 +13,8 @@ import SignatureCanvas from "react-signature-canvas";
 import OnboardingLayout from "@/components/layouts/OnboardingLayout";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getOnboardingRoute, getParticipantMe, getProgramSelection, getTerms,
-  isDashboardStatus, signParticipantAgreement,
+  getProgramSelection, getTerms,
+  signParticipantAgreement,
   type ProgramSelectionDTO, type TermsResponse, type UserDTO,
 } from "@/lib/api";
 
@@ -37,9 +37,11 @@ const ACK_VERSION = "ACK-v1.0";
 const SVC_VERSION = "SVC-v1.0";
 const MAX_SIGNATURE_BYTES = 2 * 1024 * 1024;
 
-export default function AgreementPage() {
+function AgreementPageInner() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
+  const searchParams = useSearchParams();
+  const fromProfile = searchParams.get("from") === "profile";
+  const { user, isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
 
   const [gateChecked, setGateChecked] = useState(false);
   const [gateError, setGateError] = useState("");
@@ -70,52 +72,26 @@ export default function AgreementPage() {
       router.replace("/login");
       return;
     }
+    if (!user) return;
+    // Phase 1C — gate on agreementComplete + participantId.
+    if (user.agreementComplete) {
+      router.replace("/dashboard?tab=complete-profile");
+      return;
+    }
+    if (!user.participantId) {
+      router.replace("/enroll");
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
-        const me = await getParticipantMe();
-        if (cancelled) return;
-        const status = me.currentStatus;
-        // Already past this step — forward.
-        if (status === "AGREEMENT_COMPLETED") {
-          router.replace("/check-upload");
-          return;
-        }
-        if (status === "CHECK_COPY_UPLOADED"
-            || status === "SIGNED_AGREEMENT_SENT_TO_ERM"
-            || status === "WELCOME_SENT"
-            || status === "DEEPTHI_INTRO_SENT"
-            || status === "ERM_ASSIGNED"
-            || status === "COACHES_ASSIGNED") {
-          router.replace("/welcome");
-          return;
-        }
-        if (isDashboardStatus(status)) {
-          router.replace("/dashboard");
-          return;
-        }
-        // Earlier in the lifecycle — bounce back to that step.
-        const earlierSteps = [
-          "DRAFT_STARTED", "BASIC_INFO_SUBMITTED",
-          "EMAIL_VERIFICATION_PENDING", "EMAIL_VERIFIED",
-          "PARTICIPANT_ID_CREATED", "ID_EMAIL_SENT",
-          "ACKNOWLEDGMENT_ACCEPTED", "DOCUMENTS_SUBMITTED",
-          "DOC_REVIEW_PENDING",
-        ];
-        if (status && earlierSteps.includes(status)) {
-          router.replace(getOnboardingRoute(status));
-          return;
-        }
-        // Anything else (PROGRAM_SELECTED, AGREEMENT_SENT, or null /
-        // unknown) — render the signing form. Don't punt to /enroll
-        // on a transient missing status; the user got here
-        // legitimately from /program-selection.
-        setProfile(me);
-        if (me.fullName) setLegalName(me.fullName);
+        setProfile(user);
+        if (user.fullName) setLegalName(user.fullName);
         const [progRes, termsRes] = await Promise.allSettled([
           getProgramSelection(),
           getTerms(),
         ]);
+        if (cancelled) return;
         if (progRes.status === "fulfilled") setProgram(progRes.value);
         if (termsRes.status === "fulfilled") setTerms(termsRes.value);
         setGateChecked(true);
@@ -127,7 +103,7 @@ export default function AgreementPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, user, router]);
 
   const nameWordCount = legalName.trim().split(/\s+/).filter(Boolean).length;
   const canSign =
@@ -199,10 +175,16 @@ export default function AgreementPage() {
       // navigate. Without this, /dashboard's guard would see the
       // stale PROGRAM_SELECTED status on the next soft-navigation.
       await refreshUser();
-      // Phase 1C — back to the dashboard checklist. The agreement
-      // step has flipped agreement_complete = true; the user sees
-      // the next item (check upload) lit up on return.
-      setTimeout(() => { router.push("/dashboard?tab=complete-profile"); }, 1200);
+      // Back to the checklist with the next step (check upload)
+      // highlighted when the user came from there. Direct deep
+      // links land on the checklist without the step hash.
+      setTimeout(() => {
+        router.push(
+          fromProfile
+            ? "/dashboard?tab=complete-profile&step=CHECK_UPLOAD"
+            : "/dashboard?tab=complete-profile",
+        );
+      }, 1200);
     } catch (err) {
       setSignError(err instanceof Error ? err.message : "Couldn't sign agreement");
     } finally {
@@ -474,5 +456,17 @@ function SummaryRow({ label, value, mono }: {
         {value ?? <FileText size={12} className="inline text-gray-300" />}
       </span>
     </div>
+  );
+}
+
+export default function AgreementPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <Loader2 size={28} className="animate-spin text-[#0F766E]" />
+      </div>
+    }>
+      <AgreementPageInner />
+    </Suspense>
   );
 }

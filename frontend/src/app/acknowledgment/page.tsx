@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -12,12 +12,7 @@ import SignatureCanvas from "react-signature-canvas";
 
 import OnboardingLayout from "@/components/layouts/OnboardingLayout";
 import { useAuth } from "@/lib/auth-context";
-import {
-  getParticipantMe,
-  getOnboardingRoute,
-  isDashboardStatus,
-  submitAcknowledgment,
-} from "@/lib/api";
+import { submitAcknowledgment } from "@/lib/api";
 
 /**
  * Step 4 — Acknowledgment of Interest and Program Acceptance.
@@ -41,9 +36,11 @@ const ACKNOWLEDGMENT_CLAUSES: ReadonlyArray<string> = [
   "I acknowledge that completion of program phases and services is subject to my active participation and compliance with program requirements.",
 ];
 
-export default function AcknowledgmentPage() {
+function AcknowledgmentPageInner() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const fromProfile = searchParams.get("from") === "profile";
+  const { user, isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
 
   // ── Gate state ────────────────────────────────────────────────
   const [gateChecked, setGateChecked] = useState(false);
@@ -70,45 +67,31 @@ export default function AcknowledgmentPage() {
   const [submitError, setSubmitError] = useState("");
 
   // ── Auth + routing guard ──────────────────────────────────────
+  // Phase 1C — gate on the per-step completion flag, not the
+  // status enum (which now jumps straight to DASHBOARD_ENABLED on
+  // signup). Two outcomes:
+  //   - acknowledgmentComplete = true  → step already done, bounce
+  //     back to the checklist tab.
+  //   - participantId missing          → user hasn't even started
+  //     onboarding; send them to /enroll.
+  // Otherwise render the form.
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
       router.replace("/login");
       return;
     }
-    let cancelled = false;
-    getParticipantMe()
-      .then((profile) => {
-        if (cancelled) return;
-        const status = profile.currentStatus;
-        // Already past acknowledgment? Route them forward.
-        const target = getOnboardingRoute(status);
-        const alreadyAccepted =
-          status && [
-            "ACKNOWLEDGMENT_ACCEPTED", "DOCUMENTS_SUBMITTED", "DOC_REVIEW_PENDING",
-            "PROGRAM_SELECTED", "AGREEMENT_SENT", "AGREEMENT_COMPLETED",
-            "SIGNED_AGREEMENT_SENT_TO_ERM", "WELCOME_SENT", "DEEPTHI_INTRO_SENT",
-            "ERM_ASSIGNED", "COACHES_ASSIGNED", "DASHBOARD_ENABLED",
-          ].includes(status);
-        if (alreadyAccepted || isDashboardStatus(status)) {
-          router.replace(target);
-          return;
-        }
-        // Need to be at least ID_EMAIL_SENT to fill this form.
-        const eligibleStatuses = ["ID_EMAIL_SENT", "PARTICIPANT_ID_CREATED"];
-        if (!status || !eligibleStatuses.includes(status)) {
-          router.replace(target);
-          return;
-        }
-        setGateChecked(true);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setGateError(err instanceof Error ? err.message : "Couldn't verify your account state");
-        setGateChecked(true);
-      });
-    return () => { cancelled = true; };
-  }, [authLoading, isAuthenticated, router]);
+    if (!user) return;
+    if (user.acknowledgmentComplete) {
+      router.replace("/dashboard?tab=complete-profile");
+      return;
+    }
+    if (!user.participantId) {
+      router.replace("/enroll");
+      return;
+    }
+    setGateChecked(true);
+  }, [authLoading, isAuthenticated, user, router]);
 
   // ── Computed flags ────────────────────────────────────────────
   const nameWordCount = legalName.trim().split(/\s+/).filter(Boolean).length;
@@ -192,13 +175,20 @@ export default function AcknowledgmentPage() {
         communicationConsent,
         acknowledgmentVersion: ACK_VERSION,
       });
-      // Phase 1C — every standalone onboarding page now redirects
-      // back to the dashboard's "Complete Your Profile" checklist
-      // so the user sees the next step in context. The old "next
-      // page in the chain" routing only fires for direct deep links
-      // that explicitly opt in via ?from=other.
       void result;
-      router.replace("/dashboard?tab=complete-profile");
+      // Refresh the auth context so the next page sees the freshly
+      // flipped acknowledgmentComplete flag instead of bouncing
+      // back here on its own guard.
+      await refreshUser();
+      // Came from the dashboard checklist → return to it with the
+      // next step highlighted. Direct deep links fall through to
+      // the legacy chain (which now also routes to the checklist,
+      // just without the step hash).
+      router.replace(
+        fromProfile
+          ? "/dashboard?tab=complete-profile&step=DOCUMENTS"
+          : "/dashboard?tab=complete-profile",
+      );
     } catch (err) {
       setSubmitError(err instanceof Error ? err.message : "Couldn't submit acknowledgment");
     } finally {
@@ -484,5 +474,18 @@ export default function AcknowledgmentPage() {
         </button>
       </motion.section>
     </OnboardingLayout>
+  );
+}
+
+export default function AcknowledgmentPage() {
+  // Suspense boundary required by useSearchParams (Next.js 14 App Router).
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <Loader2 size={28} className="animate-spin text-[#0F766E]" />
+      </div>
+    }>
+      <AcknowledgmentPageInner />
+    </Suspense>
   );
 }

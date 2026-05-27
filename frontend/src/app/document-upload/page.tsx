@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -11,8 +11,8 @@ import {
 
 import OnboardingLayout from "@/components/layouts/OnboardingLayout";
 import {
-  completeDocuments, deleteParticipantDocument, getOnboardingRoute,
-  getParticipantMe, isDashboardStatus, listParticipantDocuments,
+  completeDocuments, deleteParticipantDocument,
+  listParticipantDocuments,
   markDocumentNotApplicable, uploadParticipantDocument,
   viewParticipantDocument,
   type DocumentType, type ParticipantDocument,
@@ -63,9 +63,11 @@ function formatBytes(bytes: number | null | undefined): string {
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
 
-export default function DocumentUploadPage() {
+function DocumentUploadPageInner() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const fromProfile = searchParams.get("from") === "profile";
+  const { user, isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
 
   const [gateChecked, setGateChecked] = useState(false);
   const [gateError, setGateError] = useState("");
@@ -79,36 +81,26 @@ export default function DocumentUploadPage() {
   const fileInputs = useRef<Partial<Record<DocumentType, HTMLInputElement | null>>>({});
 
   // ── Gate + load ───────────────────────────────────────────────
+  // Phase 1C — gate on documentsComplete + participantId, not the
+  // workflow enum (which jumps to DASHBOARD_ENABLED on signup now).
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
       router.replace("/login");
       return;
     }
+    if (!user) return;
+    if (user.documentsComplete) {
+      router.replace("/dashboard?tab=complete-profile");
+      return;
+    }
+    if (!user.participantId) {
+      router.replace("/enroll");
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
-        const profile = await getParticipantMe();
-        if (cancelled) return;
-        const status = profile.currentStatus;
-        // Need at least ACKNOWLEDGMENT_ACCEPTED to be here.
-        const eligible = [
-          "ACKNOWLEDGMENT_ACCEPTED", "DOCUMENTS_SUBMITTED", "DOC_REVIEW_PENDING",
-        ].includes(status ?? "");
-        if (!eligible && !isDashboardStatus(status)) {
-          router.replace(getOnboardingRoute(status));
-          return;
-        }
-        // Past program selection / agreement → bounce forward.
-        const pastDocs = [
-          "PROGRAM_SELECTED", "AGREEMENT_SENT", "AGREEMENT_COMPLETED",
-          "SIGNED_AGREEMENT_SENT_TO_ERM", "WELCOME_SENT", "DEEPTHI_INTRO_SENT",
-          "ERM_ASSIGNED", "COACHES_ASSIGNED",
-        ];
-        if (pastDocs.includes(status ?? "") || isDashboardStatus(status)) {
-          router.replace(getOnboardingRoute(status));
-          return;
-        }
         const docs = await listParticipantDocuments();
         if (cancelled) return;
         setDocuments(docs);
@@ -122,7 +114,7 @@ export default function DocumentUploadPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, user, router]);
 
   // ── Slot status helpers ───────────────────────────────────────
 
@@ -229,10 +221,12 @@ export default function DocumentUploadPage() {
     try {
       const res = await completeDocuments();
       if (res.success) {
-        // Phase 1C — back to the checklist regardless of the old
-        // "nextStep" hint, since the next surface is now an item in
-        // the dashboard tab, not a separate page.
-        router.replace("/dashboard?tab=complete-profile");
+        await refreshUser();
+        router.replace(
+          fromProfile
+            ? "/dashboard?tab=complete-profile&step=PROGRAM_SELECTION"
+            : "/dashboard?tab=complete-profile",
+        );
       } else {
         setCompleteError(res.message ?? "Some required documents are still missing.");
       }
@@ -533,5 +527,17 @@ export default function DocumentUploadPage() {
         </p>
       </motion.section>
     </OnboardingLayout>
+  );
+}
+
+export default function DocumentUploadPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <Loader2 size={28} className="animate-spin text-[#0F766E]" />
+      </div>
+    }>
+      <DocumentUploadPageInner />
+    </Suspense>
   );
 }

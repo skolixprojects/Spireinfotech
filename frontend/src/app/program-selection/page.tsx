@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -11,8 +11,8 @@ import {
 import OnboardingLayout from "@/components/layouts/OnboardingLayout";
 import { useAuth } from "@/lib/auth-context";
 import {
-  getOnboardingRoute, getParticipantMe, getProgramSelection,
-  isDashboardStatus, saveProgramSelectionDraft, submitProgramSelection,
+  getProgramSelection,
+  saveProgramSelectionDraft, submitProgramSelection,
   type ProgramSelectionDTO,
 } from "@/lib/api";
 
@@ -84,9 +84,11 @@ const INPUT_CLASS =
   "disabled:bg-gray-50 disabled:cursor-not-allowed";
 const LABEL_CLASS = "block text-[13px] font-medium text-gray-700 mb-1";
 
-export default function ProgramSelectionPage() {
+function ProgramSelectionPageInner() {
   const router = useRouter();
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
+  const fromProfile = searchParams.get("from") === "profile";
+  const { user, isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
 
   const [gateChecked, setGateChecked] = useState(false);
   const [gateError, setGateError] = useState("");
@@ -107,53 +109,43 @@ export default function ProgramSelectionPage() {
   const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
 
   // ── Gate + pre-fill ───────────────────────────────────────────
+  // Phase 1C — gate on programSelectionComplete + participantId.
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated) {
       router.replace("/login");
       return;
     }
+    if (!user) return;
+    if (user.programSelectionComplete) {
+      router.replace("/dashboard?tab=complete-profile");
+      return;
+    }
+    if (!user.participantId) {
+      router.replace("/enroll");
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
-        const profile = await getParticipantMe();
-        if (cancelled) return;
-        const status = profile.currentStatus;
-
-        // Eligible: status is at DOCUMENTS_SUBMITTED or already
-        // PROGRAM_SELECTED (so a returning user can edit). Past
-        // AGREEMENT_SENT means the selection is locked.
-        const eligible = [
-          "DOCUMENTS_SUBMITTED", "DOC_REVIEW_PENDING", "PROGRAM_SELECTED",
-        ].includes(status ?? "");
-        if (!eligible && !isDashboardStatus(status)) {
-          router.replace(getOnboardingRoute(status));
-          return;
-        }
-        const lockedAhead = [
-          "AGREEMENT_SENT", "CHECK_COPY_UPLOADED", "AGREEMENT_COMPLETED",
-          "SIGNED_AGREEMENT_SENT_TO_ERM", "WELCOME_SENT", "DEEPTHI_INTRO_SENT",
-          "ERM_ASSIGNED", "COACHES_ASSIGNED",
-        ];
-        if (lockedAhead.includes(status ?? "") || isDashboardStatus(status)) {
-          router.replace(getOnboardingRoute(status));
-          return;
-        }
-
         // Pre-fill: prefer the saved program-selection row, then
         // fall back to enrollment values for skillset + availability.
         const existing = await getProgramSelection().catch(() => null);
-        applyPrefill(existing, profile);
+        if (cancelled) return;
+        applyPrefill(existing, {
+          selectedTechnology: user.selectedTechnology,
+          availability: user.availability,
+        });
         setGateChecked(true);
       } catch (err) {
         if (cancelled) return;
-        setGateError(err instanceof Error ? err.message : "Couldn't load your profile");
+        setGateError(err instanceof Error ? err.message : "Couldn't load your selection");
         setGateChecked(true);
       }
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, user, router]);
 
   const applyPrefill = (existing: ProgramSelectionDTO | null,
                        profile: { selectedTechnology?: string | null; availability?: string | null }) => {
@@ -238,9 +230,13 @@ export default function ProgramSelectionPage() {
         serviceSummaryVersion: SUMMARY_VERSION,
         notes: notes.trim() || undefined,
       });
-      // Phase 1C — back to the dashboard checklist tab.
       void result;
-      router.replace("/dashboard?tab=complete-profile");
+      await refreshUser();
+      router.replace(
+        fromProfile
+          ? "/dashboard?tab=complete-profile&step=AGREEMENT"
+          : "/dashboard?tab=complete-profile",
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't submit program selection");
     } finally {
@@ -483,5 +479,17 @@ export default function ProgramSelectionPage() {
         </div>
       </motion.section>
     </OnboardingLayout>
+  );
+}
+
+export default function ProgramSelectionPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
+        <Loader2 size={28} className="animate-spin text-[#0F766E]" />
+      </div>
+    }>
+      <ProgramSelectionPageInner />
+    </Suspense>
   );
 }
