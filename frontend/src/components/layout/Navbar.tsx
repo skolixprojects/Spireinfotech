@@ -9,6 +9,7 @@ import { Menu, X, LogOut, User, LayoutDashboard, BookOpen, MessageSquare } from 
 import { cn } from "@/lib/utils";
 import { APP_NAME } from "@/lib/constants";
 import { useAuth } from "@/lib/auth-context";
+import { BRAND } from "@/config/brand";
 
 // Links by audience. /courses and /services are now login-protected,
 // so the public nav doesn't reference them — visitors must sign up
@@ -118,8 +119,8 @@ export function Navbar() {
             className="flex items-center gap-2 font-serif text-lg font-bold text-[#0F766E] tracking-tight"
           >
             <Image
-              src="/logo.png"
-              alt="Spire Info Tech"
+              src={BRAND.logoUrl}
+              alt={BRAND.logoAlt}
               width={36}
               height={36}
               priority

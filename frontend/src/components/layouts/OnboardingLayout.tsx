@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import OnboardingProgressBar from "@/components/OnboardingProgressBar";
+import { BRAND } from "@/config/brand";
 
 /**
  * Minimal full-viewport layout for every Phase 1B onboarding page
@@ -57,17 +58,17 @@ export default function OnboardingLayout({
           progress bar + content card) stays in one viewport on a
           standard 1080-ish desktop screen. */}
       <header className="pt-4 sm:pt-5 pb-2 flex justify-center">
-        <Link href="/" className="inline-flex items-center gap-2" aria-label="Spire Info Tech home">
+        <Link href="/" className="inline-flex items-center gap-2" aria-label={`${BRAND.name} home`}>
           <Image
-            src="/logo.png"
-            alt="Spire Info Tech"
+            src={BRAND.logoUrl}
+            alt={BRAND.logoAlt}
             width={32}
             height={32}
             priority
             className="h-8 w-8 object-contain"
           />
-          <span className="font-serif text-sm font-bold text-[#0F766E]">
-            Spire Info Tech
+          <span className="font-serif text-sm font-bold text-brand">
+            {BRAND.name}
           </span>
         </Link>
       </header>
@@ -80,7 +81,7 @@ export default function OnboardingLayout({
       </main>
 
       <footer className="py-3 text-center text-[11px] text-gray-400">
-        © {new Date().getFullYear()} Spire Info Tech. All rights reserved.
+        © {BRAND.copyrightYear} {BRAND.legalName}. All rights reserved.
       </footer>
     </div>
   );

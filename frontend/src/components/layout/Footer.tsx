@@ -1,7 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { APP_NAME } from "@/lib/constants";
-import { Mail, Phone } from "lucide-react";
+import { BRAND } from "@/config/brand";
+import { Mail } from "lucide-react";
 
 // Trimmed to routes that actually exist. Categories sub-routes, Blog,
 // Tutorials, Webinars, Docs, Contact, FAQ, Community, and the Legal
@@ -27,16 +28,17 @@ const columns = [
 ];
 
 export function Footer() {
+  const a = BRAND.address;
   return (
-    <footer className="bg-[#0F766E] text-white">
+    <footer className="bg-brand text-white">
       <div className="mx-auto max-w-7xl px-6 py-12">
         <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
           {/* Company info */}
           <div>
             <Link href="/" className="inline-flex items-center gap-2 font-serif text-2xl font-bold">
               <Image
-                src="/logo.png"
-                alt="Spire Info Tech"
+                src={BRAND.logoUrl}
+                alt={BRAND.logoAlt}
                 width={32}
                 height={32}
                 className="h-8 w-8 object-contain"
@@ -44,16 +46,18 @@ export function Footer() {
               <span>{APP_NAME}</span>
             </Link>
             <p className="mt-3 text-sm text-white/70 leading-relaxed max-w-xs">
-              Self-paced courses with real human mentorship.
+              {BRAND.tagline}
             </p>
             <div className="mt-4 flex items-center gap-3 text-sm text-white/60">
               <Mail size={14} />
-              <span>hello@spire.dev</span>
+              <a href={`mailto:${BRAND.contactEmail}`} className="hover:text-white transition-colors">
+                {BRAND.contactEmail}
+              </a>
             </div>
-            <div className="mt-2 flex items-center gap-3 text-sm text-white/60">
-              <Phone size={14} />
-              <span>+91 98765 43210</span>
-            </div>
+            <p className="mt-2 text-xs text-white/50 leading-snug max-w-xs">
+              {a.line1}, {a.line2},<br />
+              {a.city}, {a.state} {a.postalCode}, {a.country}
+            </p>
           </div>
 
           {/* Link columns */}
@@ -79,7 +83,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 border-t border-white/10 pt-6 text-center text-sm text-white/50">
-          &copy; 2026 Spire Info Tech. All rights reserved.
+          &copy; {BRAND.copyrightYear} {BRAND.legalName}. All rights reserved.
         </div>
       </div>
     </footer>

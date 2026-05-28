@@ -1,5 +1,6 @@
 package com.spire.backend.service;
 
+import com.spire.backend.config.BrandConfig;
 import com.spire.backend.entity.User;
 import com.spire.backend.repository.UserRepository;
 import jakarta.persistence.EntityManager;
@@ -37,11 +38,17 @@ import java.util.UUID;
 @Slf4j
 public class ParticipantIdService {
 
-    private static final String PREFIX = "SIT";
     private static final int RANDOM_RETRIES = 20;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
+    private final BrandConfig brandConfig;
+
+    /** Resolves the brand-configured prefix (defaults to "SIT"). */
+    private String prefix() {
+        String p = brandConfig.getIdPrefix();
+        return (p == null || p.isBlank()) ? "SIT" : p;
+    }
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -73,7 +80,7 @@ public class ParticipantIdService {
         // Pathological: append a UUID tail. Format diverges from
         // SIT-YYYY-NNNNN but stays unique and parseable.
         String tail = UUID.randomUUID().toString().replace("-", "").substring(0, 6).toUpperCase();
-        candidate = PREFIX + "-" + year + "-X" + tail;
+        candidate = prefix() + "-" + year + "-X" + tail;
         log.warn("Participant ID falling back to UUID tail for user {}: {}",
                 user.getId(), candidate);
         return tryAssign(user, candidate);
@@ -81,7 +88,7 @@ public class ParticipantIdService {
 
     /** Builds the next monotonic candidate from the existing max. */
     private String nextSequential(String year) {
-        String like = PREFIX + "-" + year + "-%";
+        String like = prefix() + "-" + year + "-%";
         // Single-row aggregate; the unique index on participant_id
         // means at most one row matches each suffix so the COUNT-style
         // approach is safe and dialect-portable.
@@ -92,21 +99,21 @@ public class ParticipantIdService {
                 .setParameter("like", like)
                 .getSingleResult();
         int next = 1;
-        if (raw instanceof String s && s.length() > (PREFIX.length() + 1 + year.length() + 1)) {
-            String suffix = s.substring(PREFIX.length() + 1 + year.length() + 1);
+        if (raw instanceof String s && s.length() > (prefix().length() + 1 + year.length() + 1)) {
+            String suffix = s.substring(prefix().length() + 1 + year.length() + 1);
             try {
                 next = Integer.parseInt(suffix.replaceAll("\\D", "")) + 1;
             } catch (NumberFormatException ignored) {
                 next = 1;
             }
         }
-        return String.format("%s-%s-%05d", PREFIX, year, next);
+        return String.format("%s-%s-%05d", prefix(), year, next);
     }
 
     /** A random 5-digit suffix — collision-resilient bottom of the funnel. */
     private String randomised(String year) {
         int n = RANDOM.nextInt(100_000); // 0–99999
-        return String.format("%s-%s-%05d", PREFIX, year, n);
+        return String.format("%s-%s-%05d", prefix(), year, n);
     }
 
     /**

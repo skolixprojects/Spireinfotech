@@ -1,4 +1,9 @@
-export const APP_NAME = "Spire Info Tech";
+import { BRAND } from "@/config/brand";
+
+/** @deprecated import from "@/config/brand" instead. Re-exported so
+ *  callers that already import APP_NAME from "@/lib/constants" keep
+ *  working without churn. */
+export const APP_NAME = BRAND.name;
 
 export const NAV_LINKS = [
   { label: "Courses", href: "/courses" },

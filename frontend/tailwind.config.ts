@@ -9,6 +9,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Brand abstraction (Phase 1D): use bg-brand / text-brand /
+        // border-brand and they pick up the CSS variables injected
+        // by layout.tsx from BRAND.colors. Components added going
+        // forward should prefer these over hardcoded hex.
+        brand: {
+          DEFAULT: "var(--brand-primary)",
+          dark: "var(--brand-primary-dark)",
+          light: "var(--brand-primary-light)",
+        },
+        "brand-accent": "var(--brand-accent)",
         primary: {
           DEFAULT: "#0F766E",   // Tailwind teal-700: primary buttons, solid fills
           light: "#14B8A6",     // Tailwind teal-500: gradient end, highlights

@@ -1,5 +1,6 @@
 package com.spire.backend.service;
 
+import com.spire.backend.config.BrandConfig;
 import com.spire.backend.entity.Certificate;
 import com.spire.backend.entity.Course;
 import com.spire.backend.entity.SessionRequest;
@@ -43,6 +44,14 @@ public class EmailTemplateService {
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
 
     private final EmailService emailService;
+    private final BrandConfig brandConfig;
+
+    /** Short helper — the brand name shows up in dozens of subject /
+     *  body strings, so this keeps each call site terse and the
+     *  template files diffable when a brand swap happens. */
+    private String brandName() {
+        return brandConfig.getName();
+    }
 
     @Value("${app.url:https://spireinfotech.vercel.app}")
     private String appUrl;
@@ -96,8 +105,8 @@ public class EmailTemplateService {
                     + p("Once your team is ready, your dashboard will open with your "
                             + "personalised roadmap and next steps.")
                     + p("We're excited to support your career journey!")
-                    + p("Regards,<br/>Spire Info Tech");
-            subject = "Welcome to Spire Info Tech, " + firstName(user) + "!";
+                    + p("Regards,<br/>" + brandName() + "");
+            subject = "Welcome to " + brandName() + ", " + firstName(user) + "!";
             title = "Welcome aboard, " + firstName(user) + "!";
         } else {
             // Legacy LMS flow.
@@ -111,8 +120,8 @@ public class EmailTemplateService {
                     + bullet("Complete courses to earn verified certificates")
                     + button("Browse Courses", appUrl + "/courses")
                     + p("Welcome aboard!")
-                    + muted("— The Spire Info Tech Team");
-            subject = "Welcome to Spire Info Tech, " + firstName(user) + "!";
+                    + muted("— The " + brandName() + " Team");
+            subject = "Welcome to " + brandName() + ", " + firstName(user) + "!";
             title = "You're all set, " + firstName(user) + "!";
         }
         emailService.sendEmail(user.getEmail(), subject, wrap(title, body));
@@ -133,16 +142,16 @@ public class EmailTemplateService {
             steps.append(bullet(escape(step)));
         }
         String body = p("Hi " + escape(first) + ",")
-                + p("Your Spire Info Tech profile is "
+                + p("Your " + brandName() + " profile is "
                         + "<strong>" + completionPct + "%</strong> complete.")
                 + p("To start enrolling in courses, finish these quick steps:")
                 + steps.toString()
                 + button("Continue Setup", appUrl + "/dashboard?tab=complete-profile")
-                + muted("— Spire Info Tech");
+                + muted("— " + brandName() + "");
         String subject = "You're " + completionPct
                 + "% there — finish your profile in 10 minutes";
         emailService.sendEmail(user.getEmail(), subject,
-                wrap("Finish your Spire profile", body));
+                wrap("Finish your " + brandConfig.getShortName() + " profile", body));
     }
 
     // ── Phase 1C: profile-complete celebration ──────────────────────
@@ -156,12 +165,12 @@ public class EmailTemplateService {
         String first = firstName(user);
         String body = p("Hi " + escape(first) + ",")
                 + p("Your profile is complete! You can now enroll in courses, "
-                        + "request mentor sessions, and access every feature on Spire Info Tech.")
+                        + "request mentor sessions, and access every feature on " + brandName() + ".")
                 + p("Your team — Relationship Manager, Career Coach, "
                         + "Technical Advisor — is being assembled. You'll hear from "
                         + "them shortly with personalised intros.")
                 + button("Open Dashboard", appUrl + "/dashboard")
-                + muted("— Spire Info Tech");
+                + muted("— " + brandName() + "");
         emailService.sendEmail(user.getEmail(),
                 "Welcome aboard, " + first + "! Your profile is complete",
                 wrap("Profile complete!", body));
@@ -183,7 +192,7 @@ public class EmailTemplateService {
                 + button("Submit Weekly Report", appUrl + "/dashboard")
                 + muted("If you've already submitted, you can ignore this reminder.");
         emailService.sendEmail(user.getEmail(),
-                "Weekly report due — Spire Info Tech",
+                "Weekly report due — " + brandName() + "",
                 wrap("Your weekly report is due", body));
     }
 
@@ -208,9 +217,9 @@ public class EmailTemplateService {
                 + p("If you've already uploaded everything, you can ignore "
                         + "this reminder — we'll send another only if anything "
                         + "still looks outstanding.")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         emailService.sendEmail(user.getEmail(),
-                "Action needed: Complete your documents — Spire Info Tech",
+                "Action needed: Complete your documents — " + brandName() + "",
                 wrap("Document upload reminder", body));
     }
 
@@ -229,9 +238,9 @@ public class EmailTemplateService {
                 + receipt(
                         "Participant ID: " + safe(user.getParticipantId()))
                 + button("View dashboard", appUrl + "/dashboard")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         emailService.sendEmail(user.getEmail(),
-                "Check upload received — Spire Info Tech",
+                "Check upload received — " + brandName() + "",
                 wrap("Check upload received", body));
     }
 
@@ -246,7 +255,7 @@ public class EmailTemplateService {
         String coordName = coordinatorName == null || coordinatorName.isBlank()
                 ? "Deepthi" : coordinatorName;
         String body = p("Dear " + escape(user.getFullName() == null ? "there" : user.getFullName()) + ",")
-                + p("I'm " + escape(coordName) + ", your program coordinator at Spire Info Tech.")
+                + p("I'm " + escape(coordName) + ", your program coordinator at " + brandName() + ".")
                 + p("I'll be overseeing your overall program experience and ensuring everything "
                         + "runs smoothly. If you have any general questions about the program, "
                         + "feel free to reach out.")
@@ -255,10 +264,10 @@ public class EmailTemplateService {
                 + p("Looking forward to working with you!")
                 + p("Best regards,<br/>"
                         + escape(coordName) + "<br/>"
-                        + "<span style=\"color:#6b7280;\">Program Coordinator, Spire Info Tech</span>");
+                        + "<span style=\"color:#6b7280;\">Program Coordinator, " + brandName() + "</span>");
         emailService.sendEmail(
                 user.getEmail(),
-                "Meet your program coordinator — Spire Info Tech",
+                "Meet your program coordinator — " + brandName() + "",
                 wrap("Meet " + escape(coordName), body));
     }
 
@@ -278,10 +287,10 @@ public class EmailTemplateService {
                         + "every step.")
                 + p("You can reach " + escape(ermName) + " via email or through your dashboard "
                         + "once it's ready.")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         emailService.sendEmail(
                 user.getEmail(),
-                "Your relationship manager — Spire Info Tech",
+                "Your relationship manager — " + brandName() + "",
                 wrap("Meet your ERM", body));
     }
 
@@ -308,7 +317,7 @@ public class EmailTemplateService {
                         "Target: " + safe(target)
                 )
                 + p("Please review their profile and prepare for onboarding.")
-                + muted("— Spire Info Tech operations");
+                + muted("— " + brandName() + " operations");
         emailService.sendEmail(
                 erm.getEmail(),
                 "New participant assigned: " + safe(participant.getFullName())
@@ -337,10 +346,10 @@ public class EmailTemplateService {
                 + p("Your first checkpoint will be scheduled by your ERM. You can view your "
                         + "team contacts in your dashboard.")
                 + button("Enter Your Dashboard", appUrl + "/dashboard")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         emailService.sendEmail(
                 user.getEmail(),
-                "Your coaching team — Spire Info Tech",
+                "Your coaching team — " + brandName() + "",
                 wrap("Your coaching team", body));
     }
 
@@ -371,17 +380,17 @@ public class EmailTemplateService {
                 )
                 + p("Your next step: Review and sign your agreement.")
                 + button("Continue to Agreement", appUrl + "/agreement")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         emailService.sendEmail(
                 user.getEmail(),
-                "Program selection confirmed — Spire Info Tech",
+                "Program selection confirmed — " + brandName() + "",
                 wrap("Program selected", body));
 
         // Internal operations notification — kept best-effort and
         // off the participant's eyeline. Same template wrapper as
         // the participant copy so the inbox layout stays consistent.
         if (operationsEmail != null && !operationsEmail.isBlank()) {
-            String opsBody = p("New program selection on Spire Info Tech:")
+            String opsBody = p("New program selection on " + brandName() + ":")
                     + receipt(
                             "Participant: " + safe(user.getFullName())
                                     + " (" + safe(user.getParticipantId()) + ")",
@@ -429,17 +438,17 @@ public class EmailTemplateService {
                         + "</span></div>";
         String body = p("Dear " + escape(greeting) + ",")
                 + p("Welcome! Your email has been verified successfully.")
-                + p("Your official Spire Info Tech Participant ID is:")
+                + p("Your official " + brandName() + " Participant ID is:")
                 + idBlock
                 + p("Please keep this ID for your records. It will be used in all future "
                         + "communications and documents.")
                 + p("Your next step: Complete the acknowledgment and upload your required documents.")
                 + button("Continue to Next Step", appUrl + "/participant-id")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         emailService.sendEmail(
                 user.getEmail(),
-                "Your Spire Info Tech Participant ID: " + participantId,
-                wrap("Welcome to Spire Info Tech", body));
+                "Your " + brandName() + " Participant ID: " + participantId,
+                wrap("Welcome to " + brandName() + "", body));
     }
 
     // ── 2. Email verification (6-digit OTP) ─────────────────────────
@@ -462,7 +471,7 @@ public class EmailTemplateService {
                 + p("Your verification code is:")
                 + codeBlock
                 + p("This code expires in 10 minutes.")
-                + muted("If you didn't create an account on Spire Info Tech, you can safely ignore this email.");
+                + muted("If you didn't create an account on " + brandName() + ", you can safely ignore this email.");
         emailService.sendEmail(
                 user.getEmail(),
                 "Your verification code: " + code,
@@ -487,7 +496,7 @@ public class EmailTemplateService {
         // match incoming replies back to this row. Format must stay
         // [AGREE-{userId}-{ts}] — see TRACKING_REGEX in the cron.
         String tracking = String.format("[AGREE-%d-%d]", userId, trackingTimestamp);
-        String subject = "Spire Info Tech — Terms of Service Agreement " + tracking;
+        String subject = "" + brandName() + " — Terms of Service Agreement " + tracking;
         // ipAddress is captured on the row for the audit trail but
         // intentionally not surfaced in the email body — the spec
         // wording deliberately reads as a formal letter rather than
@@ -505,13 +514,13 @@ public class EmailTemplateService {
 
         String body = p("Dear " + escape(legalName == null || legalName.isBlank()
                         ? firstName(user) : legalName) + ",")
-                + p("Please find attached the Terms of Service agreement for <strong>Spire Info Tech</strong>.")
+                + p("Please find attached the Terms of Service agreement for <strong>" + brandName() + "</strong>.")
                 + p("We request you to review the attached document carefully.")
                 + p("To confirm your acceptance of these terms, please <strong>reply</strong> to this email with:")
                 + replyCallout
                 + p("By replying, you acknowledge that you have read and accept all terms and conditions stated in the attached document.")
                 + p("This request expires in <strong>30 minutes</strong>.")
-                + p("Regards,<br/>Spire Info Tech<br/>"
+                + p("Regards,<br/>" + brandName() + "<br/>"
                         + "<span style=\"color:#6b7280;\">info@spireitco.com &nbsp;•&nbsp; www.spireitco.com</span>")
                 + muted("If you did not initiate this, please ignore this email — no agreement will be recorded.");
 
@@ -553,7 +562,7 @@ public class EmailTemplateService {
                 + codeBlock
                 + p("Enter this code on the website to complete your agreement.")
                 + p("This code expires in 10 minutes.")
-                + p("Regards,<br/>Spire Info Tech")
+                + p("Regards,<br/>" + brandName() + "")
                 + muted("If you didn't request this, ignore this email — your agreement won't be recorded.");
         emailService.sendEmail(
                 user.getEmail(),
@@ -578,7 +587,7 @@ public class EmailTemplateService {
                 + muted("If you didn't create an account, ignore this email.");
         emailService.sendEmail(
                 user.getEmail(),
-                "Verify your email — Spire Info Tech",
+                "Verify your email — " + brandName() + "",
                 wrap("Verify your email", body)
         );
     }
@@ -613,14 +622,14 @@ public class EmailTemplateService {
                 ? firstName(user) : legalName;
 
         String body = p("Dear " + escape(greeting) + ",")
-                + p("Your agreement with <strong>Spire Info Tech</strong> has been confirmed.")
+                + p("Your agreement with <strong>" + brandName() + "</strong> has been confirmed.")
                 + p("Attached is your signed copy of the Terms of Service. Please keep this document for your records.")
                 + receipt(
                         "Agreement ID: " + (recordId == null ? "—" : recordId),
                         "Accepted on: " + acceptedAtIst
                 )
                 + button("View on Platform", appUrl + "/dashboard")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
 
         java.util.List<EmailService.Attachment> attachments =
                 pdfBytes == null || pdfBytes.length == 0
@@ -630,7 +639,7 @@ public class EmailTemplateService {
 
         emailService.sendEmail(
                 user.getEmail(),
-                "Your signed agreement — Spire Info Tech",
+                "Your signed agreement — " + brandName() + "",
                 wrap("Agreement confirmed", body),
                 attachments
         );
@@ -646,7 +655,7 @@ public class EmailTemplateService {
                 + muted("If you didn't request this, ignore this email. Your password won't change.");
         emailService.sendEmail(
                 user.getEmail(),
-                "Reset your password — Spire Info Tech",
+                "Reset your password — " + brandName() + "",
                 wrap("Reset your password", body)
         );
     }
@@ -708,14 +717,14 @@ public class EmailTemplateService {
         String linkedIn = "https://www.linkedin.com/sharing/share-offsite/?url="
                 + java.net.URLEncoder.encode(verifyUrl, java.nio.charset.StandardCharsets.UTF_8);
         String body = p("You've completed <strong>" + escape(course.getTitle())
-                        + "</strong> on Spire Info Tech!")
+                        + "</strong> on " + brandName() + "!")
                 + p("Your certificate is ready.")
                 + receipt("Certificate ID: " + cert.getCertificateId())
                 + button("Download Certificate", pdfUrl)
                 + secondaryButton("Verify Certificate", verifyUrl)
                 + p("Share your achievement: "
                         + "<a href=\"" + linkedIn + "\" style=\"color:#0F766E; text-decoration:none; font-weight:bold;\">Share on LinkedIn →</a>")
-                + muted("Keep learning — browse more courses at Spire Info Tech.");
+                + muted("Keep learning — browse more courses at " + brandName() + ".");
         emailService.sendEmail(
                 user.getEmail(),
                 "Certificate earned — " + course.getTitle(),
@@ -783,7 +792,7 @@ public class EmailTemplateService {
                 ? "Your mentor is still here to help."
                 : "Your mentor " + mentorName + " is still here to help.";
         String body = p("Hi " + firstName(user) + ",")
-                + p("It's been a while since you visited Spire Info Tech.")
+                + p("It's been a while since you visited " + brandName() + ".")
                 + p("You were making great progress on <strong>" + escape(courseTitle)
                         + "</strong> — " + progressPercent + "% done!")
                 + p(mentorLine)
@@ -857,9 +866,9 @@ public class EmailTemplateService {
                             + "your payment schedule in your dashboard once it's live.")
                     + p("Phase 2 post-offer support is now available as per your agreement.")
                     + button("Open your dashboard", appUrl + "/dashboard")
-                    + p("Regards,<br/>Spire Info Tech");
+                    + p("Regards,<br/>" + brandName() + "");
             emailService.sendEmail(user.getEmail(),
-                    "Phase 1 completed — " + fullName + " — Spire Info Tech",
+                    "Phase 1 completed — " + fullName + " — " + brandName() + "",
                     wrap("Phase 1 complete — congratulations!", body));
         } catch (Exception ignored) {}
 
@@ -876,7 +885,7 @@ public class EmailTemplateService {
                         + p("Payment plan activation is pending. Approve the "
                                 + "Phase 1 acknowledgment from your ERM dashboard "
                                 + "if you haven't already.")
-                        + p("— Spire Info Tech");
+                        + p("— " + brandName() + "");
                 emailService.sendEmail(erm.getEmail(),
                         "Phase 1 completed: " + fullName + " (" + participantId + ")",
                         wrap("Phase 1 complete — ERM heads-up", body));
@@ -895,7 +904,7 @@ public class EmailTemplateService {
                                 "Completion: " + completionDate)
                         + p("Payment plan scheduling can begin. The participant's "
                                 + "signed agreement and Phase 1 record are on file.")
-                        + p("— Spire Info Tech");
+                        + p("— " + brandName() + "");
                 emailService.sendEmail(financeEmail,
                         "Phase 1 complete — payment plan ready: "
                                 + fullName + " (" + participantId + ")",
@@ -938,10 +947,10 @@ public class EmailTemplateService {
                 + p("Invoices will be issued per the schedule above. You can view "
                         + "your payment status from your dashboard at any time.")
                 + button("Open your dashboard", appUrl + "/dashboard")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         try {
             emailService.sendEmail(user.getEmail(),
-                    "Payment plan confirmed — Spire Info Tech",
+                    "Payment plan confirmed — " + brandName() + "",
                     wrap("Payment plan confirmed", body));
         } catch (Exception ignored) {}
         if (financeEmail != null && !financeEmail.isBlank()) {
@@ -975,7 +984,7 @@ public class EmailTemplateService {
                 + button("Open your dashboard", appUrl + "/dashboard")
                 + p("If you've already made this payment, no action is required — "
                         + "your record will update once finance confirms receipt.")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         try {
             emailService.sendEmail(user.getEmail(),
                     "Invoice " + safe(invoice.getInvoiceNumber())
@@ -1002,7 +1011,7 @@ public class EmailTemplateService {
                         "Remaining balance: " + balance)
                 + p("Your dashboard reflects the updated status.")
                 + button("Open your dashboard", appUrl + "/dashboard")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         try {
             emailService.sendEmail(user.getEmail(),
                     "Payment received — Invoice " + safe(invoice.getInvoiceNumber()),
@@ -1027,7 +1036,7 @@ public class EmailTemplateService {
                         + "about your payment. If you've already paid, your record "
                         + "will update once we confirm receipt.")
                 + button("Open your dashboard", appUrl + "/dashboard")
-                + p("Regards,<br/>Spire Info Tech");
+                + p("Regards,<br/>" + brandName() + "");
         try {
             emailService.sendEmail(user.getEmail(),
                     "Payment reminder — Invoice " + safe(invoice.getInvoiceNumber()) + " overdue",
@@ -1040,6 +1049,16 @@ public class EmailTemplateService {
     // ───────────────────────────────────────────────────────────────
 
     private String wrap(String title, String body) {
+        // Brand-driven chrome: header color + name, footer copyright
+        // + website link all read from BrandConfig so a re-deploy
+        // under a different brand swaps these without code changes.
+        String primary = brandConfig.getPrimaryColor();
+        String name = brandConfig.getName();
+        String website = brandConfig.getWebsite();
+        String websiteHost = website
+                .replaceFirst("^https?://", "")
+                .replaceFirst("/.*$", "");
+        int year = java.time.Year.now().getValue();
         return """
         <!DOCTYPE html>
         <html>
@@ -1049,8 +1068,8 @@ public class EmailTemplateService {
             <tr><td align="center">
               <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
                 <tr>
-                  <td style="background:#0F766E; padding:24px 32px; text-align:center;">
-                    <h1 style="margin:0; color:#ffffff; font-size:20px; font-weight:bold;">Spire Info Tech</h1>
+                  <td style="background:%s; padding:24px 32px; text-align:center;">
+                    <h1 style="margin:0; color:#ffffff; font-size:20px; font-weight:bold;">%s</h1>
                   </td>
                 </tr>
                 <tr>
@@ -1061,9 +1080,9 @@ public class EmailTemplateService {
                 </tr>
                 <tr>
                   <td style="padding:20px 32px; background:#f9fafb; border-top:1px solid #e5e7eb; text-align:center;">
-                    <p style="margin:0; color:#9ca3af; font-size:12px;">© 2026 Spire Info Tech</p>
+                    <p style="margin:0; color:#9ca3af; font-size:12px;">© %d %s</p>
                     <p style="margin:4px 0 0; color:#9ca3af; font-size:12px;">
-                      <a href="%s" style="color:#0F766E; text-decoration:none;">spireinfotech.vercel.app</a>
+                      <a href="%s" style="color:%s; text-decoration:none;">%s</a>
                     </p>
                   </td>
                 </tr>
@@ -1072,7 +1091,10 @@ public class EmailTemplateService {
           </table>
         </body>
         </html>
-        """.formatted(escape(title), body, appUrl);
+        """.formatted(primary, escape(name),
+                escape(title), body,
+                year, escape(name),
+                website, primary, escape(websiteHost));
     }
 
     private static String p(String html) {
