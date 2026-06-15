@@ -27,6 +27,10 @@ const FULLSCREEN_ROUTES = [
   // Navbar/Footer, which would compete with the sidebar layout.
   "/dashboard", "/erm-dashboard", "/coach-dashboard", "/finance-dashboard",
   "/operations",
+  // Internal mail module — its own (mail) layout owns the chrome; the
+  // LMS Navbar/Footer must never render over it. ("/mail" via startsWith
+  // also covers /mail/login and /mail/set-password.)
+  "/mail", "/mail/login", "/mail/set-password",
 ];
 
 export function ShellWrapper({ children }: { children: React.ReactNode }) {
