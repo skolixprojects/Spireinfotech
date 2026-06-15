@@ -7,12 +7,18 @@
 // shared cookie, and never calls the LMS refresh endpoint.
 //
 // Base URL resolution mirrors lib/api.ts so a single NEXT_PUBLIC_API_URL
-// (no trailing slash) drives both clients without coupling the modules.
-
-const MAIL_API_BASE_URL = process.env.NEXT_PUBLIC_API_URL
+// drives both clients without coupling the modules. The fallback host is
+// copied verbatim from lib/api.ts (API_BASE_URL).
+//
+// Endpoints below are all prefixed with "/api/mail/...", so the base MUST
+// NOT end in a slash or requests build as "<base>//api/..." (the deployed
+// bug). We defensively strip any trailing slash(es) so a NEXT_PUBLIC_API_URL
+// that was set WITH a trailing slash still yields a single-slash URL.
+const MAIL_API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL
   || (process.env.NODE_ENV === "production"
       ? "https://spireinfotech-production.up.railway.app"
-      : "http://localhost:8080");
+      : "http://localhost:8080")
+  ).replace(/\/+$/, "");
 
 const BASE_URL = MAIL_API_BASE_URL;
 
