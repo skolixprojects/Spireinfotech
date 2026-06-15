@@ -3,6 +3,7 @@ package com.spire.backend.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -29,7 +30,12 @@ public class SecurityConfig {
 
     private final CorsConfigurationSource corsConfigurationSource;
 
+    // @Order(2): the mail security chain (MailSecurityConfig, @Order(1))
+    // is scoped to /api/mail/** and must be evaluated first. This chain
+    // is the catch-all for every other request, so it stays last. The
+    // ordering is behavior-neutral for all existing /api/** routes.
     @Bean
+    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
