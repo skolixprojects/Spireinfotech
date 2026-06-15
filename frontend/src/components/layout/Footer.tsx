@@ -28,7 +28,6 @@ const columns = [
 ];
 
 export function Footer() {
-  const a = BRAND.address;
   return (
     <footer className="bg-brand text-white">
       <div className="mx-auto max-w-7xl px-6 py-12">
@@ -54,10 +53,6 @@ export function Footer() {
                 {BRAND.contactEmail}
               </a>
             </div>
-            <p className="mt-2 text-xs text-white/50 leading-snug max-w-xs">
-              {a.line1}, {a.line2},<br />
-              {a.city}, {a.state} {a.postalCode}, {a.country}
-            </p>
           </div>
 
           {/* Link columns */}
