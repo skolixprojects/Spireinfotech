@@ -68,6 +68,16 @@ public class MailMessageController {
                 mailMessageService.listFolder(principal(auth), folder, pageable)));
     }
 
+    @GetMapping("/folders/starred")
+    public ResponseEntity<ApiResponse<MailFolderListing>> starred(
+            Authentication auth,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Pageable pageable = PageRequest.of(Math.max(0, page), clampSize(size));
+        return ResponseEntity.ok(ApiResponse.success(
+                mailMessageService.listStarred(principal(auth), pageable)));
+    }
+
     @GetMapping("/messages/{id}")
     public ResponseEntity<ApiResponse<MailMessageDetail>> getMessage(
             Authentication auth, @PathVariable Long id) {

@@ -33,6 +33,7 @@ public class MailMessageDetail {
     private LocalDateTime createdAt;
     private Boolean hasAttachments;
     private Long inReplyToId;
+    private java.util.List<MailAttachmentSummary> attachments;
     // caller's own envelope state
     private String folder;
     private Boolean read;

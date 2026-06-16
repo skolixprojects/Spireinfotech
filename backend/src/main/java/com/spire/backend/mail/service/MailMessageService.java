@@ -49,6 +49,7 @@ public class MailMessageService {
     private final MailMessageRepository mailMessageRepository;
     private final MailMessageRecipientRepository mailRecipientRepository;
     private final MailMailboxEntryRepository mailboxRepository;
+    private final com.spire.backend.mail.repository.MailAttachmentRepository mailAttachmentRepository;
 
     // ─── Send ───────────────────────────────────────────────────────
 
@@ -139,6 +140,16 @@ public class MailMessageService {
         return MailFolderListing.from(page, toSummaries(page.getContent()), unread);
     }
 
+    /** Cross-folder Starred view — the caller's starred, non-deleted entries. */
+    @Transactional(readOnly = true)
+    public MailFolderListing listStarred(MailPrincipal principal, Pageable pageable) {
+        MailAccount caller = loadCaller(principal);
+        Page<MailMailboxEntry> page = mailboxRepository
+                .findByAccount_IdAndIsStarredTrueAndDeletedAtIsNullOrderByMessage_CreatedAtDescIdDesc(caller.getId(), pageable);
+        long unread = mailboxRepository.countByAccount_IdAndIsStarredTrueAndIsReadFalseAndDeletedAtIsNull(caller.getId());
+        return MailFolderListing.from(page, toSummaries(page.getContent()), unread);
+    }
+
     @Transactional(readOnly = true)
     public MailMessageDetail getMessage(MailPrincipal principal, Long id) {
         MailAccount caller = loadCaller(principal);
@@ -156,10 +167,20 @@ public class MailMessageService {
         }
         Map<Long, MailMailboxEntry> byMessage = new HashMap<>();
         for (MailMailboxEntry e : entries) byMessage.putIfAbsent(e.getMessage().getId(), e);
+        // Batch-load attachments for the whole thread once (avoids an N+1 of one
+        // attachment query per message).
+        Map<Long, List<MailAttachmentSummary>> attsByMsg = new HashMap<>();
+        for (com.spire.backend.mail.entity.MailAttachment a
+                : mailAttachmentRepository.findByMessage_IdIn(new ArrayList<>(byMessage.keySet()))) {
+            attsByMsg.computeIfAbsent(a.getMessage().getId(), k -> new ArrayList<>())
+                    .add(MailAttachmentSummary.builder()
+                            .id(a.getId()).filename(a.getFilename())
+                            .contentType(a.getContentType()).sizeBytes(a.getSizeBytes()).build());
+        }
         List<MailMessageDetail> messages = mailMessageRepository
                 .findByThreadIdOrderByCreatedAtAscIdAsc(threadId).stream()
                 .filter(m -> byMessage.containsKey(m.getId()))
-                .map(m -> toDetail(m, byMessage.get(m.getId()), caller))
+                .map(m -> toDetail(m, byMessage.get(m.getId()), caller, attsByMsg.getOrDefault(m.getId(), List.of())))
                 .toList();
         return MailThreadView.builder().threadId(threadId).messages(messages).build();
     }
@@ -374,7 +395,11 @@ public class MailMessageService {
     }
 
     private MailMailboxEntry ownDraft(MailAccount sender, Long messageId) {
-        MailMailboxEntry entry = requireEntry(sender, messageId);
+        // Pessimistic write lock: serializes a draft mutation/send against a
+        // concurrent attachment change on the same draft (TOCTOU guard).
+        MailMailboxEntry entry = mailboxRepository
+                .findWithLockByAccount_IdAndMessage_IdAndDeletedAtIsNull(sender.getId(), messageId)
+                .orElseThrow(() -> new ResourceNotFoundException("MailMessage", "id", messageId));
         if (entry.getFolder() != Folder.DRAFTS) {
             throw new IllegalArgumentException("That message is not a draft.");
         }
@@ -408,6 +433,12 @@ public class MailMessageService {
     }
 
     private MailMessageDetail toDetail(MailMessage m, MailMailboxEntry entry, MailAccount caller) {
+        return toDetail(m, entry, caller, attachmentSummaries(m.getId()));
+    }
+
+    /** Variant taking pre-fetched attachments (used by the batched thread view). */
+    private MailMessageDetail toDetail(MailMessage m, MailMailboxEntry entry, MailAccount caller,
+                                       List<MailAttachmentSummary> attachments) {
         List<MailMessageRecipient> rows = mailRecipientRepository.findByMessage_Id(m.getId());
         boolean isSender = m.getSender().getId().equals(caller.getId());
         return MailMessageDetail.builder()
@@ -419,9 +450,18 @@ public class MailMessageService {
                 .subject(m.getSubject()).bodyHtml(m.getBodyHtml()).bodyText(m.getBodyText())
                 .createdAt(m.getCreatedAt()).hasAttachments(m.getHasAttachments())
                 .inReplyToId(m.getInReplyTo() != null ? m.getInReplyTo().getId() : null)
+                .attachments(attachments)
                 .folder(entry.getFolder().name())
                 .read(entry.getIsRead()).starred(entry.getIsStarred()).important(entry.getIsImportant())
                 .build();
+    }
+
+    private List<com.spire.backend.mail.dto.MailAttachmentSummary> attachmentSummaries(Long messageId) {
+        return mailAttachmentRepository.findByMessage_Id(messageId).stream()
+                .map(a -> com.spire.backend.mail.dto.MailAttachmentSummary.builder()
+                        .id(a.getId()).filename(a.getFilename())
+                        .contentType(a.getContentType()).sizeBytes(a.getSizeBytes()).build())
+                .toList();
     }
 
     private List<String> emailsOfType(List<MailMessageRecipient> rows, Type type) {
