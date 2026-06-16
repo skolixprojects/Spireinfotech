@@ -35,7 +35,8 @@ public class MailMessageDetail {
     private Long inReplyToId;
     private java.util.List<MailAttachmentSummary> attachments;
     // caller's own envelope state
-    private String folder;
+    private String folder;     // system key (INBOX/…) or custom folder name
+    private Long folderId;     // folder_id (Phase 14)
     private Boolean read;
     private Boolean starred;
     private Boolean important;

@@ -57,6 +57,7 @@ public class MailAdminService {
     private final MailAccountRepository mailAccountRepository;
     private final MailAuditLogRepository mailAuditLogRepository;
     private final PasswordEncoder passwordEncoder;
+    private final MailFolderService mailFolderService;
 
     // ─── Domains ────────────────────────────────────────────────────
 
@@ -159,6 +160,7 @@ public class MailAdminService {
                 .mustChangePassword(mustChange)
                 .quotaBytes(0L)
                 .build());
+        mailFolderService.ensureSystemFolders(account);   // seed the new account's folder tree
         writeAudit(actor, "MAILBOX_CREATE", "MAILBOX", account.getId(),
                 "created " + emailOf(account) + " role=" + role + " requireChange=" + mustChange);
         // Plaintext returned ONCE here; never persisted/logged.

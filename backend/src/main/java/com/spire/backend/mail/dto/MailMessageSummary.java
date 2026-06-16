@@ -26,5 +26,6 @@ public class MailMessageSummary {
     private Boolean starred;
     private Boolean important;
     private Boolean hasAttachments;
-    private String folder;
+    private String folder;     // system key (INBOX/…) or custom folder name
+    private Long folderId;     // folder_id (Phase 14) for the custom-folder UI
 }

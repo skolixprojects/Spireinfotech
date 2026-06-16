@@ -4,6 +4,7 @@ import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.exception.UnauthorizedException;
 import com.spire.backend.mail.dto.*;
 import com.spire.backend.mail.entity.MailAccount;
+import com.spire.backend.mail.entity.MailFolder;
 import com.spire.backend.mail.entity.MailMailboxEntry;
 import com.spire.backend.mail.entity.MailMailboxEntry.Folder;
 import com.spire.backend.mail.entity.MailMessage;
@@ -56,6 +57,7 @@ public class MailMessageService {
     private final com.spire.backend.mail.repository.MailAttachmentRepository mailAttachmentRepository;
     private final MailBlobStore blobStore;
     private final MailSseService mailSseService;
+    private final MailFolderService mailFolderService;
 
     // ─── Send ───────────────────────────────────────────────────────
 
@@ -127,6 +129,7 @@ public class MailMessageService {
         // (account, message) and break the Optional entry finder), then fan
         // out INBOX entries to the recipients.
         draft.setFolder(Folder.SENT);
+        draft.setFolderRef(mailFolderService.systemFolder(sender, Folder.SENT));
         draft.setIsRead(true);
         mailboxRepository.save(draft);
         deliverToRecipients(sender, msg, resolved);
@@ -138,11 +141,12 @@ public class MailMessageService {
     @Transactional(readOnly = true)
     public MailFolderListing listFolder(MailPrincipal principal, String folderStr, Pageable pageable) {
         MailAccount caller = loadCaller(principal);
-        Folder folder = parseFolder(folderStr);
+        MailFolder folder = mailFolderService.resolveByKeyOrId(caller, folderStr); // system key OR custom id, walled
         Page<MailMailboxEntry> page = mailboxRepository
-                .findByAccount_IdAndFolderAndDeletedAtIsNullOrderByMessage_CreatedAtDesc(caller.getId(), folder, pageable);
+                .findByAccount_IdAndFolderRef_IdAndDeletedAtIsNullOrderByMessage_CreatedAtDescIdDesc(
+                        caller.getId(), folder.getId(), pageable);
         long unread = mailboxRepository
-                .countByAccount_IdAndFolderAndIsReadFalseAndDeletedAtIsNull(caller.getId(), folder);
+                .countByAccount_IdAndFolderRef_IdAndIsReadFalseAndDeletedAtIsNull(caller.getId(), folder.getId());
         return MailFolderListing.from(page, toSummaries(page.getContent()), unread);
     }
 
@@ -222,11 +226,13 @@ public class MailMessageService {
         if (req.getStarred() != null) entry.setIsStarred(req.getStarred());
         if (req.getImportant() != null) entry.setIsImportant(req.getImportant());
         if (req.getFolder() != null) {
-            Folder f = parseFolder(req.getFolder());
-            if (f == Folder.DRAFTS || f == Folder.SENT) {
+            // Target may be a system key ("ARCHIVE"/"TRASH") or a custom folder id;
+            // resolveByKeyOrId walls it to the caller. DRAFTS/SENT can't be moved into.
+            MailFolder target = mailFolderService.resolveByKeyOrId(caller, req.getFolder());
+            if ("DRAFTS".equals(target.getSystemKey()) || "SENT".equals(target.getSystemKey())) {
                 throw new IllegalArgumentException("Cannot move a message into a system folder.");
             }
-            entry.setFolder(f);
+            entry.setFolderRef(target);
         }
         mailboxRepository.save(entry);
         return toDetail(entry.getMessage(), entry, caller);
@@ -236,7 +242,7 @@ public class MailMessageService {
     public void softDelete(MailPrincipal principal, Long id) {
         MailAccount caller = loadCaller(principal);
         MailMailboxEntry entry = requireEntry(caller, id);
-        entry.setFolder(Folder.TRASH);
+        entry.setFolderRef(mailFolderService.systemFolder(caller, Folder.TRASH));
         mailboxRepository.save(entry);
     }
 
@@ -313,12 +319,7 @@ public class MailMessageService {
     @Transactional(readOnly = true)
     public Map<String, Long> unreadCounts(MailPrincipal principal) {
         MailAccount caller = loadCaller(principal);
-        Map<String, Long> out = new LinkedHashMap<>();
-        for (Folder f : Folder.values()) out.put(f.name(), 0L);
-        for (Object[] row : mailboxRepository.countUnreadByFolder(caller.getId())) {
-            out.put(((Folder) row[0]).name(), (Long) row[1]);
-        }
-        return out;
+        return mailFolderService.systemUnreadCounts(caller);   // {INBOX:n, SENT:0, ...} by system key
     }
 
     // ─── Internals ──────────────────────────────────────────────────
@@ -463,7 +464,10 @@ public class MailMessageService {
 
     private MailMailboxEntry entry(MailAccount account, MailMessage msg, Folder folder, boolean read) {
         return MailMailboxEntry.builder()
-                .account(account).message(msg).folder(folder).isRead(read).build();
+                .account(account).message(msg)
+                .folder(folder)                                              // vestigial, kept non-null
+                .folderRef(mailFolderService.systemFolder(account, folder))  // source of truth (Phase 14)
+                .isRead(read).build();
     }
 
     private MailMailboxEntry requireEntry(MailAccount caller, Long messageId) {
@@ -477,10 +481,17 @@ public class MailMessageService {
         MailMailboxEntry entry = mailboxRepository
                 .findWithLockByAccount_IdAndMessage_IdAndDeletedAtIsNull(sender.getId(), messageId)
                 .orElseThrow(() -> new ResourceNotFoundException("MailMessage", "id", messageId));
-        if (entry.getFolder() != Folder.DRAFTS) {
+        if (!isDraftFolder(entry)) {
             throw new IllegalArgumentException("That message is not a draft.");
         }
         return entry;
+    }
+
+    /** True when the entry lives in the caller's DRAFTS folder (folder_id, with a
+     *  vestigial-enum fallback for any not-yet-backfilled row). */
+    private boolean isDraftFolder(MailMailboxEntry e) {
+        if (e.getFolderRef() != null) return "DRAFTS".equals(e.getFolderRef().getSystemKey());
+        return e.getFolder() == Folder.DRAFTS;
     }
 
     // ─── Mapping ────────────────────────────────────────────────────
@@ -503,7 +514,8 @@ public class MailMessageService {
                     .subject(m.getSubject()).snippet(snippet(m.getBodyText()))
                     .createdAt(m.getCreatedAt())
                     .read(e.getIsRead()).starred(e.getIsStarred()).important(e.getIsImportant())
-                    .hasAttachments(m.getHasAttachments()).folder(e.getFolder().name())
+                    .hasAttachments(m.getHasAttachments())
+                    .folder(folderLabel(e)).folderId(folderIdOf(e))
                     .build());
         }
         return out;
@@ -528,9 +540,21 @@ public class MailMessageService {
                 .createdAt(m.getCreatedAt()).hasAttachments(m.getHasAttachments())
                 .inReplyToId(m.getInReplyTo() != null ? m.getInReplyTo().getId() : null)
                 .attachments(attachments)
-                .folder(entry.getFolder().name())
+                .folder(folderLabel(entry)).folderId(folderIdOf(entry))
                 .read(entry.getIsRead()).starred(entry.getIsStarred()).important(entry.getIsImportant())
                 .build();
+    }
+
+    /** Display key for the entry's folder: the system key (INBOX/…) for system
+     *  folders, else the custom folder's name; enum fallback pre-backfill. */
+    private String folderLabel(MailMailboxEntry e) {
+        MailFolder f = e.getFolderRef();
+        if (f != null) return f.getSystemKey() != null ? f.getSystemKey() : f.getName();
+        return e.getFolder() != null ? e.getFolder().name() : null;
+    }
+
+    private Long folderIdOf(MailMailboxEntry e) {
+        return e.getFolderRef() != null ? e.getFolderRef().getId() : null;
     }
 
     private List<com.spire.backend.mail.dto.MailAttachmentSummary> attachmentSummaries(Long messageId) {
@@ -557,14 +581,5 @@ public class MailMessageService {
 
     private String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s;
-    }
-
-    private Folder parseFolder(String s) {
-        if (s == null || s.isBlank()) throw new IllegalArgumentException("Folder is required.");
-        try {
-            return Folder.valueOf(s.trim().toUpperCase());
-        } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid folder: " + s);
-        }
     }
 }

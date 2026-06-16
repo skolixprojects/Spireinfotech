@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "mail_mailbox_entries", indexes = {
         @Index(name = "idx_mail_mbox_acct_folder", columnList = "account_id, folder"),
+        @Index(name = "idx_mail_mbox_acct_folderid", columnList = "account_id, folder_id"),
         @Index(name = "idx_mail_mbox_msg", columnList = "message_id")
 })
 @Data
@@ -35,9 +36,20 @@ public class MailMailboxEntry {
     @JoinColumn(name = "message_id", nullable = false)
     private MailMessage message;
 
+    /**
+     * Vestigial since Phase 14 — the folder model ({@link #folderRef}) is the
+     * source of truth. Still written non-null on creation (system folders) to
+     * satisfy the live NOT-NULL column; no longer read for routing.
+     */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private Folder folder;
+
+    /** The folder this entry lives in (Phase 14). Nullable so ddl-auto can add
+     *  it to the live table; backfilled from {@link #folder} on boot. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "folder_id")
+    private MailFolder folderRef;
 
     @Column(name = "is_read", nullable = false)
     @Builder.Default

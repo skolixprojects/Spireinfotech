@@ -197,7 +197,7 @@ public class MailAttachmentService {
         MailMailboxEntry entry = mailboxRepository
                 .findWithLockByAccount_IdAndMessage_IdAndDeletedAtIsNull(caller.getId(), messageId)
                 .orElseThrow(() -> new ResourceNotFoundException("MailMessage", "id", messageId));
-        if (entry.getFolder() != MailMailboxEntry.Folder.DRAFTS) {
+        if (!isDraft(entry)) {
             throw new IllegalArgumentException("Attachments can only be changed on a draft.");
         }
         return entry;
@@ -208,10 +208,19 @@ public class MailAttachmentService {
         MailMailboxEntry entry = mailboxRepository
                 .findByAccount_IdAndMessage_IdAndDeletedAtIsNull(caller.getId(), messageId)
                 .orElseThrow(() -> new ResourceNotFoundException("MailMessage", "id", messageId));
-        if (entry.getFolder() != MailMailboxEntry.Folder.DRAFTS) {
+        if (!isDraft(entry)) {
             throw new IllegalArgumentException("Attachments can only be changed on a draft.");
         }
         return entry;
+    }
+
+    /** True only when the entry currently lives in DRAFTS — by folder_id (the
+     *  Phase 14 source of truth), NOT the vestigial enum. A draft moved out via
+     *  applyFlags (folderRef changed, enum left stale) must NOT count as a draft. */
+    private boolean isDraft(MailMailboxEntry entry) {
+        return entry.getFolderRef() != null
+                ? "DRAFTS".equals(entry.getFolderRef().getSystemKey())
+                : entry.getFolder() == MailMailboxEntry.Folder.DRAFTS;
     }
 
     private MailAttachmentSummary toSummary(MailAttachment a) {
