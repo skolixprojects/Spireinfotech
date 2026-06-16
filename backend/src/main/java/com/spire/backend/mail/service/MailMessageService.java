@@ -425,40 +425,52 @@ public class MailMessageService {
     private void deliverToRecipients(MailAccount sender, MailMessage msg, List<Resolved> resolved) {
         Set<Long> seen = new HashSet<>();
         seen.add(sender.getId());
-        List<Long> delivered = new ArrayList<>();
+        List<Delivery> delivered = new ArrayList<>();
         for (Resolved r : resolved) {
             if (seen.add(r.account().getId())) {
-                mailboxRepository.save(entry(r.account(), msg, Folder.INBOX, false));
-                delivered.add(r.account().getId());
+                MailMailboxEntry saved = mailboxRepository.save(entry(r.account(), msg, Folder.INBOX, false));
+                // The event carries the ACTUAL folder the entry landed in (today
+                // always the recipient's Inbox; rule-ready for future routing).
+                delivered.add(new Delivery(r.account().getId(), saved.getFolderRef().getId()));
             }
         }
-        publishNewMailAfterCommit(delivered, msg.getId());
+        publishNewMailAfterCommit(sender, msg, delivered);
     }
+
+    /** A delivered inbox entry: the recipient account and the folder it landed in. */
+    private record Delivery(Long accountId, Long folderId) {}
 
     /**
      * Best-effort live new-mail push to each recipient — AFTER the send commits,
      * so a client that resyncs on the event sees the new INBOX entry. A failed
      * publish is logged and NEVER breaks the send. Walled: only the resolved
-     * recipient accounts are notified.
+     * recipient accounts are notified. Sender display/subject are materialized
+     * here (the session is still open) so the off-thread SSE fan-out reads only
+     * plain values — never a lazy JPA association.
      */
-    private void publishNewMailAfterCommit(List<Long> recipientAccountIds, Long messageId) {
-        if (recipientAccountIds.isEmpty()) return;
+    private void publishNewMailAfterCommit(MailAccount sender, MailMessage msg, List<Delivery> deliveries) {
+        if (deliveries.isEmpty()) return;
+        final String fromName = sender.getDisplayName();
+        final String fromEmail = emailOf(sender);
+        final String subject = msg.getSubject();
+        final Long messageId = msg.getId();
+        Runnable publish = () -> deliveries.forEach(d -> safePublishNewMail(
+                d.accountId(),
+                new MailSseService.NewMailEvent(d.folderId(), messageId, fromName, fromEmail, subject)));
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override public void afterCommit() {
-                    recipientAccountIds.forEach(id -> safePublishNewMail(id, messageId));
-                }
+                @Override public void afterCommit() { publish.run(); }
             });
         } else {
-            recipientAccountIds.forEach(id -> safePublishNewMail(id, messageId));
+            publish.run();
         }
     }
 
-    private void safePublishNewMail(Long accountId, Long messageId) {
+    private void safePublishNewMail(Long accountId, MailSseService.NewMailEvent event) {
         try {
-            mailSseService.publishNewMail(accountId, messageId);
+            mailSseService.publishNewMail(accountId, event);
         } catch (Exception e) {
-            log.warn("SSE new-mail publish failed for account {} (message {}): {}", accountId, messageId, e.toString());
+            log.warn("SSE new-mail publish failed for account {} (message {}): {}", accountId, event.messageId(), e.toString());
         }
     }
 

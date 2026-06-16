@@ -6,6 +6,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -84,15 +85,22 @@ public class MailSseService {
      * so the caller (the sender's committing request thread) is never blocked by
      * a slow recipient connection. Fire-and-forget; failures drop the emitter.
      */
-    public void publishNewMail(Long accountId, Long messageId) {
+    public void publishNewMail(Long accountId, NewMailEvent event) {
         if (emitters.get(accountId) == null) return; // fast path: no listeners
-        publishExecutor.submit(() -> doPublish(accountId, messageId));
+        publishExecutor.submit(() -> doPublish(accountId, event));
     }
 
-    private void doPublish(Long accountId, Long messageId) {
+    private void doPublish(Long accountId, NewMailEvent event) {
         Set<SseEmitter> set = emitters.get(accountId); // re-read (may have reconnected)
         if (set == null) return;
-        Map<String, Object> payload = Map.of("type", "NEW_MAIL", "folder", "INBOX", "messageId", messageId);
+        // HashMap (not Map.of): the sender display name / subject may legitimately be null.
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("type", "NEW_MAIL");
+        payload.put("folderId", event.folderId());   // ACTUAL delivered folder (Phase 16; rule-ready)
+        payload.put("messageId", event.messageId());
+        payload.put("fromName", event.fromName());
+        payload.put("from", event.fromEmail());
+        payload.put("subject", event.subject());
         for (SseEmitter em : set) {
             try {
                 em.send(SseEmitter.event().name("new-mail").data(payload, MediaType.APPLICATION_JSON));
@@ -101,6 +109,14 @@ public class MailSseService {
             }
         }
     }
+
+    /**
+     * Everything the client needs to bump the right folder's unread count and
+     * show a browser notification. All fields are plain values, fully
+     * materialized by the caller on its (session-bound) thread, so the off-thread
+     * fan-out here never touches a lazy JPA association.
+     */
+    public record NewMailEvent(Long folderId, Long messageId, String fromName, String fromEmail, String subject) {}
 
     /** Visible for tests: how many emitters an account currently holds. */
     public int emitterCount(Long accountId) {

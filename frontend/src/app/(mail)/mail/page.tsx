@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Mail, Search, X, LogOut, Shield, Loader2 } from "lucide-react";
+import { Mail, Search, X, LogOut, Shield, Loader2, Bell } from "lucide-react";
 import { useMailAuth } from "@/lib/mail-auth-context";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -14,7 +14,7 @@ import {
 import {
   buildReply, buildReplyAll, buildForward, type ComposeInit,
 } from "@/lib/mail-compose-api";
-import { useMailEvents } from "@/lib/mail-events";
+import { useMailEvents, type MailEvent } from "@/lib/mail-events";
 import { FolderRail } from "./_components/FolderRail";
 import { FolderPickerModal } from "./_components/FolderPickerModal";
 import { MessageList } from "./_components/MessageList";
@@ -45,12 +45,20 @@ export default function MailClientPage() {
   const [folders, setFolders] = useState<MailFolderDto[]>([]);
   const [moveTarget, setMoveTarget] = useState<{ messageId: number } | null>(null);
   const [moveBusy, setMoveBusy] = useState(false);
+  // Browser-notification permission, read on the client after mount (it's
+  // undefined during SSR). Drives the in-app "Enable notifications" fallback.
+  const [notifPerm, setNotifPerm] = useState<NotificationPermission | "unsupported">("default");
 
   // Monotonic guards so out-of-order responses from rapid navigation /
   // clicks can never apply a stale result over a newer one.
   const reqSeq = useRef(0);
   const openSeq = useRef(0);
   const composeNonce = useRef(0);
+  // Request notification permission at most once per mount (never nag).
+  const askedRef = useRef(false);
+  // Latest "open this message id" action, for notification clicks (assigned
+  // below once openMessage exists; called only after a granted notification).
+  const openByIdRef = useRef<(messageId: number) => void>(() => {});
   // Stamp a fresh nonce on every compose so ComposeWindow remounts with
   // clean state (no stale draftId/recipients/body carried across actions).
   const openCompose = (init: ComposeInit) => setCompose({ ...init, nonce: ++composeNonce.current });
@@ -95,22 +103,67 @@ export default function MailClientPage() {
     }
   }, [toast]);
 
+  // Fire a browser notification for a newly delivered message — only when the
+  // user granted permission AND isn't actively looking at the app. Clicking it
+  // focuses this window and opens the message. After logout the stream is
+  // disabled so onNewMail (and therefore this) never runs.
+  const notify = useCallback((e: MailEvent) => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    if (Notification.permission !== "granted") return;
+    if (document.visibilityState === "visible" && document.hasFocus()) return; // they're looking — skip
+    const who = e.fromName || e.from;
+    try {
+      const n = new Notification(who ? `New mail from ${who}` : "New mail", {
+        body: e.subject || "(no subject)",
+        tag: e.messageId != null ? `mail-${e.messageId}` : undefined, // collapse dupes across tabs
+        icon: "/favicon.ico",
+      });
+      n.onclick = () => {
+        window.focus();
+        n.close();
+        if (e.messageId != null) openByIdRef.current(e.messageId);
+      };
+    } catch { /* the Notification constructor can throw on some platforms */ }
+  }, []);
+
   useEffect(() => {
     if (status === "anonymous") { router.replace("/mail/login"); return; }
     if (status === "authenticated") { refreshCounts(); loadFolders(); loadList("INBOX", 0, ""); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  // Ask for notification permission once on first authed load. Browsers that
+  // defer a programmatic request leave it "default" → the header shows an
+  // "Enable notifications" button (a click reliably prompts). Once
+  // granted/denied we never ask again.
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    if (typeof window === "undefined" || !("Notification" in window)) { setNotifPerm("unsupported"); return; }
+    setNotifPerm(Notification.permission);
+    if (Notification.permission === "default" && !askedRef.current) {
+      askedRef.current = true;
+      Notification.requestPermission().then(setNotifPerm).catch(() => {});
+    }
+  }, [status]);
+
   // Live new-mail stream — updates the SAME counts/list state. On NEW_MAIL bump
-  // the INBOX badge (and refresh the list head if INBOX is open); on every
-  // (re)connect resync counts + the current folder. Torn down on logout
-  // (enabled flips false) / unmount.
+  // the badge of the folder the mail ACTUALLY landed in (folderId from the
+  // event), refresh the list head if that folder is open, reconcile tree counts,
+  // and raise a browser notification. On every (re)connect resync counts + the
+  // current folder. Torn down on logout (enabled flips false) / unmount.
   useMailEvents({
     enabled: status === "authenticated",
-    onNewMail: () => {
-      setUnread((u) => ({ ...u, INBOX: (u.INBOX ?? 0) + 1 }));
-      loadFolders();   // refresh tree counts
-      if (folder === "INBOX" && page === 0 && !searchQuery) loadList("INBOX", 0, "");
+    onNewMail: (e) => {
+      const target = e.folderId != null ? folders.find((f) => f.id === e.folderId) : undefined;
+      if (target) {
+        // Instant optimistic bump of the tree + legacy systemKey map…
+        setFolders((prev) => prev.map((f) => (f.id === target.id ? { ...f, unread: f.unread + 1, total: f.total + 1 } : f)));
+        if (target.systemKey) setUnread((u) => ({ ...u, [target.systemKey!]: (u[target.systemKey!] ?? 0) + 1 }));
+        const activeRef = target.systemKey ?? String(target.id);
+        if (folder === activeRef && page === 0 && !searchQuery) loadList(activeRef, 0, "");
+      }
+      loadFolders();   // …then reconcile tree counts with the server (also covers unknown folderId)
+      notify(e);
     },
     onResync: () => { refreshCounts(); loadFolders(); loadList(folder, page, searchQuery); },
   });
@@ -178,6 +231,27 @@ export default function MailClientPage() {
         refreshCounts();
       } catch { /* non-fatal */ }
     }
+  };
+
+  // Open a message by id (notification click): fetch its detail and reuse the
+  // normal open path. Reassigned each render so the ref always sees fresh state.
+  openByIdRef.current = async (messageId: number) => {
+    try {
+      const d = await getMessage(messageId);
+      await openMessage({
+        messageId: d.messageId, threadId: d.threadId, from: d.from, fromName: d.fromName,
+        to: d.to, subject: d.subject, snippet: "", createdAt: d.createdAt,
+        read: d.read, starred: d.starred, important: d.important,
+        hasAttachments: d.hasAttachments, folder: d.folder, folderId: d.folderId,
+      });
+    } catch { /* the message may have been moved or deleted */ }
+  };
+
+  // In-app fallback for the notification opt-in (used when a browser deferred
+  // the programmatic request). A click is a reliable gesture for the prompt.
+  const enableNotifications = () => {
+    if (typeof window === "undefined" || !("Notification" in window)) return;
+    Notification.requestPermission().then(setNotifPerm).catch(() => {});
   };
 
   const toggleStar = async (m: MailMessageSummary) => {
@@ -301,6 +375,11 @@ export default function MailClientPage() {
           )}
         </form>
         <div className="flex items-center gap-3 shrink-0 text-sm">
+          {notifPerm === "default" && (
+            <button onClick={enableNotifications} className="inline-flex items-center gap-1.5 text-gray-500 hover:text-[#0F766E]" title="Enable desktop notifications for new mail">
+              <Bell size={14} /> <span className="hidden lg:inline">Enable notifications</span>
+            </button>
+          )}
           {isAdmin && (
             <Link href="/mail-admin" className="hidden items-center gap-1.5 text-gray-500 hover:text-[#0F766E] md:inline-flex" title="Admin console">
               <Shield size={14} /> Admin

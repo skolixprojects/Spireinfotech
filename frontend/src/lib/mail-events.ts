@@ -10,8 +10,13 @@ import { MAIL_API_BASE_URL, getMailAccessToken, mailRefresh } from "./mail-api";
 
 export interface MailEvent {
   type: string;            // e.g. "NEW_MAIL"
-  folder?: string;
+  folder?: string;         // legacy (pre-Phase-16) system-key hint; unused now
+  folderId?: number;       // ACTUAL folder the entry landed in (Phase 16)
   messageId?: number;
+  // Notification body fields (NEW_MAIL):
+  fromName?: string;
+  from?: string;
+  subject?: string;
 }
 
 interface StreamOpts {
@@ -133,8 +138,12 @@ export function useMailEvents(opts: {
     const ctrl = new AbortController();
     openMailEventStream({
       signal: ctrl.signal,
-      onConnect: () => onResync.current(),
-      onEvent: (e) => { if (e.type === "NEW_MAIL") onNewMail.current(e); },
+      // Guard every dispatch on the abort signal: a frame already buffered in
+      // the parser at the instant of teardown (logout / unmount) must NOT reach
+      // the handlers — otherwise a stray count bump or, worse, a browser
+      // notification could fire AFTER logout.
+      onConnect: () => { if (!ctrl.signal.aborted) onResync.current(); },
+      onEvent: (e) => { if (!ctrl.signal.aborted && e.type === "NEW_MAIL") onNewMail.current(e); },
     });
     return () => ctrl.abort();
   }, [opts.enabled]);

@@ -32,15 +32,15 @@ export function Modal({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.98 }}
             transition={{ duration: 0.2 }}
-            className={`relative w-full ${maxWidth} rounded-2xl bg-white shadow-xl border border-gray-200`}
+            className={`relative flex max-h-[90vh] w-full flex-col ${maxWidth} rounded-2xl bg-white shadow-xl border border-gray-200`}
           >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <div className="flex shrink-0 items-center justify-between px-6 py-4 border-b border-gray-100">
               <h2 className="font-serif text-xl font-bold text-gray-900">{title}</h2>
               <button onClick={onClose} className="text-gray-400 hover:text-gray-600" aria-label="Close">
                 <X size={18} />
               </button>
             </div>
-            <div className="px-6 py-5">{children}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
           </motion.div>
         </motion.div>
       )}
