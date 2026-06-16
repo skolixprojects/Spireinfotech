@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -42,6 +43,16 @@ public interface MailMailboxEntryRepository
 
     long countByAccount_IdAndFolderAndIsReadFalseAndDeletedAtIsNull(
             Long accountId, MailMailboxEntry.Folder folder);
+
+    /** Live (non-tombstoned) entries still referencing a shared message — the
+     *  reference count that gates the permanent-delete purge (Phase 11). */
+    long countByMessage_IdAndDeletedAtIsNull(Long messageId);
+
+    /** Purge ALL entries (live + tombstoned) for a message — used when the last
+     *  participant permanently deletes it. Bulk DML, executed immediately. */
+    @Modifying
+    @Query("delete from MailMailboxEntry e where e.message.id = :messageId")
+    void purgeByMessageId(@Param("messageId") Long messageId);
 
     /** Unread counts grouped by folder for the caller (excludes tombstones). */
     @Query("SELECT e.folder, COUNT(e) FROM MailMailboxEntry e "

@@ -17,6 +17,7 @@ import com.spire.backend.mail.security.MailPrincipal;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -24,6 +25,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -41,6 +44,7 @@ import java.util.*;
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MailMessageService {
 
     private static final String RECIPIENT_REJECT = "One or more recipients could not be resolved.";
@@ -50,6 +54,8 @@ public class MailMessageService {
     private final MailMessageRecipientRepository mailRecipientRepository;
     private final MailMailboxEntryRepository mailboxRepository;
     private final com.spire.backend.mail.repository.MailAttachmentRepository mailAttachmentRepository;
+    private final MailBlobStore blobStore;
+    private final MailSseService mailSseService;
 
     // ─── Send ───────────────────────────────────────────────────────
 
@@ -237,9 +243,50 @@ public class MailMessageService {
     @Transactional
     public void permanentDelete(MailPrincipal principal, Long id) {
         MailAccount caller = loadCaller(principal);
-        MailMailboxEntry entry = requireEntry(caller, id);
-        entry.setDeletedAt(LocalDateTime.now());   // tombstone — excluded from all views
-        mailboxRepository.save(entry);
+        MailMailboxEntry entry = requireEntry(caller, id);          // a LIVE entry the caller holds
+        Long messageId = entry.getMessage().getId();
+
+        // Lock the shared message row so the reference-count-then-act below is
+        // atomic per message: two participants permanently deleting the SAME
+        // message serialize, and the loser re-counts AFTER the winner's tombstone
+        // commits — so they can't both tombstone and strand an un-purgeable orphan.
+        if (mailMessageRepository.findByIdForUpdate(messageId).isEmpty()) {
+            return; // already purged by a concurrent last-holder delete
+        }
+
+        // Reference count: this entry is live, so the count includes it. If it's
+        // the ONLY live entry, the caller is the last holder → purge the shared
+        // message (rows + blobs). Otherwise just tombstone this participant's view.
+        if (mailboxRepository.countByMessage_IdAndDeletedAtIsNull(messageId) <= 1) {
+            purgeMessage(messageId);
+        } else {
+            entry.setDeletedAt(LocalDateTime.now());   // tombstone — excluded from all views
+            mailboxRepository.save(entry);
+        }
+    }
+
+    /**
+     * Purge a shared message no participant holds anymore: best-effort blob
+     * deletes first (never blocking), then the attachment / recipient / entry
+     * rows, then any inbound in_reply_to references, then the message itself.
+     * Bulk DML runs immediately so child rows are gone before the message
+     * delete (FKs have no ON DELETE rule).
+     */
+    private void purgeMessage(Long messageId) {
+        for (com.spire.backend.mail.entity.MailAttachment a : mailAttachmentRepository.findByMessage_Id(messageId)) {
+            try {
+                blobStore.delete(a.getStorageKey());   // idempotent + best-effort
+            } catch (Exception e) {
+                // Never let a failed blob delete block the DB purge — an orphaned
+                // object is recoverable; a half-purge that strands the message is worse.
+                log.warn("Best-effort attachment blob delete failed (message {}): {}", messageId, e.toString());
+            }
+        }
+        mailAttachmentRepository.purgeByMessageId(messageId);
+        mailRecipientRepository.purgeByMessageId(messageId);
+        mailboxRepository.purgeByMessageId(messageId);
+        mailMessageRepository.clearInReplyTo(messageId);
+        mailMessageRepository.deleteById(messageId);
     }
 
     // ─── Contacts / counts ──────────────────────────────────────────
@@ -377,10 +424,40 @@ public class MailMessageService {
     private void deliverToRecipients(MailAccount sender, MailMessage msg, List<Resolved> resolved) {
         Set<Long> seen = new HashSet<>();
         seen.add(sender.getId());
+        List<Long> delivered = new ArrayList<>();
         for (Resolved r : resolved) {
             if (seen.add(r.account().getId())) {
                 mailboxRepository.save(entry(r.account(), msg, Folder.INBOX, false));
+                delivered.add(r.account().getId());
             }
+        }
+        publishNewMailAfterCommit(delivered, msg.getId());
+    }
+
+    /**
+     * Best-effort live new-mail push to each recipient — AFTER the send commits,
+     * so a client that resyncs on the event sees the new INBOX entry. A failed
+     * publish is logged and NEVER breaks the send. Walled: only the resolved
+     * recipient accounts are notified.
+     */
+    private void publishNewMailAfterCommit(List<Long> recipientAccountIds, Long messageId) {
+        if (recipientAccountIds.isEmpty()) return;
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() {
+                    recipientAccountIds.forEach(id -> safePublishNewMail(id, messageId));
+                }
+            });
+        } else {
+            recipientAccountIds.forEach(id -> safePublishNewMail(id, messageId));
+        }
+    }
+
+    private void safePublishNewMail(Long accountId, Long messageId) {
+        try {
+            mailSseService.publishNewMail(accountId, messageId);
+        } catch (Exception e) {
+            log.warn("SSE new-mail publish failed for account {} (message {}): {}", accountId, messageId, e.toString());
         }
     }
 

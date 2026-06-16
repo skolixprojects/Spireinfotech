@@ -14,6 +14,7 @@ import {
 import {
   buildReply, buildReplyAll, buildForward, type ComposeInit,
 } from "@/lib/mail-compose-api";
+import { useMailEvents } from "@/lib/mail-events";
 import { FolderRail } from "./_components/FolderRail";
 import { MessageList } from "./_components/MessageList";
 import { ReadingPane } from "./_components/ReadingPane";
@@ -91,6 +92,19 @@ export default function MailClientPage() {
     if (status === "authenticated") { refreshCounts(); loadList("INBOX", 0, ""); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
+
+  // Live new-mail stream — updates the SAME counts/list state. On NEW_MAIL bump
+  // the INBOX badge (and refresh the list head if INBOX is open); on every
+  // (re)connect resync counts + the current folder. Torn down on logout
+  // (enabled flips false) / unmount.
+  useMailEvents({
+    enabled: status === "authenticated",
+    onNewMail: () => {
+      setUnread((u) => ({ ...u, INBOX: (u.INBOX ?? 0) + 1 }));
+      if (folder === "INBOX" && page === 0 && !searchQuery) loadList("INBOX", 0, "");
+    },
+    onResync: () => { refreshCounts(); loadList(folder, page, searchQuery); },
+  });
 
   if (status !== "authenticated" || !account) {
     return <div className="flex min-h-screen items-center justify-center"><Loader2 size={28} className="animate-spin text-[#0F766E]" /></div>;
