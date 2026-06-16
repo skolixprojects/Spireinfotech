@@ -1,7 +1,7 @@
-// Compose API + reply/forward builders. Talks only to existing Phase 5
+// Compose API + reply/forward builders. Talks only to existing Phase 5/8
 // endpoints via the shared mailApiFetch; reuses Phase 6 types.
-import { mailApiFetch } from "./mail-api";
-import type { MailMessageDetail } from "./mail-client-api";
+import { mailApiFetch, mailRefresh, getMailAccessToken, MAIL_API_BASE_URL } from "./mail-api";
+import type { MailAttachmentSummary, MailMessageDetail } from "./mail-client-api";
 
 interface ApiResponse<T> {
   success: boolean;
@@ -52,6 +52,75 @@ export function fetchContacts(q: string) {
   return unwrap(mailApiFetch<ApiResponse<MailContact[]>>(`/api/mail/contacts?q=${encodeURIComponent(q)}`));
 }
 
+// ─── Attachments (Phase 8 backend, draft-anchored) ──────────────────
+
+/** Mirror of the backend cap (mail.attachment-max-bytes default, 25 MB). */
+export const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
+
+/**
+ * Upload a file to a DRAFT via the Phase 8 endpoint, reporting progress.
+ * Uses native XMLHttpRequest (fetch has no upload-progress event); shares
+ * the mail token + one-refresh-retry with mailApiFetch. The draft must
+ * already exist (anchor) — see ComposeWindow.ensureDraft.
+ */
+export function uploadAttachment(
+  draftId: number,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<MailAttachmentSummary> {
+  return uploadOnce(draftId, file, onProgress, false);
+}
+
+function uploadOnce(
+  draftId: number,
+  file: File,
+  onProgress: ((percent: number) => void) | undefined,
+  retried: boolean,
+): Promise<MailAttachmentSummary> {
+  return new Promise((resolve, reject) => {
+    const fd = new FormData();
+    fd.append("file", file); // multipart field name matches @RequestParam("file")
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${MAIL_API_BASE_URL}/api/mail/attachments?draftId=${draftId}`);
+    const token = getMailAccessToken();
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    // NOTE: never set Content-Type — the browser adds the multipart boundary.
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+    }
+    xhr.onload = async () => {
+      if (xhr.status === 401 && !retried) {
+        // Expired access token mid-compose: refresh once and retry, exactly
+        // like mailApiFetch.
+        if (await mailRefresh()) {
+          try { resolve(await uploadOnce(draftId, file, onProgress, true)); }
+          catch (e) { reject(e); }
+          return;
+        }
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const body = JSON.parse(xhr.responseText) as ApiResponse<MailAttachmentSummary>;
+          resolve(body.data);
+        } catch { reject(new Error("Unexpected upload response")); }
+        return;
+      }
+      let msg = `Upload failed (${xhr.status})`;
+      try { const b = JSON.parse(xhr.responseText); if (b?.message) msg = b.message; } catch { /* keep default */ }
+      reject(new Error(msg));
+    };
+    xhr.onerror = () => reject(new Error("Network error during upload"));
+    xhr.send(fd);
+  });
+}
+
+/** Remove an attachment from a draft (Phase 8). */
+export function deleteAttachment(id: number) {
+  return mailApiFetch<ApiResponse<unknown>>(`/api/mail/attachments/${id}`, { method: "DELETE" });
+}
+
 // ─── Reply / Forward builders (pure) ────────────────────────────────
 
 export interface ComposeInit {
@@ -66,6 +135,8 @@ export interface ComposeInit {
   subject?: string;
   bodyHtml?: string;
   inReplyToId?: number | null;
+  /** Pre-existing attachments when re-opening a draft (Phase 8). */
+  attachments?: MailAttachmentSummary[];
 }
 
 const ensurePrefix = (subject: string | null | undefined, prefix: "Re:" | "Fwd:") => {

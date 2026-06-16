@@ -7,7 +7,7 @@ import { Mail, Search, X, LogOut, Shield, Loader2 } from "lucide-react";
 import { useMailAuth } from "@/lib/mail-auth-context";
 import { useToast } from "@/components/ui/Toast";
 import {
-  listFolder, listStarred, searchMessages, getThread, getMessage, patchMessage,
+  listFolder, searchMessages, getThread, getMessage, patchMessage,
   softDelete, permanentDelete, unreadCounts,
   type MailMessageSummary, type MailThreadView, type MailMessageDetail, type UnreadCounts,
 } from "@/lib/mail-client-api";
@@ -65,7 +65,10 @@ export default function MailClientPage() {
         const r = await searchMessages(q, p);
         nextItems = r.content; nextTotal = r.totalPages;
       } else if (f === "STARRED") {
-        nextItems = await listStarred(); nextTotal = 1;
+        // Backend cross-folder finder (lowercase literal route /folders/starred).
+        const r = await listFolder("starred", p);
+        nextItems = r.content; nextTotal = r.totalPages;
+        unreadPatch = { STARRED: r.unreadCount };
       } else {
         const r = await listFolder(f, p);
         nextItems = r.content; nextTotal = r.totalPages;
@@ -120,6 +123,7 @@ export default function MailClientPage() {
         mode: "draft", draftId: d.messageId,
         to: d.to ?? [], cc: d.cc ?? [], bcc: d.bcc ?? [],
         subject: d.subject ?? "", bodyHtml: d.bodyHtml ?? "", inReplyToId: d.inReplyToId ?? null,
+        attachments: d.attachments ?? [],
       });
     } catch (e) {
       toast("error", e instanceof Error ? e.message : "Could not open draft");

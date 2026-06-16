@@ -14,7 +14,7 @@
 // fresh deploy/rebuild. Env var FIRST (with any trailing slash stripped so
 // "/api/mail/..." endpoints build a single-slash URL, never "<base>//api"),
 // else the Spire backend; localhost for `next dev`.
-const MAIL_API_BASE_URL =
+export const MAIL_API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "")
   || (process.env.NODE_ENV === "production"
       ? "https://spireinfotech-production.up.railway.app"
@@ -129,6 +129,48 @@ export async function mailApiFetch<T = unknown>(
 
   if (res.status === 204) return undefined as T;
   return res.json();
+}
+
+/**
+ * Authenticated fetch that returns the raw bytes (not JSON) — used by the
+ * walled attachment download proxy. Mirrors {@link mailApiFetch}'s token +
+ * one-refresh-retry, but returns a Blob. The raw storage/S3 URL is never
+ * exposed; the byte stream comes straight from the authenticated proxy.
+ */
+export async function mailApiFetchBlob(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<Blob> {
+  const token = getMailAccessToken();
+  const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  let res = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
+  if (res.status === 401) {
+    if (await tryMailRefresh()) {
+      headers["Authorization"] = `Bearer ${getMailAccessToken()}`;
+      res = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
+    }
+    if (res.status === 401) {
+      clearMailTokens();
+      if (typeof window !== "undefined") window.location.href = "/mail/login";
+      throw new Error("Unauthorized");
+    }
+  }
+  if (!res.ok) {
+    const msg = await res.json().then((b) => b?.message).catch(() => null);
+    throw new Error(msg || `Download failed (${res.status})`);
+  }
+  return res.blob();
+}
+
+/**
+ * One mail-token refresh, exposed for the XHR uploader (XMLHttpRequest can't
+ * route through mailApiFetch but must share the same token/refresh source).
+ * Returns true if the access token was rotated.
+ */
+export function mailRefresh(): Promise<boolean> {
+  return tryMailRefresh();
 }
 
 /**

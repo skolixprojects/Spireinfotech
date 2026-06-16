@@ -1,11 +1,19 @@
 // Mail client API — typed wrappers over the Phase 2 mailApiFetch for the
 // read/organize endpoints (Phase 5 messaging core). No backend changes.
-import { mailApiFetch } from "./mail-api";
+import { mailApiFetch, mailApiFetchBlob } from "./mail-api";
 
 interface ApiResponse<T> {
   success: boolean;
   message: string;
   data: T;
+}
+
+/** Attachment summary (mirrors backend MailAttachmentSummary; no storage key/URL). */
+export interface MailAttachmentSummary {
+  id: number;
+  filename: string;
+  contentType: string | null;
+  sizeBytes: number;
 }
 
 export interface MailMessageSummary {
@@ -38,6 +46,7 @@ export interface MailMessageDetail {
   bodyText: string | null;
   createdAt: string;
   hasAttachments: boolean;
+  attachments?: MailAttachmentSummary[];
   inReplyToId?: number | null;
   folder: string;
   read: boolean;
@@ -64,7 +73,8 @@ export interface MailFolderListing extends PagedSummaries {
 
 export type UnreadCounts = Record<string, number>;
 
-/** Real backend folders (Starred is a client-side aggregate, not a folder). */
+/** Real backend folders. "starred" is a virtual cross-folder finder served at
+ *  GET /api/mail/folders/starred (see listFolder("starred", ...)). */
 export const BACKEND_FOLDERS = ["INBOX", "SENT", "DRAFTS", "ARCHIVE", "TRASH"] as const;
 
 const unwrap = <T>(p: Promise<ApiResponse<T>>) => p.then((r) => r.data);
@@ -110,25 +120,23 @@ export function unreadCounts() {
 }
 
 /**
- * "Starred" is a client-side aggregate — Phase 5 exposes no cross-folder
- * starred query, so we merge starred items from INBOX / SENT / ARCHIVE
- * (first 100 each), dedupe, and sort newest-first. Documented limitation:
- * capped at 100/folder; a true Starred view needs a small backend finder.
+ * Download an attachment through the authenticated, walled proxy
+ * (GET /api/mail/attachments/{id}) — the bytes are fetched WITH the mail
+ * token in the Authorization header (never a plain link, never a raw
+ * storage/S3 URL), turned into an object URL, saved via a programmatic
+ * <a download>, then the URL is revoked. The proxy 404s if the caller has
+ * no access and 401s when unauthenticated.
  */
-export async function listStarred(): Promise<MailMessageSummary[]> {
-  const pages = await Promise.all(
-    ["INBOX", "SENT", "ARCHIVE"].map((f) => listFolder(f, 0, 100)),
-  );
-  const seen = new Set<number>();
-  const out: MailMessageSummary[] = [];
-  for (const p of pages) {
-    for (const m of p.content) {
-      if (m.starred && !seen.has(m.messageId)) {
-        seen.add(m.messageId);
-        out.push(m);
-      }
-    }
-  }
-  out.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-  return out;
+export async function downloadAttachment(id: number, filename: string): Promise<void> {
+  const blob = await mailApiFetchBlob(`/api/mail/attachments/${id}`);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename || "attachment";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Defer revoke so the browser has started the save (immediate revoke can
+  // cancel it in some engines).
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
