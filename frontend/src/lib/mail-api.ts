@@ -6,19 +6,19 @@
 // It never reads or writes the LMS access_token / refresh_token, sets no
 // shared cookie, and never calls the LMS refresh endpoint.
 //
-// Base URL resolution mirrors lib/api.ts so a single NEXT_PUBLIC_API_URL
-// drives both clients without coupling the modules. The fallback host is
-// copied verbatim from lib/api.ts (API_BASE_URL).
+// Base URL resolution (mirrors lib/api.ts; fallback host copied verbatim
+// from its API_BASE_URL).
 //
-// Endpoints below are all prefixed with "/api/mail/...", so the base MUST
-// NOT end in a slash or requests build as "<base>//api/..." (the deployed
-// bug). We defensively strip any trailing slash(es) so a NEXT_PUBLIC_API_URL
-// that was set WITH a trailing slash still yields a single-slash URL.
-const MAIL_API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL
+// NOTE: NEXT_PUBLIC_API_URL is inlined into the bundle at BUILD time, not
+// read at runtime — so changing it on Vercel only takes effect after a
+// fresh deploy/rebuild. Env var FIRST (with any trailing slash stripped so
+// "/api/mail/..." endpoints build a single-slash URL, never "<base>//api"),
+// else the Spire backend; localhost for `next dev`.
+const MAIL_API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "")
   || (process.env.NODE_ENV === "production"
       ? "https://spireinfotech-production.up.railway.app"
-      : "http://localhost:8080")
-  ).replace(/\/+$/, "");
+      : "http://localhost:8080");
 
 const BASE_URL = MAIL_API_BASE_URL;
 
