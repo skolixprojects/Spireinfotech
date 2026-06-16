@@ -169,6 +169,82 @@ export function deleteFolder(id: number) {
   return mailApiFetch<ApiResponse<unknown>>(`/api/mail/folders/${id}`, { method: "DELETE" });
 }
 
+// ─── Inbox rules (Phase 17/18) ──────────────────────────────────────
+
+export type RuleField = "FROM" | "TO" | "CC" | "SUBJECT" | "HAS_ATTACHMENT";
+export type RuleOperator = "CONTAINS" | "EQUALS" | "IS_TRUE";
+export type RuleActionType = "MOVE_TO_FOLDER" | "MARK_READ" | "STAR" | "MARK_IMPORTANT" | "DELETE";
+
+export interface MailRuleCondition {
+  field: RuleField;
+  operator: RuleOperator;
+  value?: string | null;
+}
+
+export interface MailRuleAction {
+  type: RuleActionType;
+  targetFolderId?: number | null;
+}
+
+export interface MailRuleDto {
+  id: number;
+  name: string;
+  priority: number;
+  enabled: boolean;
+  matchMode: "ALL" | "ANY";
+  stopProcessing: boolean;
+  conditions: MailRuleCondition[];
+  actions: MailRuleAction[];
+  createdAt: string;
+}
+
+/** Create/update body (mirrors backend MailRuleRequest). */
+export interface MailRuleRequestBody {
+  name: string;
+  priority?: number;
+  enabled?: boolean;
+  matchMode?: "ALL" | "ANY";
+  stopProcessing?: boolean;
+  conditions: MailRuleCondition[];
+  actions: MailRuleAction[];
+}
+
+export function listRules() {
+  return unwrap(mailApiFetch<ApiResponse<MailRuleDto[]>>(`/api/mail/rules`));
+}
+
+export function createRule(body: MailRuleRequestBody) {
+  return unwrap(mailApiFetch<ApiResponse<MailRuleDto>>(`/api/mail/rules`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  }));
+}
+
+export function updateRule(id: number, body: MailRuleRequestBody) {
+  return unwrap(mailApiFetch<ApiResponse<MailRuleDto>>(`/api/mail/rules/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  }));
+}
+
+export function toggleRule(id: number, enabled: boolean) {
+  return unwrap(mailApiFetch<ApiResponse<MailRuleDto>>(`/api/mail/rules/${id}/enabled`, {
+    method: "PATCH",
+    body: JSON.stringify({ enabled }),
+  }));
+}
+
+export function reorderRules(ruleIds: number[]) {
+  return unwrap(mailApiFetch<ApiResponse<MailRuleDto[]>>(`/api/mail/rules/reorder`, {
+    method: "POST",
+    body: JSON.stringify({ ruleIds }),
+  }));
+}
+
+export function deleteRule(id: number) {
+  return mailApiFetch<ApiResponse<unknown>>(`/api/mail/rules/${id}`, { method: "DELETE" });
+}
+
 /**
  * Download an attachment through the authenticated, walled proxy
  * (GET /api/mail/attachments/{id}) — the bytes are fetched WITH the mail

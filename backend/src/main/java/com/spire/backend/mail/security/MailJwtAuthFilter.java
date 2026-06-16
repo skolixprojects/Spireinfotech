@@ -68,6 +68,7 @@ public class MailJwtAuthFilter extends OncePerRequestFilter {
             Long accountId = mailJwtService.extractAccountId(token);
             String role = mailJwtService.extractRole(token);
             Long domainId = mailJwtService.extractDomainId(token);
+            boolean mustChange = mailJwtService.extractMustChange(token);
 
             if (role == null || role.isBlank()) {
                 log.warn("Mail access token has no role claim — accountId: {}", accountId);
@@ -78,7 +79,7 @@ public class MailJwtAuthFilter extends OncePerRequestFilter {
             List<SimpleGrantedAuthority> authorities = List.of(
                     new SimpleGrantedAuthority("MAIL_" + role));
 
-            MailPrincipal principal = new MailPrincipal(accountId, domainId, role);
+            MailPrincipal principal = new MailPrincipal(accountId, domainId, role, mustChange);
 
             UsernamePasswordAuthenticationToken authToken =
                     new UsernamePasswordAuthenticationToken(principal, null, authorities);

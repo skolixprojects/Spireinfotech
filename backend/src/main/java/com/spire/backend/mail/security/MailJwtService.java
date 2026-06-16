@@ -28,9 +28,9 @@ import java.util.function.Function;
  *       token at {@code /api/mail/auth/refresh}.</li>
  * </ul>
  *
- * <p>The must-change-password flow does NOT use a JWT — it issues a
- * single-use DB token (see {@code MailSetupToken}), so set-password has
- * exactly one consume mechanism.
+ * <p>The must-change-password flow is token-free: the access token carries an
+ * {@code mch} claim that gates the session to the authenticated self-change
+ * endpoint until the password is changed (Phase 19).
  */
 @Service
 public class MailJwtService {
@@ -47,11 +47,15 @@ public class MailJwtService {
     @Value("${mail.refresh-token-expiration}")
     private long refreshTokenExpiration;
 
-    public String generateAccessToken(Long accountId, String role, Long domainId) {
+    public String generateAccessToken(Long accountId, String role, Long domainId, boolean mustChange) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("typ", TYPE_ACCESS);
         claims.put("role", role);
         claims.put("did", domainId);
+        // mustChange gate (Phase 19): while set, the chain restricts the session
+        // to the change-password flow. Read at generation, so a post-change
+        // re-token is automatically ungated.
+        claims.put("mch", mustChange);
         return buildToken(claims, String.valueOf(accountId), accessTokenExpiration);
     }
 
@@ -76,6 +80,11 @@ public class MailJwtService {
             Object did = claims.get("did");
             return did == null ? null : ((Number) did).longValue();
         });
+    }
+
+    /** True only when the access token carries mch=true; absent (legacy tokens) → false. */
+    public boolean extractMustChange(String token) {
+        return extractClaim(token, claims -> Boolean.TRUE.equals(claims.get("mch", Boolean.class)));
     }
 
     public boolean isTokenValid(String token) {

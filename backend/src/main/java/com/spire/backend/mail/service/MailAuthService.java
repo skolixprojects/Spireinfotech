@@ -6,10 +6,8 @@ import com.spire.backend.mail.dto.MailAccountSummary;
 import com.spire.backend.mail.dto.MailAuthResponse;
 import com.spire.backend.mail.entity.MailAccount;
 import com.spire.backend.mail.entity.MailDomain;
-import com.spire.backend.mail.entity.MailSetupToken;
 import com.spire.backend.mail.repository.MailAccountRepository;
 import com.spire.backend.mail.repository.MailDomainRepository;
-import com.spire.backend.mail.repository.MailSetupTokenRepository;
 import com.spire.backend.mail.security.MailJwtService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,14 +15,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 
 /**
- * Mail identity service — login, refresh, set-password, and account
- * lookup. Lives entirely beside LMS auth: it resolves only mail
+ * Mail identity service — login, refresh, self-service password change,
+ * and account lookup. Lives entirely beside LMS auth: it resolves only mail
  * accounts, signs only mail tokens, and never touches the Spire
  * {@code users} table. It reuses the shared {@link PasswordEncoder}
  * bean (BCrypt) — sharing the encoder does not link the two identities.
@@ -43,15 +38,14 @@ public class MailAuthService {
 
     private final MailDomainRepository mailDomainRepository;
     private final MailAccountRepository mailAccountRepository;
-    private final MailSetupTokenRepository mailSetupTokenRepository;
     private final MailJwtService mailJwtService;
     private final PasswordEncoder passwordEncoder;
 
     /**
-     * Resolve the account within its own domain and verify the password.
-     * On a must-change-password account, returns a change token only
-     * (NO session). Otherwise stamps {@code lastLoginAt} and returns a
-     * full session.
+     * Resolve the account within its own domain and verify the password,
+     * stamp {@code lastLoginAt}, and return a full session. A must-change
+     * account also gets a session, but its access token is gated (Phase 19):
+     * only the change flow is reachable until the password is changed.
      */
     @Transactional
     public MailAuthResponse login(String email, String rawPassword) {
@@ -92,41 +86,17 @@ public class MailAuthService {
     /**
      * Authenticated self-change of the logged-in user's OWN password (the
      * forced first-login change, or a voluntary change). Clears
-     * must-change-password. The account is the authenticated principal — no
-     * token is involved.
+     * must-change-password and returns a FRESH, ungated session (Phase 19),
+     * so a gated user is never stuck. The account is the authenticated
+     * principal — no setup token is involved.
      */
     @Transactional
-    public MailAccountSummary changePassword(Long accountId, String newPassword) {
+    public MailAuthResponse changePassword(Long accountId, String newPassword) {
         MailAccount account = mailAccountRepository.findById(accountId)
                 .orElseThrow(() -> new UnauthorizedException("Session is no longer valid."));
         assertAccountUsable(account);
         applyNewPassword(account, newPassword);   // encode, clear must-change, stamp lastLogin, save
-        return toSummary(account);
-    }
-
-    /**
-     * Set a new password using a single-use {@code mail_setup_tokens}
-     * row. This is the ONE consume path for every token kind: the
-     * must-change-password {@code CHANGE} token issued at login, and
-     * (Phase 2) admin-issued {@code SETUP} / {@code RESET} tokens.
-     * Clears must-change, marks the token used, and issues a full
-     * session. Expired / used / unknown tokens fail generically.
-     */
-    @Transactional
-    public MailAuthResponse setPassword(String token, String newPassword) {
-        MailSetupToken st = mailSetupTokenRepository.findByTokenHashAndUsedAtIsNull(sha256(token))
-                .orElseThrow(() -> new IllegalArgumentException("Invalid or expired token."));
-        if (st.getExpiresAt() == null || st.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new IllegalArgumentException("Invalid or expired token.");
-        }
-        MailAccount account = st.getAccount();
-        // set-password issues a full session, so it must enforce the same
-        // suspension / domain-active gate as login and refresh — a token
-        // minted before the account was suspended must not still work.
-        assertAccountUsable(account);
-        applyNewPassword(account, newPassword);
-        st.setUsedAt(LocalDateTime.now());   // single-use — a replay finds no unused row
-        mailSetupTokenRepository.save(st);
+        // must-change is now cleared, so the new access token is ungated.
         return fullSession(account);
     }
 
@@ -146,7 +116,8 @@ public class MailAuthService {
         assertAccountUsable(account);
         return MailAuthResponse.builder()
                 .accessToken(mailJwtService.generateAccessToken(
-                        account.getId(), account.getRole().name(), account.getDomain().getId()))
+                        account.getId(), account.getRole().name(), account.getDomain().getId(),
+                        Boolean.TRUE.equals(account.getMustChangePassword())))
                 .refreshToken(refreshToken)
                 .account(toSummary(account))
                 .build();
@@ -183,7 +154,8 @@ public class MailAuthService {
     private MailAuthResponse fullSession(MailAccount account) {
         return MailAuthResponse.builder()
                 .accessToken(mailJwtService.generateAccessToken(
-                        account.getId(), account.getRole().name(), account.getDomain().getId()))
+                        account.getId(), account.getRole().name(), account.getDomain().getId(),
+                        Boolean.TRUE.equals(account.getMustChangePassword())))
                 .refreshToken(mailJwtService.generateRefreshToken(account.getId()))
                 .account(toSummary(account))
                 .build();
@@ -237,22 +209,5 @@ public class MailAuthService {
             throw new IllegalArgumentException("Enter a valid email address");
         }
         return new String[]{trimmed.substring(0, at), trimmed.substring(at + 1)};
-    }
-
-    /** SHA-256 hex of a raw token — only the hash is ever stored. */
-    public static String sha256(String raw) {
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            byte[] digest = md.digest(raw.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(digest.length * 2);
-            for (byte b : digest) {
-                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
-                sb.append(Character.forDigit(b & 0xF, 16));
-            }
-            return sb.toString();
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is mandated by the JVM spec — unreachable.
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
     }
 }

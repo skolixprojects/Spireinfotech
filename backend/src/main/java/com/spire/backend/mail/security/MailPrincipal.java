@@ -11,5 +11,5 @@ package com.spire.backend.mail.security;
  * domain from the database at the service layer, never by trusting this
  * value as authority.
  */
-public record MailPrincipal(Long accountId, Long domainId, String role) {
+public record MailPrincipal(Long accountId, Long domainId, String role, boolean mustChange) {
 }

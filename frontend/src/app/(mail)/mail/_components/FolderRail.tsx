@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   Inbox, Star, Send, FileText, Archive, Trash2, PenSquare,
-  Folder as FolderIcon, FolderPlus, ChevronRight, ChevronDown, MoreVertical, Pencil, FolderInput,
+  Folder as FolderIcon, FolderPlus, ChevronRight, ChevronDown, MoreVertical, Pencil, FolderInput, Wand2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { Button } from "@/components/ui/Button";
@@ -33,12 +33,14 @@ export function FolderRail({
   onSelect,
   onCompose,
   onChanged,
+  onOpenRules,
 }: {
   folders: MailFolderDto[];
   active: string;                       // systemKey | String(customId) | "STARRED"
   onSelect: (ref: string) => void;
   onCompose: () => void;
   onChanged: () => void;                // reload the tree + counts after a change
+  onOpenRules: () => void;              // open the inbox-rules manager
 }) {
   const { toast } = useToast();
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -179,6 +181,14 @@ export function FolderRail({
       ) : (
         roots.map((f) => <CustomNode key={f.id} f={f} depth={0} />)
       )}
+
+      {/* Footer: inbox-rules manager */}
+      <button
+        onClick={onOpenRules}
+        className="mt-auto flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100"
+      >
+        <Wand2 size={17} className="text-gray-400" /> Rules
+      </button>
 
       {/* Create / Rename */}
       {modal?.type === "create" && (

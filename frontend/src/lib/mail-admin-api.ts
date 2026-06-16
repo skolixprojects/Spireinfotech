@@ -35,14 +35,6 @@ export interface MailboxSummary {
   createdAt: string;
 }
 
-export interface MailLinkResponse {
-  account: MailboxSummary;
-  purpose: string;       // SETUP | RESET
-  token: string;         // raw, one-time
-  url: string;           // <APP_URL>/mail/set-password?token=...
-  expiresAt: string;
-}
-
 /** One-time credential result for create / reset. `password` is plaintext,
  *  shown ONCE — never returned by any GET, never stored in plaintext. */
 export interface MailCredentialResponse {

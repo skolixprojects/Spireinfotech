@@ -20,6 +20,7 @@ import { FolderPickerModal } from "./_components/FolderPickerModal";
 import { MessageList } from "./_components/MessageList";
 import { ReadingPane } from "./_components/ReadingPane";
 import { ComposeWindow } from "./_components/ComposeWindow";
+import { RulesModal } from "./_components/RulesModal";
 
 const LABELS: Record<string, string> = {
   INBOX: "Inbox", STARRED: "Starred", SENT: "Sent", DRAFTS: "Drafts", ARCHIVE: "Archive", TRASH: "Trash",
@@ -48,6 +49,7 @@ export default function MailClientPage() {
   // Browser-notification permission, read on the client after mount (it's
   // undefined during SSR). Drives the in-app "Enable notifications" fallback.
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | "unsupported">("default");
+  const [rulesOpen, setRulesOpen] = useState(false);
 
   // Monotonic guards so out-of-order responses from rapid navigation /
   // clicks can never apply a stale result over a newer one.
@@ -128,6 +130,8 @@ export default function MailClientPage() {
 
   useEffect(() => {
     if (status === "anonymous") { router.replace("/mail/login"); return; }
+    // A must-change session can only reach the change flow (backend gates it too).
+    if (status === "authenticated" && account?.mustChangePassword) { router.replace("/mail/set-password"); return; }
     if (status === "authenticated") { refreshCounts(); loadFolders(); loadList("INBOX", 0, ""); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
@@ -163,7 +167,9 @@ export default function MailClientPage() {
         if (folder === activeRef && page === 0 && !searchQuery) loadList(activeRef, 0, "");
       }
       loadFolders();   // …then reconcile tree counts with the server (also covers unknown folderId)
-      notify(e);
+      // Desktop notification ONLY for Inbox arrivals — mail a rule filed into
+      // another folder (or deleted to Trash) updates the badge silently.
+      if (target?.systemKey === "INBOX") notify(e);
     },
     onResync: () => { refreshCounts(); loadFolders(); loadList(folder, page, searchQuery); },
   });
@@ -401,6 +407,7 @@ export default function MailClientPage() {
             onSelect={selectFolder}
             onCompose={() => openCompose({ mode: "new" })}
             onChanged={onFoldersChanged}
+            onOpenRules={() => setRulesOpen(true)}
           />
         </aside>
 
@@ -468,6 +475,8 @@ export default function MailClientPage() {
         onPick={(f) => { if (f) doMoveMessage(f); }}
         onClose={() => setMoveTarget(null)}
       />
+
+      <RulesModal open={rulesOpen} onClose={() => setRulesOpen(false)} folders={folders} />
     </div>
   );
 }

@@ -28,6 +28,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class MailSecurityConfig {
 
     private final MailJwtAuthFilter mailJwtAuthFilter;
+    private final MailMustChangeGateFilter mailMustChangeGateFilter;
     private final MailRestAuthenticationEntryPoint mailAuthEntryPoint;
     private final CorsConfigurationSource corsConfigurationSource;
 
@@ -42,7 +43,7 @@ public class MailSecurityConfig {
                 // 401 (not Spring's default 403) for unauthenticated mail requests.
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(mailAuthEntryPoint))
                 .authorizeHttpRequests(auth -> auth
-                        // Public: login, refresh, set-password.
+                        // Public: login, refresh.
                         .requestMatchers("/api/mail/auth/**").permitAll()
                         // Mail admin console endpoints (Phase 2) require a
                         // mail admin authority — never Spire RBAC.
@@ -50,7 +51,9 @@ public class MailSecurityConfig {
                                 .hasAnyAuthority("MAIL_ADMIN", "MAIL_SUPER_ADMIN")
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(mailJwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(mailJwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                // Hard must-change gate runs right AFTER the principal is resolved.
+                .addFilterAfter(mailMustChangeGateFilter, MailJwtAuthFilter.class);
 
         return http.build();
     }

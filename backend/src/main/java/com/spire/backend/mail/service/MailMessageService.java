@@ -58,6 +58,7 @@ public class MailMessageService {
     private final MailBlobStore blobStore;
     private final MailSseService mailSseService;
     private final MailFolderService mailFolderService;
+    private final MailRuleEngine mailRuleEngine;
 
     // ─── Send ───────────────────────────────────────────────────────
 
@@ -421,16 +422,18 @@ public class MailMessageService {
         deliverToRecipients(sender, msg, resolved);
     }
 
-    /** One INBOX entry per distinct recipient, excluding the sender. */
+    /** One inbound entry per distinct recipient (excluding the sender), routed +
+     *  flagged by the recipient's own inbox rules (Phase 17, fail-open). */
     private void deliverToRecipients(MailAccount sender, MailMessage msg, List<Resolved> resolved) {
         Set<Long> seen = new HashSet<>();
         seen.add(sender.getId());
+        MailRuleEngine.MessageFacts facts = buildFacts(sender, msg, resolved);
         List<Delivery> delivered = new ArrayList<>();
         for (Resolved r : resolved) {
             if (seen.add(r.account().getId())) {
-                MailMailboxEntry saved = mailboxRepository.save(entry(r.account(), msg, Folder.INBOX, false));
-                // The event carries the ACTUAL folder the entry landed in (today
-                // always the recipient's Inbox; rule-ready for future routing).
+                MailMailboxEntry saved = mailboxRepository.save(inboundEntryFor(r.account(), msg, facts));
+                // The event carries the ACTUAL folder the entry landed in — a rule's
+                // destination folder when one applied, else the recipient's Inbox.
                 delivered.add(new Delivery(r.account().getId(), saved.getFolderRef().getId()));
             }
         }
@@ -439,6 +442,48 @@ public class MailMessageService {
 
     /** A delivered inbox entry: the recipient account and the folder it landed in. */
     private record Delivery(Long accountId, Long folderId) {}
+
+    /** Message fields the rules engine matches on, materialized once per send.
+     *  TO/CC are the visible envelope (BCC is hidden — no BCC condition exists). */
+    private MailRuleEngine.MessageFacts buildFacts(MailAccount sender, MailMessage msg, List<Resolved> resolved) {
+        List<String> to = new ArrayList<>();
+        List<String> cc = new ArrayList<>();
+        for (Resolved r : resolved) {
+            if (r.type() == Type.TO) to.add(emailOf(r.account()));
+            else if (r.type() == Type.CC) cc.add(emailOf(r.account()));
+        }
+        return new MailRuleEngine.MessageFacts(
+                emailOf(sender), to, cc, msg.getSubject(), Boolean.TRUE.equals(msg.getHasAttachments()));
+    }
+
+    /**
+     * Build the recipient's inbound entry from their inbox-rules decision.
+     * Ultimate fail-open: if the engine itself were to fail, the message is
+     * STILL delivered to Inbox/unread — a rule must never drop a message.
+     */
+    private MailMailboxEntry inboundEntryFor(MailAccount recipient, MailMessage msg, MailRuleEngine.MessageFacts facts) {
+        try {
+            MailRuleEngine.DeliveryDecision d = mailRuleEngine.resolveDelivery(recipient, facts);
+            return MailMailboxEntry.builder()
+                    .account(recipient).message(msg)
+                    .folder(enumOf(d.folder()))     // vestigial enum, kept non-null
+                    .folderRef(d.folder())          // source of truth (rule destination or Inbox)
+                    .isRead(d.read()).isStarred(d.starred()).isImportant(d.important())
+                    .build();
+        } catch (Exception e) {
+            log.warn("Rule engine error for account {}; delivering to Inbox. {}", recipient.getId(), e.toString());
+            return entry(recipient, msg, Folder.INBOX, false);
+        }
+    }
+
+    /** The vestigial enum for an entry's folder: the matching system value when
+     *  the target is a system folder, else INBOX (a custom folder has none). */
+    private Folder enumOf(MailFolder f) {
+        if (f.getSystemKey() != null) {
+            try { return Folder.valueOf(f.getSystemKey()); } catch (IllegalArgumentException ignore) { /* custom */ }
+        }
+        return Folder.INBOX;
+    }
 
     /**
      * Best-effort live new-mail push to each recipient — AFTER the send commits,

@@ -47,7 +47,7 @@ export interface MailAccountSummary {
   entityName: string;
 }
 
-/** A full mail session (set-password / refresh always return this). */
+/** A full mail session (refresh / change-password return this). */
 export interface MailSession {
   accessToken: string;
   refreshToken: string;
@@ -212,17 +212,6 @@ export async function mailLogin(email: string, password: string): Promise<MailLo
   return body.data;
 }
 
-export async function mailSetPassword(token: string, newPassword: string): Promise<MailSession> {
-  const res = await fetch(`${BASE_URL}/api/mail/auth/set-password`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, newPassword }),
-  });
-  const body = (await res.json().catch(() => ({}))) as MailApiResponse<MailSession>;
-  if (!res.ok) throw new Error(body?.message || `Could not set password (${res.status})`);
-  return body.data;
-}
-
 // ─── Session probe (used at app mount; never redirects) ─────────────
 
 /**
@@ -269,11 +258,12 @@ export async function getMailMe(): Promise<MailAccountSummary> {
 
 /**
  * Authenticated self-change of the logged-in user's own password (forced
- * first-login change, or voluntary). No token — the mail session identifies
- * the account. Returns the updated account (mustChangePassword cleared).
+ * first-login change, or voluntary). The mail session identifies the account.
+ * Returns a FRESH session (Phase 19): the new access token is ungated
+ * (must-change cleared), so the caller swaps to it and leaves the change gate.
  */
-export async function mailChangePassword(newPassword: string): Promise<MailAccountSummary> {
-  const wrapper = await mailApiFetch<MailApiResponse<MailAccountSummary>>("/api/mail/me/change-password", {
+export async function mailChangePassword(newPassword: string): Promise<MailSession> {
+  const wrapper = await mailApiFetch<MailApiResponse<MailSession>>("/api/mail/me/change-password", {
     method: "POST",
     body: JSON.stringify({ newPassword }),
   });
