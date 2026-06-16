@@ -9,8 +9,9 @@ import java.time.LocalDateTime;
 /**
  * A file attached to a message. Draft-anchored: always belongs to a
  * message via a NOT-NULL FK. Only the opaque {@code storageKey} (the
- * blob store's id — a Cloudinary raw public_id in prod) is persisted;
- * the raw delivery URL is never stored or exposed — downloads are served
+ * blob store's backend-tagged id — {@code s3:<objectKey>} in prod or
+ * {@code loc:<id>} for the local-disk dev fallback) is persisted;
+ * the raw object URL is never stored or exposed — downloads are served
  * through the authenticated, walled proxy.
  */
 @Entity
