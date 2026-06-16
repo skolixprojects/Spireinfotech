@@ -120,8 +120,9 @@ export function reactivateMailbox(id: number) {
   return unwrap(mailApiFetch<ApiResponse<MailboxSummary>>(`${ADMIN}/mailboxes/${id}/reactivate`, { method: "POST" }));
 }
 /** Reset a mailbox's password (admin-set or, if blank, server-generated).
- *  Returns the new plaintext ONCE; sets must-change-password. */
-export function resetPassword(id: number, body: { password?: string } = {}) {
+ *  Returns the new plaintext ONCE. The password is final unless
+ *  requireChangeOnFirstLogin is true. */
+export function resetPassword(id: number, body: { password?: string; requireChangeOnFirstLogin?: boolean } = {}) {
   return unwrap(mailApiFetch<ApiResponse<MailCredentialResponse>>(`${ADMIN}/mailboxes/${id}/reset-password`, {
     method: "POST",
     body: JSON.stringify(body),

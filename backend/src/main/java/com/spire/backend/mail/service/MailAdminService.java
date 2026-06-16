@@ -148,8 +148,9 @@ public class MailAdminService {
         }
         // Admin-set or server-generated password; only the BCrypt hash is stored.
         String password = resolvePassword(req.getPassword());
-        boolean mustChange = req.getRequireChangeOnFirstLogin() == null
-                || Boolean.TRUE.equals(req.getRequireChangeOnFirstLogin());   // default true
+        // Default FALSE: an admin-set password is the user's real password. Tick
+        // "require change on first login" only when you want to force a reset.
+        boolean mustChange = Boolean.TRUE.equals(req.getRequireChangeOnFirstLogin());
         MailAccount account = mailAccountRepository.save(MailAccount.builder()
                 .localPart(localPart)
                 .domain(domain)
@@ -168,10 +169,12 @@ public class MailAdminService {
     }
 
     /**
-     * Reset a mailbox to a new admin-set or server-generated password
-     * (shown once), forcing a change on next login. SUPER_ADMIN org-wide;
-     * ADMIN within their own domain, USER accounts only (same authz as
-     * every other target operation). Never reveals the existing password.
+     * Reset a mailbox to a new admin-set or server-generated password (shown
+     * once). The new password is FINAL by default; pass
+     * {@code requireChangeOnFirstLogin=true} to force the user to change it on
+     * next login. SUPER_ADMIN org-wide; ADMIN within their own domain, USER
+     * accounts only (same authz as every other target operation). Never reveals
+     * the existing password.
      */
     @Transactional
     public MailCredentialResponse resetPassword(MailPrincipal principal, Long id, MailResetPasswordRequest req) {
@@ -180,11 +183,12 @@ public class MailAdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("MailAccount", "id", id));
         assertCanManageTarget(actor, target, false);
         String password = resolvePassword(req == null ? null : req.getPassword());
+        boolean mustChange = req != null && Boolean.TRUE.equals(req.getRequireChangeOnFirstLogin());
         target.setPasswordHash(passwordEncoder.encode(password));
-        target.setMustChangePassword(true);
+        target.setMustChangePassword(mustChange);
         mailAccountRepository.save(target);
         writeAudit(actor, "MAILBOX_PASSWORD_RESET", "MAILBOX", target.getId(),
-                "reset password for " + emailOf(target));   // NO password in the audit
+                "reset password for " + emailOf(target) + " requireChange=" + mustChange);   // NO password
         return MailCredentialResponse.builder().account(toMailboxSummary(target)).password(password).build();
     }
 

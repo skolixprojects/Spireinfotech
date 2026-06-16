@@ -164,14 +164,14 @@ function CreateButton({ domains, isSuper, onCreated }: { domains: MailDomainSumm
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState("USER");
   const [password, setPassword] = useState("");
-  const [requireChange, setRequireChange] = useState(true);
+  const [requireChange, setRequireChange] = useState(false);
 
   useEffect(() => {
     if (open && !domainId && domains.length > 0) setDomainId(String(domains[0].id));
   }, [open, domains, domainId]);
 
   const reset = () => {
-    setLocalPart(""); setDisplayName(""); setRole("USER"); setPassword(""); setRequireChange(true);
+    setLocalPart(""); setDisplayName(""); setRole("USER"); setPassword(""); setRequireChange(false);
   };
 
   const submit = async () => {
@@ -389,15 +389,16 @@ function ResetPasswordModal({ open, onClose, row, onCred, onDone }: {
 }) {
   const { toast } = useToast();
   const [password, setPassword] = useState("");
+  const [requireChange, setRequireChange] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (open) setPassword(""); }, [open]);
+  useEffect(() => { if (open) { setPassword(""); setRequireChange(false); } }, [open]);
 
   const submit = async () => {
     if (password.trim() && password.trim().length < 8) { toast("error", "Password must be at least 8 characters"); return; }
     setBusy(true);
     try {
-      const cred = await resetPassword(row.id, { password: password.trim() || undefined });
+      const cred = await resetPassword(row.id, { password: password.trim() || undefined, requireChangeOnFirstLogin: requireChange });
       onClose();
       onCred(cred);   // show the new credentials once
       onDone();
@@ -412,9 +413,9 @@ function ResetPasswordModal({ open, onClose, row, onCred, onDone }: {
     <Modal open={open} onClose={onClose} title={`Reset password — ${row.email}`}>
       <div className="space-y-4">
         <p className="text-sm text-gray-600">
-          Set a new password (or leave blank to auto-generate). The new password is
-          shown once and the user must change it on next sign-in. The existing
-          password is never revealed.
+          Set a new password (or leave blank to auto-generate). It&apos;s shown once
+          so you can send it to the user — and it&apos;s their final password unless
+          you tick the box below. The existing password is never revealed.
         </p>
         <div>
           <label className="block text-xs font-medium text-gray-500 mb-1">New password</label>
@@ -426,6 +427,10 @@ function ResetPasswordModal({ open, onClose, row, onCred, onDone }: {
             </Button>
           </div>
         </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" checked={requireChange} onChange={(e) => setRequireChange(e.target.checked)} className="h-4 w-4 accent-[#0F766E]" />
+          Require password change on first login
+        </label>
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button onClick={submit} disabled={busy}>{busy ? "Resetting…" : "Reset password"}</Button>

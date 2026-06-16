@@ -24,6 +24,7 @@ public class MailboxCreateRequest {
      *  Returned ONCE; only its BCrypt hash is stored. */
     private String password;
 
-    /** Force a password change on first login. Optional; defaults to TRUE. */
+    /** Force a password change on first login. Optional; defaults to FALSE —
+     *  an admin-set password is final unless this is explicitly true. */
     private Boolean requireChangeOnFirstLogin;
 }
