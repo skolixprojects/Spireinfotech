@@ -1,6 +1,6 @@
 "use client";
 
-import { Star, Paperclip, Loader2 } from "lucide-react";
+import { Star, Paperclip, Loader2, FolderInput } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { MailMessageSummary } from "@/lib/mail-client-api";
 
@@ -27,6 +27,7 @@ export function MessageList({
   totalPages,
   onOpen,
   onToggleStar,
+  onMove,
   onPage,
 }: {
   title: string;
@@ -38,6 +39,7 @@ export function MessageList({
   totalPages: number;
   onOpen: (m: MailMessageSummary) => void;
   onToggleStar: (m: MailMessageSummary) => void;
+  onMove: (m: MailMessageSummary) => void;
   onPage: (p: number) => void;
 }) {
   const showRecipient = SENDER_FOLDERS.has(folder);
@@ -67,7 +69,7 @@ export function MessageList({
                   tabIndex={0}
                   onClick={() => onOpen(m)}
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(m); } }}
-                  className={`flex cursor-pointer gap-3 px-4 py-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0F766E] ${
+                  className={`group flex cursor-pointer gap-3 px-4 py-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#0F766E] ${
                     selected ? "bg-[#0F766E]/10" : "bg-white hover:bg-gray-50"
                   }`}
                 >
@@ -83,7 +85,17 @@ export function MessageList({
                       <span className={`truncate text-sm ${unread ? "font-bold text-gray-900" : "text-gray-700"}`}>
                         {who}
                       </span>
-                      <span className="shrink-0 text-xs text-gray-400">{relTime(m.createdAt)}</span>
+                      <span className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onMove(m); }}
+                          className="rounded p-1 text-gray-400 opacity-0 hover:bg-gray-200 hover:text-[#0F766E] group-hover:opacity-100"
+                          title="Move to folder"
+                          aria-label="Move to folder"
+                        >
+                          <FolderInput size={13} />
+                        </button>
+                        <span className="text-xs text-gray-400">{relTime(m.createdAt)}</span>
+                      </span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       {unread && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#0F766E]" />}

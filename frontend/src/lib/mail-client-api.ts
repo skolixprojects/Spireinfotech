@@ -29,7 +29,8 @@ export interface MailMessageSummary {
   starred: boolean;
   important: boolean;
   hasAttachments: boolean;
-  folder: string;
+  folder: string;            // system key (INBOX/…) or custom folder name
+  folderId?: number | null;  // folder_id (Phase 14)
 }
 
 export interface MailMessageDetail {
@@ -49,9 +50,22 @@ export interface MailMessageDetail {
   attachments?: MailAttachmentSummary[];
   inReplyToId?: number | null;
   folder: string;
+  folderId?: number | null;
   read: boolean;
   starred: boolean;
   important: boolean;
+}
+
+/** A node in the caller's folder tree (flat adjacency list — build the tree via parentId). */
+export interface MailFolderDto {
+  id: number;
+  name: string;
+  parentId: number | null;
+  kind: "SYSTEM" | "CUSTOM";
+  systemKey: string | null;  // INBOX/SENT/DRAFTS/ARCHIVE/TRASH for SYSTEM, else null
+  sortOrder: number;
+  total: number;
+  unread: number;
 }
 
 export interface MailThreadView {
@@ -117,6 +131,42 @@ export function searchMessages(q: string, page = 0, size = 25) {
 
 export function unreadCounts() {
   return unwrap(mailApiFetch<ApiResponse<UnreadCounts>>(`/api/mail/unread-counts`));
+}
+
+/** Move a message to a folder by the key-or-id contract (system key or custom id). */
+export function moveMessage(id: number, folderRef: string) {
+  return patchMessage(id, { folder: folderRef });
+}
+
+// ─── Folder tree (Phase 14/15) ──────────────────────────────────────
+
+export function listFolders() {
+  return unwrap(mailApiFetch<ApiResponse<MailFolderDto[]>>(`/api/mail/folders`));
+}
+
+export function createFolder(name: string, parentFolderId?: number | null) {
+  return unwrap(mailApiFetch<ApiResponse<MailFolderDto>>(`/api/mail/folders`, {
+    method: "POST",
+    body: JSON.stringify({ name, parentFolderId: parentFolderId ?? null }),
+  }));
+}
+
+export function renameFolder(id: number, name: string) {
+  return unwrap(mailApiFetch<ApiResponse<MailFolderDto>>(`/api/mail/folders/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ name }),
+  }));
+}
+
+export function moveFolder(id: number, newParentFolderId: number | null) {
+  return unwrap(mailApiFetch<ApiResponse<MailFolderDto>>(`/api/mail/folders/${id}/move`, {
+    method: "POST",
+    body: JSON.stringify({ parentFolderId: newParentFolderId }),
+  }));
+}
+
+export function deleteFolder(id: number) {
+  return mailApiFetch<ApiResponse<unknown>>(`/api/mail/folders/${id}`, { method: "DELETE" });
 }
 
 /**

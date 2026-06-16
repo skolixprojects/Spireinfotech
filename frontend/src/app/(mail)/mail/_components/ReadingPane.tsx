@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   Star, AlertCircle, Archive, Trash2, Trash, ArrowLeft, Reply, ReplyAll, Forward, Loader2, Mail,
-  Paperclip, Download, FileText, Image as ImageIcon,
+  Paperclip, Download, FileText, Image as ImageIcon, FolderInput,
 } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { SafeHtml } from "./SafeHtml";
@@ -99,6 +99,7 @@ export function ReadingPane({
   onArchive,
   onTrash,
   onPermanent,
+  onMove,
   onReply,
   onReplyAll,
   onForward,
@@ -112,6 +113,7 @@ export function ReadingPane({
   onArchive: () => void;
   onTrash: () => void;
   onPermanent: () => void;
+  onMove: () => void;
   onReply: () => void;
   onReplyAll: () => void;
   onForward: () => void;
@@ -153,6 +155,7 @@ export function ReadingPane({
         {inTrash && (
           <IconBtn title="Delete forever" onClick={onPermanent} danger><Trash size={16} /></IconBtn>
         )}
+        <IconBtn title="Move to folder" onClick={onMove}><FolderInput size={16} /></IconBtn>
         <span className="mx-1 h-5 w-px bg-gray-200" />
         <IconBtn title="Reply" onClick={onReply}><Reply size={16} /></IconBtn>
         <IconBtn title="Reply all" onClick={onReplyAll}><ReplyAll size={16} /></IconBtn>

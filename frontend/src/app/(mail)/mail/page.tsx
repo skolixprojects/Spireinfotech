@@ -7,15 +7,16 @@ import { Mail, Search, X, LogOut, Shield, Loader2 } from "lucide-react";
 import { useMailAuth } from "@/lib/mail-auth-context";
 import { useToast } from "@/components/ui/Toast";
 import {
-  listFolder, searchMessages, getThread, getMessage, patchMessage,
-  softDelete, permanentDelete, unreadCounts,
-  type MailMessageSummary, type MailThreadView, type MailMessageDetail, type UnreadCounts,
+  listFolder, listFolders, searchMessages, getThread, getMessage, patchMessage,
+  softDelete, permanentDelete, unreadCounts, moveMessage,
+  type MailMessageSummary, type MailThreadView, type MailMessageDetail, type UnreadCounts, type MailFolderDto,
 } from "@/lib/mail-client-api";
 import {
   buildReply, buildReplyAll, buildForward, type ComposeInit,
 } from "@/lib/mail-compose-api";
 import { useMailEvents } from "@/lib/mail-events";
 import { FolderRail } from "./_components/FolderRail";
+import { FolderPickerModal } from "./_components/FolderPickerModal";
 import { MessageList } from "./_components/MessageList";
 import { ReadingPane } from "./_components/ReadingPane";
 import { ComposeWindow } from "./_components/ComposeWindow";
@@ -41,6 +42,9 @@ export default function MailClientPage() {
   const [threadLoading, setThreadLoading] = useState(false);
   const [unread, setUnread] = useState<UnreadCounts>({});
   const [compose, setCompose] = useState<ComposeInit | null>(null);
+  const [folders, setFolders] = useState<MailFolderDto[]>([]);
+  const [moveTarget, setMoveTarget] = useState<{ messageId: number } | null>(null);
+  const [moveBusy, setMoveBusy] = useState(false);
 
   // Monotonic guards so out-of-order responses from rapid navigation /
   // clicks can never apply a stale result over a newer one.
@@ -53,6 +57,10 @@ export default function MailClientPage() {
 
   const refreshCounts = useCallback(() => {
     unreadCounts().then(setUnread).catch(() => {});
+  }, []);
+
+  const loadFolders = useCallback(() => {
+    listFolders().then(setFolders).catch(() => {/* surfaced elsewhere */});
   }, []);
 
   const loadList = useCallback(async (f: string, p: number, q: string) => {
@@ -89,7 +97,7 @@ export default function MailClientPage() {
 
   useEffect(() => {
     if (status === "anonymous") { router.replace("/mail/login"); return; }
-    if (status === "authenticated") { refreshCounts(); loadList("INBOX", 0, ""); }
+    if (status === "authenticated") { refreshCounts(); loadFolders(); loadList("INBOX", 0, ""); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
@@ -101,9 +109,10 @@ export default function MailClientPage() {
     enabled: status === "authenticated",
     onNewMail: () => {
       setUnread((u) => ({ ...u, INBOX: (u.INBOX ?? 0) + 1 }));
+      loadFolders();   // refresh tree counts
       if (folder === "INBOX" && page === 0 && !searchQuery) loadList("INBOX", 0, "");
     },
-    onResync: () => { refreshCounts(); loadList(folder, page, searchQuery); },
+    onResync: () => { refreshCounts(); loadFolders(); loadList(folder, page, searchQuery); },
   });
 
   if (status !== "authenticated" || !account) {
@@ -216,6 +225,45 @@ export default function MailClientPage() {
     removeItem(selected.messageId); toast("success", "Deleted forever"); afterRemoveFromView();
   };
 
+  // Move a message to any folder via the picker (system key or custom id).
+  const doMoveMessage = async (target: MailFolderDto) => {
+    if (!moveTarget) return;
+    const id = moveTarget.messageId;
+    const ref = target.systemKey ?? String(target.id);
+    setMoveBusy(true);
+    try {
+      await moveMessage(id, ref);
+      if (selected?.messageId === id) { setSelected(null); setThread(null); }
+      toast("success", `Moved to ${target.name}`);
+      refreshCounts(); loadFolders(); loadList(folder, page, searchQuery);
+      setMoveTarget(null);
+    } catch (e) {
+      toast("error", e instanceof Error ? e.message : "Could not move");
+    } finally { setMoveBusy(false); }
+  };
+
+  // After a folder CRUD: refresh the tree/counts; if the open folder was the one
+  // deleted (or a descendant of it), fall back to Inbox.
+  const onFoldersChanged = async () => {
+    refreshCounts();
+    try {
+      const list = await listFolders();
+      setFolders(list);
+      const isCustomRef = folder !== "STARRED" && !LABELS[folder];
+      if (isCustomRef && !list.some((f) => String(f.id) === folder)) selectFolder("INBOX");
+    } catch { /* surfaced elsewhere */ }
+  };
+
+  const folderName = (ref: string): string => {
+    if (ref === "STARRED") return "Starred";
+    const f = folders.find((x) => x.systemKey === ref || String(x.id) === ref);
+    return f ? f.name : (LABELS[ref] ?? ref);
+  };
+  // System folders that can't receive a message move (backend rejects DRAFTS/SENT).
+  const moveDisabledIds = new Set(
+    folders.filter((f) => f.systemKey === "DRAFTS" || f.systemKey === "SENT").map((f) => f.id),
+  );
+
   // The message a reply/forward acts on = the opened message within the thread.
   const originalDetail = (): MailMessageDetail | null => {
     if (!thread || !selected) return null;
@@ -228,7 +276,7 @@ export default function MailClientPage() {
   const onSent = () => { setCompose(null); refreshCounts(); loadList(folder, page, searchQuery); };
 
   const isAdmin = account.role === "ADMIN" || account.role === "SUPER_ADMIN";
-  const title = searchQuery ? `Results for “${searchQuery}”` : LABELS[folder] ?? folder;
+  const title = searchQuery ? `Results for “${searchQuery}”` : folderName(folder);
 
   return (
     <div className="flex h-screen flex-col bg-[#F0EDE8]">
@@ -268,7 +316,13 @@ export default function MailClientPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Folder rail */}
         <aside className="hidden w-60 shrink-0 border-r border-gray-200 bg-white lg:block">
-          <FolderRail active={searchQuery ? "" : folder} unread={unread} onSelect={selectFolder} onCompose={() => openCompose({ mode: "new" })} />
+          <FolderRail
+            folders={folders}
+            active={searchQuery ? "" : folder}
+            onSelect={selectFolder}
+            onCompose={() => openCompose({ mode: "new" })}
+            onChanged={onFoldersChanged}
+          />
         </aside>
 
         {/* Message list */}
@@ -297,6 +351,7 @@ export default function MailClientPage() {
             totalPages={totalPages}
             onOpen={openMessage}
             onToggleStar={toggleStar}
+            onMove={(m) => setMoveTarget({ messageId: m.messageId })}
             onPage={changePage}
           />
         </section>
@@ -313,6 +368,7 @@ export default function MailClientPage() {
             onArchive={archive}
             onTrash={trash}
             onPermanent={permanent}
+            onMove={() => selected && setMoveTarget({ messageId: selected.messageId })}
             onReply={doReply}
             onReplyAll={doReplyAll}
             onForward={doForward}
@@ -323,6 +379,16 @@ export default function MailClientPage() {
       {compose && (
         <ComposeWindow key={compose.nonce} init={compose} onClose={() => setCompose(null)} onSent={onSent} />
       )}
+
+      <FolderPickerModal
+        open={moveTarget !== null}
+        title="Move to folder"
+        folders={folders}
+        disabledIds={moveDisabledIds}
+        busy={moveBusy}
+        onPick={(f) => { if (f) doMoveMessage(f); }}
+        onClose={() => setMoveTarget(null)}
+      />
     </div>
   );
 }
