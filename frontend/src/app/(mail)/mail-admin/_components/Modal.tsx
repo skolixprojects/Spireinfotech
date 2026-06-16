@@ -1,6 +1,7 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
@@ -17,7 +18,16 @@ export function Modal({
   children: ReactNode;
   maxWidth?: string;
 }) {
-  return (
+  // Render into <body> via a portal so the overlay's position:fixed is relative
+  // to the VIEWPORT — never to a transformed/filtered/overflow-hidden ancestor
+  // (these admin modals live inside a GlassCard whose backdrop-blur + the
+  // table's overflow-hidden would otherwise become the containing block and
+  // clip the modal to the table, hiding its header and footer).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -44,6 +54,7 @@ export function Modal({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }

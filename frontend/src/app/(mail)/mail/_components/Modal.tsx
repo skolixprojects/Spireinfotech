@@ -1,10 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
-/** Lightweight modal for the mail client (mirrors the admin console's). */
+/** Lightweight modal for the mail client (mirrors the admin console's). Renders
+ *  into <body> via a portal so its position:fixed overlay is anchored to the
+ *  viewport, never to a transformed/filtered/overflow-hidden ancestor. */
 export function Modal({
   open,
   onClose,
@@ -18,7 +21,11 @@ export function Modal({
   children: ReactNode;
   maxWidth?: string;
 }) {
-  return (
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {open && (
         <motion.div
@@ -45,6 +52,7 @@ export function Modal({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   );
 }
