@@ -6,16 +6,13 @@ import com.spire.backend.mail.dto.*;
 import com.spire.backend.mail.entity.MailAccount;
 import com.spire.backend.mail.entity.MailAuditLog;
 import com.spire.backend.mail.entity.MailDomain;
-import com.spire.backend.mail.entity.MailSetupToken;
 import com.spire.backend.mail.repository.MailAccountRepository;
 import com.spire.backend.mail.repository.MailAuditLogRepository;
 import com.spire.backend.mail.repository.MailDomainRepository;
-import com.spire.backend.mail.repository.MailSetupTokenRepository;
 import com.spire.backend.mail.security.MailPrincipal;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -24,12 +21,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 
 /**
@@ -55,15 +48,13 @@ public class MailAdminService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
-    @Value("${app.url}")
-    private String appUrl;
-
-    @Value("${mail.link-expiry-hours}")
-    private long linkExpiryHours;
+    // Generated-password alphabet: unambiguous (no O/0/I/l/1) for easy
+    // hand-off. 16 chars from this set is ~92 bits of entropy.
+    private static final char[] PW_ALPHABET =
+            "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789".toCharArray();
 
     private final MailDomainRepository mailDomainRepository;
     private final MailAccountRepository mailAccountRepository;
-    private final MailSetupTokenRepository mailSetupTokenRepository;
     private final MailAuditLogRepository mailAuditLogRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -138,7 +129,7 @@ public class MailAdminService {
     }
 
     @Transactional
-    public MailLinkResponse createMailbox(MailPrincipal principal, MailboxCreateRequest req) {
+    public MailCredentialResponse createMailbox(MailPrincipal principal, MailboxCreateRequest req) {
         MailAccount actor = loadActor(principal);
         Long domainId = req.getDomainId();
         if (!isSuper(actor) && !actor.getDomain().getId().equals(domainId)) {
@@ -154,20 +145,45 @@ public class MailAdminService {
         if (mailAccountRepository.existsByLocalPartAndDomain_Id(localPart, domainId)) {
             throw new IllegalArgumentException("A mailbox with that address already exists.");
         }
+        // Admin-set or server-generated password; only the BCrypt hash is stored.
+        String password = resolvePassword(req.getPassword());
+        boolean mustChange = req.getRequireChangeOnFirstLogin() == null
+                || Boolean.TRUE.equals(req.getRequireChangeOnFirstLogin());   // default true
         MailAccount account = mailAccountRepository.save(MailAccount.builder()
                 .localPart(localPart)
                 .domain(domain)
-                .passwordHash(passwordEncoder.encode(randomSecret()))   // unusable until SETUP
+                .passwordHash(passwordEncoder.encode(password))
                 .displayName(req.getDisplayName())
                 .role(role)
                 .status(MailAccount.Status.ACTIVE)
-                .mustChangePassword(false)
+                .mustChangePassword(mustChange)
                 .quotaBytes(0L)
                 .build());
-        MailLinkResponse link = mintLink(account, MailSetupToken.Purpose.SETUP);
         writeAudit(actor, "MAILBOX_CREATE", "MAILBOX", account.getId(),
-                "created " + emailOf(account) + " role=" + role);
-        return link;
+                "created " + emailOf(account) + " role=" + role + " requireChange=" + mustChange);
+        // Plaintext returned ONCE here; never persisted/logged.
+        return MailCredentialResponse.builder().account(toMailboxSummary(account)).password(password).build();
+    }
+
+    /**
+     * Reset a mailbox to a new admin-set or server-generated password
+     * (shown once), forcing a change on next login. SUPER_ADMIN org-wide;
+     * ADMIN within their own domain, USER accounts only (same authz as
+     * every other target operation). Never reveals the existing password.
+     */
+    @Transactional
+    public MailCredentialResponse resetPassword(MailPrincipal principal, Long id, MailResetPasswordRequest req) {
+        MailAccount actor = loadActor(principal);
+        MailAccount target = mailAccountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("MailAccount", "id", id));
+        assertCanManageTarget(actor, target, false);
+        String password = resolvePassword(req == null ? null : req.getPassword());
+        target.setPasswordHash(passwordEncoder.encode(password));
+        target.setMustChangePassword(true);
+        mailAccountRepository.save(target);
+        writeAudit(actor, "MAILBOX_PASSWORD_RESET", "MAILBOX", target.getId(),
+                "reset password for " + emailOf(target));   // NO password in the audit
+        return MailCredentialResponse.builder().account(toMailboxSummary(target)).password(password).build();
     }
 
     @Transactional
@@ -229,27 +245,6 @@ public class MailAdminService {
         mailAccountRepository.save(target);
         writeAudit(actor, "MAILBOX_REACTIVATE", "MAILBOX", target.getId(), "reactivated " + emailOf(target));
         return toMailboxSummary(target);
-    }
-
-    @Transactional
-    public MailLinkResponse issueSetupLink(MailPrincipal principal, Long id) {
-        return issueLink(principal, id, MailSetupToken.Purpose.SETUP, "MAILBOX_SETUP_LINK");
-    }
-
-    @Transactional
-    public MailLinkResponse issueResetLink(MailPrincipal principal, Long id) {
-        return issueLink(principal, id, MailSetupToken.Purpose.RESET, "MAILBOX_RESET_LINK");
-    }
-
-    private MailLinkResponse issueLink(MailPrincipal principal, Long id,
-                                       MailSetupToken.Purpose purpose, String action) {
-        MailAccount actor = loadActor(principal);
-        MailAccount target = mailAccountRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("MailAccount", "id", id));
-        assertCanManageTarget(actor, target, false);
-        MailLinkResponse link = mintLink(target, purpose);
-        writeAudit(actor, action, "MAILBOX", target.getId(), "issued " + purpose + " link");
-        return link;
     }
 
     // ─── Audit ──────────────────────────────────────────────────────
@@ -335,36 +330,30 @@ public class MailAdminService {
                 .count();
     }
 
-    // ─── Link minting ───────────────────────────────────────────────
+    // ─── Password generation / strength ─────────────────────────────
 
-    /** Invalidate any prior unused token of this purpose, then mint a new
-     *  one. Only the SHA-256 hash is stored; the raw token + url are
-     *  returned for one-time delivery. */
-    private MailLinkResponse mintLink(MailAccount account, MailSetupToken.Purpose purpose) {
-        LocalDateTime now = LocalDateTime.now();
-        List<MailSetupToken> prior = mailSetupTokenRepository
-                .findByAccount_IdAndPurposeAndUsedAtIsNull(account.getId(), purpose);
-        for (MailSetupToken t : prior) t.setUsedAt(now);
-        if (!prior.isEmpty()) mailSetupTokenRepository.saveAll(prior);
+    /** Use the admin-typed password (validated) or generate a strong one. */
+    private String resolvePassword(String provided) {
+        if (provided != null && !provided.isBlank()) {
+            validatePasswordStrength(provided);
+            return provided;
+        }
+        return generatePassword();
+    }
 
-        String raw = generateRawToken();
-        LocalDateTime expiresAt = now.plusHours(linkExpiryHours);
-        mailSetupTokenRepository.save(MailSetupToken.builder()
-                .account(account)
-                .tokenHash(MailAuthService.sha256(raw))
-                .purpose(purpose)
-                .expiresAt(expiresAt)
-                .build());
+    /** Mirror the set-password rule (min length); reject weak admin input. */
+    private static void validatePasswordStrength(String pw) {
+        if (pw == null || pw.length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters.");
+        }
+    }
 
-        String base = appUrl == null ? "" : appUrl.replaceAll("/+$", "");
-        String url = base + "/mail/set-password?token=" + URLEncoder.encode(raw, StandardCharsets.UTF_8);
-        return MailLinkResponse.builder()
-                .account(toMailboxSummary(account))
-                .purpose(purpose.name())
-                .token(raw)
-                .url(url)
-                .expiresAt(expiresAt)
-                .build();
+    private static String generatePassword() {
+        StringBuilder sb = new StringBuilder(16);
+        for (int i = 0; i < 16; i++) {
+            sb.append(PW_ALPHABET[SECURE_RANDOM.nextInt(PW_ALPHABET.length)]);
+        }
+        return sb.toString();
     }
 
     // ─── Mappers / parsing ──────────────────────────────────────────
@@ -457,15 +446,4 @@ public class MailAdminService {
         }
     }
 
-    private static String generateRawToken() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private static String randomSecret() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
 }

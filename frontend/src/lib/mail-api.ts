@@ -266,3 +266,16 @@ export async function getMailMe(): Promise<MailAccountSummary> {
   const wrapper = await mailApiFetch<MailApiResponse<MailAccountSummary>>("/api/mail/me");
   return wrapper.data;
 }
+
+/**
+ * Authenticated self-change of the logged-in user's own password (forced
+ * first-login change, or voluntary). No token — the mail session identifies
+ * the account. Returns the updated account (mustChangePassword cleared).
+ */
+export async function mailChangePassword(newPassword: string): Promise<MailAccountSummary> {
+  const wrapper = await mailApiFetch<MailApiResponse<MailAccountSummary>>("/api/mail/me/change-password", {
+    method: "POST",
+    body: JSON.stringify({ newPassword }),
+  });
+  return wrapper.data;
+}

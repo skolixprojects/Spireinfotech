@@ -20,10 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Base64;
 
 /**
  * Mail identity service — login, refresh, set-password, and account
@@ -43,11 +40,6 @@ import java.util.Base64;
 public class MailAuthService {
 
     private static final String INVALID_CREDENTIALS = "Invalid email or password";
-
-    /** TTL for the single-use must-change-password CHANGE token. */
-    private static final Duration CHANGE_TOKEN_TTL = Duration.ofMinutes(15);
-
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final MailDomainRepository mailDomainRepository;
     private final MailAccountRepository mailAccountRepository;
@@ -88,27 +80,28 @@ public class MailAuthService {
         // an unauthenticated caller enumerate which mailboxes exist.
         assertAccountUsable(account);
 
-        if (Boolean.TRUE.equals(account.getMustChangePassword())) {
-            // First-time / forced reset: issue a single-use CHANGE token
-            // (stored hashed in mail_setup_tokens) that authorizes ONLY
-            // set-password. No session is issued until the password is set.
-            String rawToken = generateRawToken();
-            mailSetupTokenRepository.save(MailSetupToken.builder()
-                    .account(account)
-                    .tokenHash(sha256(rawToken))
-                    .purpose(MailSetupToken.Purpose.CHANGE)
-                    .expiresAt(LocalDateTime.now().plus(CHANGE_TOKEN_TTL))
-                    .build());
-            return MailAuthResponse.builder()
-                    .mustChangePassword(true)
-                    .changeToken(rawToken)
-                    .account(toSummary(account))
-                    .build();
-        }
-
+        // A must-change account still gets a full session; the account
+        // summary carries mustChangePassword=true and the client routes the
+        // user to the AUTHENTICATED self-change screen (no token). The forced
+        // change is completed via changePassword() below.
         account.setLastLoginAt(LocalDateTime.now());
         mailAccountRepository.save(account);
         return fullSession(account);
+    }
+
+    /**
+     * Authenticated self-change of the logged-in user's OWN password (the
+     * forced first-login change, or a voluntary change). Clears
+     * must-change-password. The account is the authenticated principal — no
+     * token is involved.
+     */
+    @Transactional
+    public MailAccountSummary changePassword(Long accountId, String newPassword) {
+        MailAccount account = mailAccountRepository.findById(accountId)
+                .orElseThrow(() -> new UnauthorizedException("Session is no longer valid."));
+        assertAccountUsable(account);
+        applyNewPassword(account, newPassword);   // encode, clear must-change, stamp lastLogin, save
+        return toSummary(account);
     }
 
     /**
@@ -244,13 +237,6 @@ public class MailAuthService {
             throw new IllegalArgumentException("Enter a valid email address");
         }
         return new String[]{trimmed.substring(0, at), trimmed.substring(at + 1)};
-    }
-
-    /** A URL-safe, unguessable raw token (256 bits of entropy). */
-    private static String generateRawToken() {
-        byte[] bytes = new byte[32];
-        SECURE_RANDOM.nextBytes(bytes);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
     /** SHA-256 hex of a raw token — only the hash is ever stored. */

@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import {
   mailLogin,
   mailSetPassword,
+  mailChangePassword,
   probeMailSession,
   storeMailTokens,
   clearMailTokens,
@@ -31,13 +32,14 @@ interface MailAuthContextValue {
   status: MailStatus;
   isAuthenticated: boolean;
   /**
-   * Calls /login. On a must-change account it does NOT store tokens —
-   * it returns the raw result so the caller can route to
-   * /mail/set-password?token=<changeToken>. Otherwise it stores both
-   * mail tokens and flips the context to authenticated.
+   * Calls /login and stores the session (a must-change account now also
+   * gets a session). The caller routes to the authenticated change screen
+   * when {@code result.account.mustChangePassword} is true.
    */
   login: (email: string, password: string) => Promise<MailLoginResult>;
-  /** Calls /set-password; on success stores the returned session. */
+  /** Authenticated self-change of the caller's own password; updates account. */
+  changePassword: (newPassword: string) => Promise<MailAccountSummary>;
+  /** Legacy token-based set-password (dormant; kept for compatibility). */
   setPassword: (token: string, newPassword: string) => Promise<MailSession>;
   /** Clears mail tokens, resets state, routes to /mail/login. */
   logout: () => void;
@@ -76,16 +78,20 @@ export function MailAuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const result = await mailLogin(email, password);
-    if (result.mustChangePassword) {
-      // No session is issued — the caller routes to set-password.
-      return result;
-    }
+    // A must-change account also gets a session now; the login page routes
+    // it to the authenticated change screen via account.mustChangePassword.
     if (result.accessToken && result.refreshToken) {
       storeMailTokens(result.accessToken, result.refreshToken);
       setAccount(result.account);
       setStatus("authenticated");
     }
     return result;
+  }, []);
+
+  const changePassword = useCallback(async (newPassword: string) => {
+    const acct = await mailChangePassword(newPassword);
+    setAccount(acct); // mustChangePassword now false
+    return acct;
   }, []);
 
   const setPassword = useCallback(async (token: string, newPassword: string) => {
@@ -110,6 +116,7 @@ export function MailAuthProvider({ children }: { children: ReactNode }) {
         status,
         isAuthenticated: status === "authenticated",
         login,
+        changePassword,
         setPassword,
         logout,
       }}

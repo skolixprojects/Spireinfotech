@@ -42,10 +42,10 @@ export default function MailLoginPage() {
     setError("");
     try {
       const result = await login(data.email, data.password);
-      // Must-change accounts get no session — route to set-password with
-      // the single-use change token in the URL.
-      if (result.mustChangePassword && result.changeToken) {
-        router.push(`/mail/set-password?token=${encodeURIComponent(result.changeToken)}`);
+      // Must-change accounts now get a session; route to the AUTHENTICATED
+      // change-password screen (no token).
+      if (result.account?.mustChangePassword) {
+        router.push("/mail/set-password");
         return;
       }
       router.push("/mail");

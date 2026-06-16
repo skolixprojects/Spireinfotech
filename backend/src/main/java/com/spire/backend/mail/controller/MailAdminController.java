@@ -65,9 +65,9 @@ public class MailAdminController {
     }
 
     @PostMapping("/mailboxes")
-    public ResponseEntity<ApiResponse<MailLinkResponse>> createMailbox(
+    public ResponseEntity<ApiResponse<MailCredentialResponse>> createMailbox(
             Authentication auth, @Valid @RequestBody MailboxCreateRequest req) {
-        return ResponseEntity.ok(ApiResponse.success("Mailbox created — setup link issued",
+        return ResponseEntity.ok(ApiResponse.success("Mailbox created",
                 mailAdminService.createMailbox(principal(auth), req)));
     }
 
@@ -90,16 +90,11 @@ public class MailAdminController {
                 mailAdminService.reactivate(principal(auth), id)));
     }
 
-    @PostMapping("/mailboxes/{id}/setup-link")
-    public ResponseEntity<ApiResponse<MailLinkResponse>> setupLink(Authentication auth, @PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success("Setup link issued",
-                mailAdminService.issueSetupLink(principal(auth), id)));
-    }
-
-    @PostMapping("/mailboxes/{id}/reset-link")
-    public ResponseEntity<ApiResponse<MailLinkResponse>> resetLink(Authentication auth, @PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success("Reset link issued",
-                mailAdminService.issueResetLink(principal(auth), id)));
+    @PostMapping("/mailboxes/{id}/reset-password")
+    public ResponseEntity<ApiResponse<MailCredentialResponse>> resetPassword(
+            Authentication auth, @PathVariable Long id, @RequestBody(required = false) MailResetPasswordRequest req) {
+        return ResponseEntity.ok(ApiResponse.success("Password reset",
+                mailAdminService.resetPassword(principal(auth), id, req)));
     }
 
     // ─── Audit ──

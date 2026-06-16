@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Eye, EyeOff, Loader2, ShieldAlert } from "lucide-react";
+import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { BRAND } from "@/config/brand";
@@ -38,15 +38,22 @@ function strength(pw: string): { score: number; label: string; color: string } {
   return { score, label: labels[score], color: colors[score] };
 }
 
-function SetPasswordForm() {
+/**
+ * Authenticated change-password screen. Reached after login when the account
+ * has mustChangePassword=true (admin-set/reset password), or for a voluntary
+ * change. It uses the mail SESSION (no token) and posts to the authenticated
+ * /me/change-password endpoint.
+ */
+export default function MailChangePasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const { setPassword } = useMailAuth();
+  const { status, changePassword } = useMailAuth();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  // Where both the must-change redirect AND (Phase 3) admin SETUP/RESET
-  // links land.
-  const token = searchParams.get("token") ?? "";
+
+  // Not signed in → can't change a password here; send to login.
+  useEffect(() => {
+    if (status === "anonymous") router.replace("/mail/login");
+  }, [status, router]);
 
   const {
     register,
@@ -61,62 +68,35 @@ function SetPasswordForm() {
   const onSubmit = async (data: Values) => {
     setError("");
     try {
-      await setPassword(token, data.newPassword);
+      await changePassword(data.newPassword);
       router.push("/mail");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Could not set your password.");
     }
   };
 
-  // No token in the URL → can't proceed. (Direct visit / stale bookmark.)
-  if (!token) {
-    return (
-      <GlassCard className="p-8 text-center">
-        <ShieldAlert size={28} className="mx-auto text-amber-500 mb-3" />
-        <h1 className="font-serif text-2xl font-bold text-gray-900 mb-2">
-          This link is incomplete
-        </h1>
-        <p className="text-sm text-gray-600">
-          The password link is missing its token. Sign in again, or request a
-          new link from your administrator.
-        </p>
-      </GlassCard>
-    );
-  }
-
-  return (
-    <GlassCard className="p-8">
-      <div className="flex justify-center mb-6">
-        <Image
-          src={BRAND.logoUrl}
-          alt={BRAND.logoAlt}
-          width={56}
-          height={56}
-          priority
-          className="h-14 w-14 object-contain"
-        />
-      </div>
+  const body = status !== "authenticated" ? (
+    <div className="text-center py-10 text-gray-400">
+      <Loader2 size={22} className="mx-auto animate-spin text-[#0F766E]" />
+    </div>
+  ) : (
+    <>
       <h1 className="font-serif text-3xl font-bold text-gray-900 mb-1 text-center">
         Set a new password
       </h1>
       <p className="text-gray-500 mb-8 text-center text-sm">
-        Choose a password for your {BRAND.shortName} mailbox.
+        Choose a new password for your {BRAND.shortName} mailbox.
       </p>
 
       {error && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
-          <p>{error}</p>
-          <p className="mt-1 text-xs text-red-500">
-            If this link has expired, request a new one from your administrator.
-          </p>
+          {error}
         </div>
       )}
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            New password
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">New password</label>
           <div className="relative">
             <input
               type={showPassword ? "text" : "password"}
@@ -142,9 +122,7 @@ function SetPasswordForm() {
                   style={{ width: `${(meter.score / 5) * 100}%`, backgroundColor: meter.color }}
                 />
               </div>
-              <p className="text-xs mt-1" style={{ color: meter.color }}>
-                {meter.label}
-              </p>
+              <p className="text-xs mt-1" style={{ color: meter.color }}>{meter.label}</p>
             </div>
           )}
           {errors.newPassword && (
@@ -153,9 +131,7 @@ function SetPasswordForm() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Confirm password
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Confirm password</label>
           <input
             type={showPassword ? "text" : "password"}
             autoComplete="new-password"
@@ -170,14 +146,12 @@ function SetPasswordForm() {
 
         <Button type="submit" disabled={isSubmitting} className="w-full">
           {isSubmitting && <Loader2 size={16} className="animate-spin mr-2" />}
-          {isSubmitting ? "Saving..." : "Set password & sign in"}
+          {isSubmitting ? "Saving..." : "Set password"}
         </Button>
       </form>
-    </GlassCard>
+    </>
   );
-}
 
-export default function MailSetPasswordPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-6 py-12">
       <motion.div
@@ -186,13 +160,19 @@ export default function MailSetPasswordPage() {
         transition={{ duration: 0.4 }}
         className="w-full max-w-md"
       >
-        <Suspense
-          fallback={
-            <div className="text-center py-10 text-gray-400">Loading…</div>
-          }
-        >
-          <SetPasswordForm />
-        </Suspense>
+        <GlassCard className="p-8">
+          <div className="flex justify-center mb-6">
+            <Image
+              src={BRAND.logoUrl}
+              alt={BRAND.logoAlt}
+              width={56}
+              height={56}
+              priority
+              className="h-14 w-14 object-contain"
+            />
+          </div>
+          {body}
+        </GlassCard>
       </motion.div>
     </div>
   );

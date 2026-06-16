@@ -1,18 +1,18 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Search, Pencil, Ban, RotateCcw, KeyRound, Link2, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Ban, RotateCcw, KeyRound, RefreshCw, Loader2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useMailAuth } from "@/lib/mail-auth-context";
 import {
   listDomains, listMailboxes, createMailbox, updateMailbox,
-  suspendMailbox, reactivateMailbox, issueSetupLink, issueResetLink,
-  type MailDomainSummary, type MailboxSummary, type MailLinkResponse, type PagedResponse,
+  suspendMailbox, reactivateMailbox, resetPassword,
+  type MailDomainSummary, type MailboxSummary, type MailCredentialResponse, type PagedResponse,
 } from "@/lib/mail-admin-api";
 import { Modal } from "./_components/Modal";
-import { OneTimeLinkModal } from "./_components/OneTimeLinkModal";
+import { CredentialsModal } from "./_components/CredentialsModal";
 import { ConfirmDialog } from "./_components/ConfirmDialog";
 
 const INPUT = "w-full px-3 py-2 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#14B8A6] focus:border-transparent";
@@ -35,7 +35,7 @@ export default function MailboxesPage() {
   const [appliedQ, setAppliedQ] = useState("");
   const [page, setPage] = useState(0);
 
-  const [linkResult, setLinkResult] = useState<MailLinkResponse | null>(null);
+  const [credResult, setCredResult] = useState<MailCredentialResponse | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,7 +69,7 @@ export default function MailboxesPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h1 className="font-serif text-2xl font-bold text-gray-900">Mailboxes</h1>
-        <CreateButton domains={domains} isSuper={!!isSuper} onCreated={(link) => { setLinkResult(link); load(); }} />
+        <CreateButton domains={domains} isSuper={!!isSuper} onCreated={(cred) => { setCredResult(cred); load(); }} />
       </div>
 
       {/* Filters */}
@@ -129,7 +129,7 @@ export default function MailboxesPage() {
                   isSuper={!!isSuper}
                   canManage={canManage(row)}
                   onChanged={load}
-                  onLink={setLinkResult}
+                  onCred={setCredResult}
                 />
               ))}
             </tbody>
@@ -149,13 +149,13 @@ export default function MailboxesPage() {
         </div>
       )}
 
-      <OneTimeLinkModal link={linkResult} onClose={() => setLinkResult(null)} />
+      <CredentialsModal cred={credResult} onClose={() => setCredResult(null)} />
     </div>
   );
 }
 
 // ─── Create ──
-function CreateButton({ domains, isSuper, onCreated }: { domains: MailDomainSummary[]; isSuper: boolean; onCreated: (l: MailLinkResponse) => void; }) {
+function CreateButton({ domains, isSuper, onCreated }: { domains: MailDomainSummary[]; isSuper: boolean; onCreated: (c: MailCredentialResponse) => void; }) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -163,24 +163,33 @@ function CreateButton({ domains, isSuper, onCreated }: { domains: MailDomainSumm
   const [domainId, setDomainId] = useState<string>("");
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState("USER");
+  const [password, setPassword] = useState("");
+  const [requireChange, setRequireChange] = useState(true);
 
   useEffect(() => {
     if (open && !domainId && domains.length > 0) setDomainId(String(domains[0].id));
   }, [open, domains, domainId]);
 
+  const reset = () => {
+    setLocalPart(""); setDisplayName(""); setRole("USER"); setPassword(""); setRequireChange(true);
+  };
+
   const submit = async () => {
     if (!localPart.trim() || !domainId) { toast("error", "Local part and domain are required"); return; }
+    if (password.trim() && password.trim().length < 8) { toast("error", "Password must be at least 8 characters"); return; }
     setBusy(true);
     try {
-      const link = await createMailbox({
+      const cred = await createMailbox({
         localPart: localPart.trim(),
         domainId: Number(domainId),
         displayName: displayName.trim() || undefined,
         role: isSuper ? role : undefined,
+        password: password.trim() || undefined,        // blank → server generates
+        requireChangeOnFirstLogin: requireChange,
       });
-      onCreated(link);
+      onCreated(cred);
       setOpen(false);
-      setLocalPart(""); setDisplayName(""); setRole("USER");
+      reset();
       toast("success", "Mailbox created");
     } catch (e) {
       toast("error", e instanceof Error ? e.message : "Could not create mailbox");
@@ -216,9 +225,21 @@ function CreateButton({ domains, isSuper, onCreated }: { domains: MailDomainSumm
               </select>
             </div>
           )}
-          <p className="text-xs text-gray-500">
-            A one-time setup link will be issued — the user sets their own password. You never see it.
-          </p>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Password</label>
+            <div className="flex items-center gap-2">
+              <input className={INPUT} type="text" value={password} onChange={(e) => setPassword(e.target.value)}
+                placeholder="Leave blank to auto-generate" autoComplete="off" />
+              <Button type="button" variant="secondary" size="sm" className="gap-1.5 shrink-0" onClick={() => setPassword("")} title="Auto-generate on create">
+                <RefreshCw size={14} /> Generate
+              </Button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Shown once after creation so you can send it. Only its hash is stored.</p>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" checked={requireChange} onChange={(e) => setRequireChange(e.target.checked)} className="h-4 w-4 accent-[#0F766E]" />
+            Require password change on first login
+          </label>
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
             <Button onClick={submit} disabled={busy}>{busy ? "Creating…" : "Create"}</Button>
@@ -230,12 +251,13 @@ function CreateButton({ domains, isSuper, onCreated }: { domains: MailDomainSumm
 }
 
 // ─── Row ──
-function MailboxRow({ row, isSuper, canManage, onChanged, onLink }: {
+function MailboxRow({ row, isSuper, canManage, onChanged, onCred }: {
   row: MailboxSummary; isSuper: boolean; canManage: boolean;
-  onChanged: () => void; onLink: (l: MailLinkResponse) => void;
+  onChanged: () => void; onCred: (c: MailCredentialResponse) => void;
 }) {
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
   const [confirm, setConfirm] = useState<null | "suspend" | "reactivate">(null);
   const [busy, setBusy] = useState(false);
 
@@ -260,8 +282,7 @@ function MailboxRow({ row, isSuper, canManage, onChanged, onLink }: {
             {row.status === "ACTIVE"
               ? <IconBtn title="Suspend" onClick={() => setConfirm("suspend")}><Ban size={15} /></IconBtn>
               : <IconBtn title="Reactivate" onClick={() => setConfirm("reactivate")}><RotateCcw size={15} /></IconBtn>}
-            <IconBtn title="Issue setup link" onClick={() => run(() => issueSetupLink(row.id).then(onLink), "Setup link issued")}><Link2 size={15} /></IconBtn>
-            <IconBtn title="Reset password" onClick={() => run(() => issueResetLink(row.id).then(onLink), "Reset link issued")}><KeyRound size={15} /></IconBtn>
+            <IconBtn title="Reset password" onClick={() => setResetOpen(true)}><KeyRound size={15} /></IconBtn>
           </div>
         ) : (
           <span className="block text-right text-xs text-gray-300">—</span>
@@ -269,6 +290,7 @@ function MailboxRow({ row, isSuper, canManage, onChanged, onLink }: {
       </td>
 
       <EditMailboxModal open={editOpen} onClose={() => setEditOpen(false)} row={row} isSuper={isSuper} onSaved={onChanged} />
+      <ResetPasswordModal open={resetOpen} onClose={() => setResetOpen(false)} row={row} onCred={onCred} onDone={onChanged} />
       <ConfirmDialog
         open={confirm !== null}
         title={confirm === "suspend" ? "Suspend mailbox" : "Reactivate mailbox"}
@@ -355,6 +377,58 @@ function EditMailboxModal({ open, onClose, row, isSuper, onSaved }: {
         <div className="flex justify-end gap-2 pt-1">
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</Button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ResetPasswordModal({ open, onClose, row, onCred, onDone }: {
+  open: boolean; onClose: () => void; row: MailboxSummary;
+  onCred: (c: MailCredentialResponse) => void; onDone: () => void;
+}) {
+  const { toast } = useToast();
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { if (open) setPassword(""); }, [open]);
+
+  const submit = async () => {
+    if (password.trim() && password.trim().length < 8) { toast("error", "Password must be at least 8 characters"); return; }
+    setBusy(true);
+    try {
+      const cred = await resetPassword(row.id, { password: password.trim() || undefined });
+      onClose();
+      onCred(cred);   // show the new credentials once
+      onDone();
+    } catch (e) {
+      toast("error", e instanceof Error ? e.message : "Could not reset password");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title={`Reset password — ${row.email}`}>
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600">
+          Set a new password (or leave blank to auto-generate). The new password is
+          shown once and the user must change it on next sign-in. The existing
+          password is never revealed.
+        </p>
+        <div>
+          <label className="block text-xs font-medium text-gray-500 mb-1">New password</label>
+          <div className="flex items-center gap-2">
+            <input className={INPUT} type="text" value={password} onChange={(e) => setPassword(e.target.value)}
+              placeholder="Leave blank to auto-generate" autoComplete="off" />
+            <Button type="button" variant="secondary" size="sm" className="gap-1.5 shrink-0" onClick={() => setPassword("")} title="Auto-generate">
+              <RefreshCw size={14} /> Generate
+            </Button>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={submit} disabled={busy}>{busy ? "Resetting…" : "Reset password"}</Button>
         </div>
       </div>
     </Modal>

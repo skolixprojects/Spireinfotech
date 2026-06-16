@@ -3,6 +3,7 @@ package com.spire.backend.mail.controller;
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.mail.dto.MailAccountSummary;
 import com.spire.backend.mail.dto.MailAuthResponse;
+import com.spire.backend.mail.dto.MailChangePasswordRequest;
 import com.spire.backend.mail.dto.MailLoginRequest;
 import com.spire.backend.mail.dto.MailRefreshRequest;
 import com.spire.backend.mail.dto.MailSetPasswordRequest;
@@ -31,9 +32,9 @@ public class MailAuthController {
     public ResponseEntity<ApiResponse<MailAuthResponse>> login(
             @Valid @RequestBody MailLoginRequest request) {
         MailAuthResponse response = mailAuthService.login(request.getEmail(), request.getPassword());
-        String message = Boolean.TRUE.equals(response.getMustChangePassword())
-                ? "Password change required"
-                : "Login successful";
+        boolean mustChange = response.getAccount() != null
+                && Boolean.TRUE.equals(response.getAccount().getMustChangePassword());
+        String message = mustChange ? "Password change required" : "Login successful";
         return ResponseEntity.ok(ApiResponse.success(message, response));
     }
 
@@ -56,5 +57,18 @@ public class MailAuthController {
         MailPrincipal principal = (MailPrincipal) authentication.getPrincipal();
         MailAccountSummary summary = mailAuthService.me(principal.accountId());
         return ResponseEntity.ok(ApiResponse.success(summary));
+    }
+
+    /**
+     * Authenticated self-change of the caller's own password (forced
+     * first-login change, or voluntary). Outside {@code /auth/**} so the
+     * mail chain requires a valid session — no token. Clears must-change.
+     */
+    @PostMapping("/me/change-password")
+    public ResponseEntity<ApiResponse<MailAccountSummary>> changePassword(
+            Authentication authentication, @Valid @RequestBody MailChangePasswordRequest request) {
+        MailPrincipal principal = (MailPrincipal) authentication.getPrincipal();
+        MailAccountSummary summary = mailAuthService.changePassword(principal.accountId(), request.getNewPassword());
+        return ResponseEntity.ok(ApiResponse.success("Password updated", summary));
     }
 }

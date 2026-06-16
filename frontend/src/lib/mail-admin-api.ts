@@ -43,6 +43,13 @@ export interface MailLinkResponse {
   expiresAt: string;
 }
 
+/** One-time credential result for create / reset. `password` is plaintext,
+ *  shown ONCE — never returned by any GET, never stored in plaintext. */
+export interface MailCredentialResponse {
+  account: MailboxSummary;
+  password: string;
+}
+
 export interface MailAuditEntry {
   id: number;
   actorId: number;
@@ -99,8 +106,11 @@ export function listMailboxes(f: MailboxFilters = {}) {
   qs.set("size", String(f.size ?? 20));
   return unwrap(mailApiFetch<ApiResponse<PagedResponse<MailboxSummary>>>(`${ADMIN}/mailboxes?${qs.toString()}`));
 }
-export function createMailbox(body: { localPart: string; domainId: number; displayName?: string; role?: string }) {
-  return unwrap(mailApiFetch<ApiResponse<MailLinkResponse>>(`${ADMIN}/mailboxes`, {
+export function createMailbox(body: {
+  localPart: string; domainId: number; displayName?: string; role?: string;
+  password?: string; requireChangeOnFirstLogin?: boolean;
+}) {
+  return unwrap(mailApiFetch<ApiResponse<MailCredentialResponse>>(`${ADMIN}/mailboxes`, {
     method: "POST",
     body: JSON.stringify(body),
   }));
@@ -117,11 +127,13 @@ export function suspendMailbox(id: number) {
 export function reactivateMailbox(id: number) {
   return unwrap(mailApiFetch<ApiResponse<MailboxSummary>>(`${ADMIN}/mailboxes/${id}/reactivate`, { method: "POST" }));
 }
-export function issueSetupLink(id: number) {
-  return unwrap(mailApiFetch<ApiResponse<MailLinkResponse>>(`${ADMIN}/mailboxes/${id}/setup-link`, { method: "POST" }));
-}
-export function issueResetLink(id: number) {
-  return unwrap(mailApiFetch<ApiResponse<MailLinkResponse>>(`${ADMIN}/mailboxes/${id}/reset-link`, { method: "POST" }));
+/** Reset a mailbox's password (admin-set or, if blank, server-generated).
+ *  Returns the new plaintext ONCE; sets must-change-password. */
+export function resetPassword(id: number, body: { password?: string } = {}) {
+  return unwrap(mailApiFetch<ApiResponse<MailCredentialResponse>>(`${ADMIN}/mailboxes/${id}/reset-password`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  }));
 }
 
 // ─── Audit ──
