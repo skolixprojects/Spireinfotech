@@ -156,7 +156,9 @@ export default function MailClientPage() {
   // and raise a browser notification. On every (re)connect resync counts + the
   // current folder. Torn down on logout (enabled flips false) / unmount.
   useMailEvents({
-    enabled: status === "authenticated",
+    // A must-change session is gated server-side — don't even open the SSE
+    // stream (it would 403 + retry); the guard above redirects it out.
+    enabled: status === "authenticated" && !account?.mustChangePassword,
     onNewMail: (e) => {
       const target = e.folderId != null ? folders.find((f) => f.id === e.folderId) : undefined;
       if (target) {
@@ -174,7 +176,9 @@ export default function MailClientPage() {
     onResync: () => { refreshCounts(); loadFolders(); loadList(folder, page, searchQuery); },
   });
 
-  if (status !== "authenticated" || !account) {
+  if (status !== "authenticated" || !account || account.mustChangePassword) {
+    // Not ready, or a must-change session being bounced to /mail/set-password —
+    // don't paint the (gated) inbox shell in the meantime.
     return <div className="flex min-h-screen items-center justify-center"><Loader2 size={28} className="animate-spin text-[#0F766E]" /></div>;
   }
 

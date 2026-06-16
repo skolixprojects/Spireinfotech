@@ -134,7 +134,7 @@ export function RulesModal({ open, onClose, folders }: {
         )}
       </Modal>
 
-      {editing !== undefined && (
+      {open && editing !== undefined && (
         <RuleBuilderModal
           key={editing?.id ?? "new"}   // remount per target so state re-inits from `initial`
           open

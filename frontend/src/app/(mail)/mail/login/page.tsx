@@ -43,14 +43,10 @@ export default function MailLoginPage() {
   const onSubmit = async (data: Values) => {
     setError("");
     try {
-      const result = await login(data.email, data.password);
-      // Must-change accounts now get a session; route to the AUTHENTICATED
-      // change-password screen (no token).
-      if (result.account?.mustChangePassword) {
-        router.push("/mail/set-password");
-        return;
-      }
-      router.push("/mail");
+      await login(data.email, data.password);
+      // Navigation is owned by the auth-redirect effect above: it routes a
+      // must-change session to /mail/set-password and everyone else to /mail
+      // once status flips to "authenticated" (avoids a double push+replace).
     } catch (err: unknown) {
       // Surface the backend's generic message verbatim — no client-side
       // enumeration hints ("Invalid email or password.", etc.).

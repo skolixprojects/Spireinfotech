@@ -7,15 +7,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 /**
- * Unified mail-auth result. Carries one of two shapes (NON_NULL
- * serialization drops the irrelevant fields):
- * <ul>
- *   <li>Full session: {@code accessToken} + {@code refreshToken} +
- *       {@code account}.</li>
- *   <li>Must-change-password: {@code mustChangePassword=true} +
- *       {@code changeToken} (+ {@code account}); NO session is issued
- *       until the password is changed.</li>
- * </ul>
+ * Mail-auth result: always a full session — {@code accessToken} +
+ * {@code refreshToken} + {@code account}. login / refresh / change-password all
+ * return this shape. A must-change account also gets a (gated) session; the
+ * must-change signal travels on {@code account.mustChangePassword} and the gate
+ * is enforced by the access token's {@code mch} claim (Phase 19).
  */
 @Data
 @NoArgsConstructor
@@ -26,9 +22,5 @@ public class MailAuthResponse {
 
     private String accessToken;
     private String refreshToken;
-
-    private Boolean mustChangePassword;
-    private String changeToken;
-
     private MailAccountSummary account;
 }

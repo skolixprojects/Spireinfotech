@@ -55,15 +55,13 @@ export interface MailSession {
 }
 
 /**
- * /login returns EITHER a full session ({accessToken, refreshToken}) OR
- * a must-change response ({mustChangePassword:true, changeToken}) with
- * no session. account is always present.
+ * /login always returns a full session (accessToken + refreshToken + account).
+ * A must-change account also gets a (gated) session; the signal is read from
+ * account.mustChangePassword, which routes the client to the change screen.
  */
 export interface MailLoginResult {
   accessToken?: string;
   refreshToken?: string;
-  mustChangePassword?: boolean;
-  changeToken?: string;
   account: MailAccountSummary;
 }
 
@@ -166,8 +164,13 @@ export async function mailApiFetchBlob(
     }
   }
   if (!res.ok) {
-    const msg = await res.json().then((b) => b?.message).catch(() => null);
-    throw new Error(msg || `Download failed (${res.status})`);
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 403 && body?.message === "Password change required."
+        && typeof window !== "undefined"
+        && !window.location.pathname.startsWith("/mail/set-password")) {
+      window.location.href = "/mail/set-password";   // must-change gate (Phase 19) — mirror mailApiFetch
+    }
+    throw new Error(body?.message || `Download failed (${res.status})`);
   }
   return res.blob();
 }

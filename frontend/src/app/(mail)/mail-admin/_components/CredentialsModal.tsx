@@ -62,7 +62,9 @@ export function CredentialsModal({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Temporary password</label>
+            <label className="block text-xs font-medium text-gray-500 mb-1.5">
+              {cred.account.mustChangePassword ? "Temporary password" : "Password"}
+            </label>
             <div className="flex items-stretch gap-2">
               <input
                 readOnly
@@ -76,7 +78,9 @@ export function CredentialsModal({
               </Button>
             </div>
             <p className="text-xs text-gray-400 mt-1.5">
-              The user will be prompted to change it on first sign-in.
+              {cred.account.mustChangePassword
+                ? "The user will be prompted to change it on first sign-in."
+                : "This is the user's password — they can sign in with it right away."}
             </p>
           </div>
 

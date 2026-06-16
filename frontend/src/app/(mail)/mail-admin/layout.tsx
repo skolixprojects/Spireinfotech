@@ -19,12 +19,16 @@ export default function MailAdminLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (status === "anonymous") {
       router.replace("/mail/login");
+    } else if (status === "authenticated" && account?.mustChangePassword) {
+      // A must-change session is gated server-side — send it to the change
+      // screen before any admin call fires (mirrors the /mail guard).
+      router.replace("/mail/set-password");
     } else if (status === "authenticated" && !isAdminRole(account?.role)) {
       router.replace("/mail");
     }
   }, [status, account, router]);
 
-  if (status !== "authenticated" || !account || !isAdminRole(account.role)) {
+  if (status !== "authenticated" || !account || account.mustChangePassword || !isAdminRole(account.role)) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 size={28} className="animate-spin text-[#0F766E]" />
