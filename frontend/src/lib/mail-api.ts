@@ -124,6 +124,14 @@ export async function mailApiFetch<T = unknown>(
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // Must-change gate (Phase 19): the session can only reach the change flow.
+    // Route there so the user is never stuck on a gated page (also a safety net
+    // if a page guard is missed or the frontend lags the backend deploy).
+    if (res.status === 403 && body?.message === "Password change required."
+        && typeof window !== "undefined"
+        && !window.location.pathname.startsWith("/mail/set-password")) {
+      window.location.href = "/mail/set-password";
+    }
     throw new Error(body?.message || `Request failed (${res.status})`);
   }
 

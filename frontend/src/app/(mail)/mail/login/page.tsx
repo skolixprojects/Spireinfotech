@@ -22,15 +22,17 @@ type Values = z.infer<typeof schema>;
 export default function MailLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  const { login, status } = useMailAuth();
+  const { login, status, account } = useMailAuth();
   const router = useRouter();
 
-  // Already-signed-in shortcut — bounce an authenticated mail session
-  // straight to /mail instead of showing the login form (mirrors the
-  // LMS login page's behavior).
+  // Already-signed-in shortcut — bounce an authenticated mail session straight
+  // to the app. A must-change session goes to the change screen (the backend
+  // gates everything else), NOT the gated inbox.
   useEffect(() => {
-    if (status === "authenticated") router.replace("/mail");
-  }, [status, router]);
+    if (status === "authenticated") {
+      router.replace(account?.mustChangePassword ? "/mail/set-password" : "/mail");
+    }
+  }, [status, account, router]);
 
   const {
     register,
