@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Mail, Search, X, LogOut, Shield, Loader2, Bell } from "lucide-react";
+import { Mail, Search, X, LogOut, Shield, Loader2, Bell, Menu } from "lucide-react";
 import { useMailAuth } from "@/lib/mail-auth-context";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -50,6 +50,7 @@ export default function MailClientPage() {
   // undefined during SSR). Drives the in-app "Enable notifications" fallback.
   const [notifPerm, setNotifPerm] = useState<NotificationPermission | "unsupported">("default");
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [railOpen, setRailOpen] = useState(false);   // mobile folder drawer (rail hidden < md)
 
   // Monotonic guards so out-of-order responses from rapid navigation /
   // clicks can never apply a stale result over a newer one.
@@ -366,6 +367,14 @@ export default function MailClientPage() {
     <div className="flex h-screen flex-col bg-[#F0EDE8]">
       {/* Top bar */}
       <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2.5">
+        <button
+          onClick={() => setRailOpen(true)}
+          className="-m-1 shrink-0 rounded-lg p-1 text-gray-600 transition-colors hover:bg-gray-100 md:hidden"
+          title="Menu"
+          aria-label="Open folders menu"
+        >
+          <Menu size={20} />
+        </button>
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0F766E] text-white"><Mail size={16} /></div>
           <span className="hidden max-w-[40vw] truncate font-serif text-lg font-bold text-gray-900 sm:inline-block lg:max-w-none">{account.entityName} Mail</span>
@@ -403,8 +412,8 @@ export default function MailClientPage() {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Folder rail */}
-        <aside className="hidden w-60 shrink-0 border-r border-gray-200 bg-white lg:block">
+        {/* Folder rail — persistent from md up; a slide-in drawer below md. */}
+        <aside className="hidden w-60 shrink-0 border-r border-gray-200 bg-white md:block">
           <FolderRail
             folders={folders}
             active={searchQuery ? "" : folder}
@@ -417,8 +426,8 @@ export default function MailClientPage() {
 
         {/* Message list */}
         <section className={`${selected ? "hidden lg:flex" : "flex"} w-full flex-col border-r border-gray-200 bg-white lg:w-[400px] lg:shrink-0`}>
-          {/* mobile folder selector (rail hidden < lg) */}
-          <div className="border-b border-gray-200 p-2 lg:hidden">
+          {/* quick folder switch on phones (rail/drawer covers everything else) */}
+          <div className="border-b border-gray-200 p-2 md:hidden">
             <select
               aria-label="Folder"
               value={searchQuery ? "" : folder}
@@ -464,6 +473,26 @@ export default function MailClientPage() {
             onForward={doForward}
           />
         </section>
+      </div>
+
+      {/* Mobile folder drawer — the full rail (Compose + folders + Rules) below md. */}
+      <div className={`fixed inset-0 z-40 md:hidden ${railOpen ? "" : "pointer-events-none"}`} aria-hidden={!railOpen}>
+        <div
+          className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${railOpen ? "opacity-100" : "opacity-0"}`}
+          onClick={() => setRailOpen(false)}
+        />
+        <div
+          className={`absolute inset-y-0 left-0 w-72 max-w-[85vw] border-r border-gray-200 bg-white shadow-xl transition-transform duration-200 ease-out ${railOpen ? "translate-x-0" : "-translate-x-full"}`}
+        >
+          <FolderRail
+            folders={folders}
+            active={searchQuery ? "" : folder}
+            onSelect={(ref) => { selectFolder(ref); setRailOpen(false); }}
+            onCompose={() => { openCompose({ mode: "new" }); setRailOpen(false); }}
+            onChanged={onFoldersChanged}
+            onOpenRules={() => { setRulesOpen(true); setRailOpen(false); }}
+          />
+        </div>
       </div>
 
       {compose && (
