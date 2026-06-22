@@ -134,19 +134,19 @@ export function RuleBuilderModal({ open, onClose, folders, initial, onSaved }: {
             </div>
             <div className="space-y-2">
               {conds.map((c, i) => (
-                <div key={c._k} className="flex items-center gap-2">
-                  <select className={INPUT} value={c.field} onChange={(e) => changeField(i, e.target.value as RuleField)}>
+                <div key={c._k} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                  <select className={`${INPUT} min-w-0`} value={c.field} onChange={(e) => changeField(i, e.target.value as RuleField)}>
                     {(Object.keys(FIELD_LABELS) as RuleField[]).map((f) => <option key={f} value={f}>{FIELD_LABELS[f]}</option>)}
                   </select>
                   {c.field === "HAS_ATTACHMENT" ? (
                     <span className="flex-1 px-2 text-sm text-gray-400">is true</span>
                   ) : (
                     <>
-                      <select className={INPUT} value={c.operator} onChange={(e) => setCond(i, { operator: e.target.value as "CONTAINS" | "EQUALS" })}>
+                      <select className={`${INPUT} min-w-0`} value={c.operator} onChange={(e) => setCond(i, { operator: e.target.value as "CONTAINS" | "EQUALS" })}>
                         <option value="CONTAINS">contains</option>
                         <option value="EQUALS">equals</option>
                       </select>
-                      <input className={`${INPUT} min-w-0 flex-1`} value={c.value} onChange={(e) => setCond(i, { value: e.target.value })} placeholder="value" />
+                      <input className={`${INPUT} min-w-0 flex-1 basis-full sm:basis-auto`} value={c.value} onChange={(e) => setCond(i, { value: e.target.value })} placeholder="value" />
                     </>
                   )}
                   <button onClick={() => setConds((p) => p.filter((_, idx) => idx !== i))} disabled={conds.length === 1}
@@ -167,13 +167,13 @@ export function RuleBuilderModal({ open, onClose, folders, initial, onSaved }: {
             <span className="mb-2 block text-sm font-semibold text-gray-700">Then</span>
             <div className="space-y-2">
               {acts.map((a, i) => (
-                <div key={a._k} className="flex items-center gap-2">
-                  <select className={INPUT} value={a.type} onChange={(e) => changeActType(i, e.target.value as RuleActionType)}>
+                <div key={a._k} className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
+                  <select className={`${INPUT} min-w-0`} value={a.type} onChange={(e) => changeActType(i, e.target.value as RuleActionType)}>
                     {(Object.keys(ACTION_LABELS) as RuleActionType[]).map((t) => <option key={t} value={t}>{ACTION_LABELS[t]}</option>)}
                   </select>
                   {a.type === "MOVE_TO_FOLDER" && (
                     <button onClick={() => setPickFor(i)}
-                      className="inline-flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-left text-sm hover:border-[#0F766E]/40">
+                      className="inline-flex min-w-0 flex-1 basis-full items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-left text-sm hover:border-[#0F766E]/40 sm:basis-auto">
                       <FolderInput size={14} className="shrink-0 text-gray-400" />
                       <span className={`truncate ${a.targetFolderId == null ? "text-gray-400" : "text-gray-700"}`}>{folderName(a.targetFolderId)}</span>
                     </button>

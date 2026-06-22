@@ -48,7 +48,7 @@ function MessageAttachments({ attachments }: { attachments: MailAttachmentSummar
               <button
                 onClick={() => onDownload(a)}
                 disabled={busyId === a.id}
-                className="inline-flex max-w-[260px] items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs hover:border-[#0F766E]/40 hover:bg-[#0F766E]/5 disabled:opacity-60"
+                className="inline-flex max-w-full items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs hover:border-[#0F766E]/40 hover:bg-[#0F766E]/5 disabled:opacity-60 sm:max-w-[260px]"
                 title={`Download ${a.filename}`}
               >
                 {isImg ? <ImageIcon size={15} className="shrink-0 text-gray-400" />

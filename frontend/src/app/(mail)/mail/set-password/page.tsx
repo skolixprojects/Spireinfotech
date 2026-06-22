@@ -153,14 +153,14 @@ export default function MailChangePasswordPage() {
   );
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-6 py-12">
+    <div className="flex min-h-screen items-center justify-center overflow-y-auto px-4 py-8 sm:px-6 sm:py-12">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="w-full max-w-md"
       >
-        <GlassCard className="p-8">
+        <GlassCard className="p-6 sm:p-8">
           <div className="flex justify-center mb-6">
             <Image
               src={BRAND.logoUrl}

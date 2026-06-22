@@ -95,7 +95,7 @@ export function RecipientInput({
       </div>
 
       {open && suggestions.length > 0 && (
-        <ul className="absolute left-10 top-full z-20 mt-1 max-h-56 w-72 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
+        <ul className="absolute left-10 top-full z-20 mt-1 max-h-56 w-72 max-w-[calc(100vw-3rem)] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg">
           {suggestions.map((c, i) => (
             <li
               key={c.id}

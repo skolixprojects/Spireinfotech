@@ -108,7 +108,7 @@ export function RulesModal({ open, onClose, folders }: {
         ) : (
           <ul className="space-y-2">
             {rules.map((r, i) => (
-              <li key={r.id} className="flex items-start gap-3 rounded-xl border border-gray-200 p-3">
+              <li key={r.id} className="flex items-start gap-2 rounded-xl border border-gray-200 p-2.5 sm:gap-3 sm:p-3">
                 <div className="flex flex-col">
                   <button onClick={() => reorder(i, -1)} disabled={i === 0 || reordering} className="rounded p-0.5 text-gray-400 hover:bg-gray-100 disabled:opacity-30" aria-label="Move up"><ChevronUp size={15} /></button>
                   <button onClick={() => reorder(i, 1)} disabled={i === rules.length - 1 || reordering} className="rounded p-0.5 text-gray-400 hover:bg-gray-100 disabled:opacity-30" aria-label="Move down"><ChevronDown size={15} /></button>

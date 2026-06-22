@@ -58,7 +58,8 @@ export default function DomainsPage() {
         ) : domains.length === 0 ? (
           <p className="text-center text-sm text-gray-500 py-16">No domains.</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Domain</th>
@@ -88,6 +89,7 @@ export default function DomainsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </GlassCard>
 

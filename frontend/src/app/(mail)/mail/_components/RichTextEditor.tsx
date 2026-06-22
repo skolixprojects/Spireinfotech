@@ -40,7 +40,7 @@ export function RichTextEditor({
     editorProps: {
       attributes: {
         class:
-          "min-h-[160px] max-h-[40vh] overflow-y-auto px-3 py-2 text-sm leading-relaxed text-gray-800 focus:outline-none [&_a]:text-[#0F766E] [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1",
+          "min-h-[120px] max-h-[40vh] overflow-y-auto px-3 py-2 text-sm leading-relaxed text-gray-800 focus:outline-none sm:min-h-[160px] [&_a]:text-[#0F766E] [&_a]:underline [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-1",
       },
     },
     onUpdate: ({ editor }) => onChange(editor.getHTML(), editor.getText()),
@@ -56,7 +56,7 @@ export function RichTextEditor({
 
   return (
     <div className="rounded-lg border border-gray-300">
-      <div className="flex items-center gap-0.5 border-b border-gray-200 px-1.5 py-1">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 px-1.5 py-1">
         <ToolbarBtn title="Bold" active={editor?.isActive("bold")} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold size={15} /></ToolbarBtn>
         <ToolbarBtn title="Italic" active={editor?.isActive("italic")} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic size={15} /></ToolbarBtn>
         <ToolbarBtn title="Underline" active={editor?.isActive("underline")} onClick={() => editor?.chain().focus().toggleUnderline().run()}><UnderlineIcon size={15} /></ToolbarBtn>

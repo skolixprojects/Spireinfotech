@@ -126,7 +126,7 @@ export function FolderRail({
           {f.unread > 0 && <Badge n={f.unread} />}
           <button
             onClick={() => setMenuFor(isMenu ? null : f.id)}
-            className="ml-0.5 shrink-0 rounded p-1 text-gray-400 opacity-0 hover:bg-gray-200 group-hover:opacity-100"
+            className="ml-0.5 shrink-0 rounded p-1 text-gray-400 opacity-100 hover:bg-gray-200 lg:opacity-0 lg:group-hover:opacity-100"
             title="Folder options"
             aria-label="Folder options"
           >

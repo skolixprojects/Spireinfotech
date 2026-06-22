@@ -368,7 +368,7 @@ export default function MailClientPage() {
       <header className="flex items-center gap-3 border-b border-gray-200 bg-white px-4 py-2.5">
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#0F766E] text-white"><Mail size={16} /></div>
-          <span className="hidden font-serif text-lg font-bold text-gray-900 sm:inline">{account.entityName} Mail</span>
+          <span className="hidden max-w-[40vw] truncate font-serif text-lg font-bold text-gray-900 sm:inline-block lg:max-w-none">{account.entityName} Mail</span>
         </div>
         <form onSubmit={(e) => { e.preventDefault(); doSearch(); }} className="relative mx-auto w-full max-w-xl">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -386,7 +386,7 @@ export default function MailClientPage() {
         </form>
         <div className="flex items-center gap-3 shrink-0 text-sm">
           {notifPerm === "default" && (
-            <button onClick={enableNotifications} className="inline-flex items-center gap-1.5 text-gray-500 hover:text-[#0F766E]" title="Enable desktop notifications for new mail">
+            <button onClick={enableNotifications} className="-m-1.5 inline-flex items-center gap-1.5 p-1.5 text-gray-500 hover:text-[#0F766E] sm:m-0 sm:p-0" title="Enable desktop notifications for new mail">
               <Bell size={14} /> <span className="hidden lg:inline">Enable notifications</span>
             </button>
           )}
@@ -396,7 +396,7 @@ export default function MailClientPage() {
             </Link>
           )}
           <span className="hidden text-gray-500 lg:inline">{account.email}</span>
-          <button onClick={logout} className="inline-flex items-center gap-1.5 text-gray-500 hover:text-[#0F766E]" title="Logout">
+          <button onClick={logout} className="-m-1.5 inline-flex items-center gap-1.5 p-1.5 text-gray-500 hover:text-[#0F766E] sm:m-0 sm:p-0" title="Logout">
             <LogOut size={14} /> <span className="hidden sm:inline">Logout</span>
           </button>
         </div>

@@ -188,8 +188,15 @@ export function ComposeWindow({
   };
 
   return (
-    <div className="fixed bottom-0 right-4 z-40 flex w-[540px] max-w-[95vw] flex-col rounded-t-xl border border-gray-300 bg-white shadow-2xl">
-      <div className="flex items-center justify-between rounded-t-xl bg-[#0F766E] px-4 py-2 text-white">
+    <div
+      className={`fixed z-40 flex flex-col bg-white shadow-2xl ${
+        minimized
+          ? "bottom-0 right-4 w-[540px] max-w-[95vw] rounded-t-xl border border-gray-300"
+          // Mobile: full-screen sheet. sm+: the floating bottom-right panel, capped at 90vh.
+          : "inset-0 sm:inset-auto sm:bottom-0 sm:right-4 sm:w-[540px] sm:max-w-[95vw] sm:max-h-[90vh] sm:rounded-t-xl sm:border sm:border-gray-300"
+      }`}
+    >
+      <div className="flex shrink-0 items-center justify-between rounded-t-xl bg-[#0F766E] px-4 py-2 text-white">
         <span className="text-sm font-semibold">{TITLES[init.mode] ?? "New message"}</span>
         <div className="flex items-center gap-1">
           <button onClick={() => setMinimized((m) => !m)} className="rounded p-1 hover:bg-white/15" title="Minimize"><Minus size={15} /></button>
@@ -199,6 +206,8 @@ export function ComposeWindow({
 
       {!minimized && (
         <>
+          {/* Scrollable body so the action bar below stays reachable (esp. full-screen on mobile). */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <RecipientInput label="To" value={to} onChange={setTo} autoFocus />
           {!showCc && !showBcc && (
             <div className="flex justify-end gap-3 px-3 py-1 text-xs text-gray-400">
@@ -253,6 +262,7 @@ export function ComposeWindow({
               ))}
             </ul>
           )}
+          </div>
 
           <input
             ref={fileInputRef}
@@ -262,7 +272,7 @@ export function ComposeWindow({
             onChange={(e) => { onPickFiles(e.target.files); e.target.value = ""; }}
           />
 
-          <div className="flex items-center justify-between border-t border-gray-200 px-3 py-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-3 py-2">
             <div className="flex items-center gap-2">
               <button
                 onClick={doSend}

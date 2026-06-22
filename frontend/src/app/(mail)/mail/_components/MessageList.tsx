@@ -88,7 +88,7 @@ export function MessageList({
                       <span className="flex shrink-0 items-center gap-1">
                         <button
                           onClick={(e) => { e.stopPropagation(); onMove(m); }}
-                          className="rounded p-1 text-gray-400 opacity-0 hover:bg-gray-200 hover:text-[#0F766E] group-hover:opacity-100"
+                          className="rounded p-1 text-gray-400 opacity-100 hover:bg-gray-200 hover:text-[#0F766E] lg:opacity-0 lg:group-hover:opacity-100"
                           title="Move to folder"
                           aria-label="Move to folder"
                         >
