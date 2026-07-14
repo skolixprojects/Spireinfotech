@@ -14,6 +14,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Mail Admin API. The whole tree is gated to MAIL_ADMIN / MAIL_SUPER_ADMIN
@@ -95,6 +96,26 @@ public class MailAdminController {
             Authentication auth, @PathVariable Long id, @RequestBody(required = false) MailResetPasswordRequest req) {
         return ResponseEntity.ok(ApiResponse.success("Password reset",
                 mailAdminService.resetPassword(principal(auth), id, req)));
+    }
+
+    /** Schedule the mailbox for deletion (disabled now, hard-purged after the grace window). */
+    @DeleteMapping("/mailboxes/{id}")
+    public ResponseEntity<ApiResponse<MailboxSummary>> scheduleDeletion(Authentication auth, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Mailbox scheduled for deletion",
+                mailAdminService.scheduleDeletion(principal(auth), id)));
+    }
+
+    @PostMapping("/mailboxes/{id}/cancel-deletion")
+    public ResponseEntity<ApiResponse<MailboxSummary>> cancelDeletion(Authentication auth, @PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success("Deletion cancelled",
+                mailAdminService.cancelDeletion(principal(auth), id)));
+    }
+
+    /** Super-admin: process any deletions whose grace window has already elapsed. */
+    @PostMapping("/deletions/run")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> runDueDeletions(Authentication auth) {
+        int purged = mailAdminService.runDueDeletions(principal(auth));
+        return ResponseEntity.ok(ApiResponse.success("Deletions processed", Map.of("purged", purged)));
     }
 
     // ─── Audit ──

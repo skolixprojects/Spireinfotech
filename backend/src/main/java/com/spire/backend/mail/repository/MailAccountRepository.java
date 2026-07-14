@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,6 +18,9 @@ public interface MailAccountRepository
     Optional<MailAccount> findByLocalPartAndDomain_Id(String localPart, Long domainId);
 
     boolean existsByLocalPartAndDomain_Id(String localPart, Long domainId);
+
+    /** Mailboxes whose deletion grace has elapsed — the scheduled hard-purge set. */
+    List<MailAccount> findByStatusAndDeleteAfterLessThanEqual(MailAccount.Status status, LocalDateTime cutoff);
 
     /**
      * Pessimistically lock all ACTIVE super-admin account rows. Every

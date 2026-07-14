@@ -25,5 +25,7 @@ public class MailboxSummary {
     private Long quotaBytes;
     private Boolean mustChangePassword;
     private LocalDateTime lastLoginAt;
+    /** Set only when status is PENDING_DELETION — the scheduled hard-purge time. */
+    private LocalDateTime deleteAfter;
     private LocalDateTime createdAt;
 }

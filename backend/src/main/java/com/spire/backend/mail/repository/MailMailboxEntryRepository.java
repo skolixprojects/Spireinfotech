@@ -35,6 +35,14 @@ public interface MailMailboxEntryRepository
 
     Optional<MailMailboxEntry> findByAccount_IdAndMessage_IdAndDeletedAtIsNull(Long accountId, Long messageId);
 
+    /** All of an account's entries (live + tombstoned) — used to purge a
+     *  deleted mailbox's mail views. */
+    List<MailMailboxEntry> findByAccount_Id(Long accountId);
+
+    /** Total entries (live + tombstoned) referencing a message — 0 means the
+     *  message is orphaned and can be purged after an account delete. */
+    long countByMessage_Id(Long messageId);
+
     /**
      * Pessimistic-write variant used by mutating draft operations (attachment
      * add/remove, draft update/send). Taking the row lock serializes an

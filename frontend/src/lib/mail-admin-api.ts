@@ -28,10 +28,11 @@ export interface MailboxSummary {
   domain: string;
   displayName: string | null;
   role: string;          // USER | ADMIN | SUPER_ADMIN
-  status: string;        // ACTIVE | SUSPENDED
+  status: string;        // ACTIVE | SUSPENDED | PENDING_DELETION
   quotaBytes: number;
   mustChangePassword: boolean;
   lastLoginAt: string | null;
+  deleteAfter: string | null;   // set only when status === PENDING_DELETION
   createdAt: string;
 }
 
@@ -118,6 +119,14 @@ export function suspendMailbox(id: number) {
 }
 export function reactivateMailbox(id: number) {
   return unwrap(mailApiFetch<ApiResponse<MailboxSummary>>(`${ADMIN}/mailboxes/${id}/reactivate`, { method: "POST" }));
+}
+/** Schedule the mailbox for deletion (disabled now, hard-purged after a 15-day grace). */
+export function deleteMailbox(id: number) {
+  return unwrap(mailApiFetch<ApiResponse<MailboxSummary>>(`${ADMIN}/mailboxes/${id}`, { method: "DELETE" }));
+}
+/** Cancel a pending deletion and reactivate the mailbox. */
+export function cancelMailboxDeletion(id: number) {
+  return unwrap(mailApiFetch<ApiResponse<MailboxSummary>>(`${ADMIN}/mailboxes/${id}/cancel-deletion`, { method: "POST" }));
 }
 /** Reset a mailbox's password (admin-set or, if blank, server-generated).
  *  Returns the new plaintext ONCE. The password is final unless

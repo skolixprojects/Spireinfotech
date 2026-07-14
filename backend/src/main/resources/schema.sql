@@ -241,10 +241,14 @@ CREATE TABLE mail_accounts (
     password_hash        VARCHAR(255) NOT NULL,
     display_name         VARCHAR(255),
     role                 VARCHAR(20)  NOT NULL DEFAULT 'USER',    -- USER | ADMIN | SUPER_ADMIN
-    status               VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE | SUSPENDED
+    status               VARCHAR(20)  NOT NULL DEFAULT 'ACTIVE',  -- ACTIVE | SUSPENDED | PENDING_DELETION
     must_change_password BOOLEAN      NOT NULL DEFAULT FALSE,
     quota_bytes          BIGINT       NOT NULL DEFAULT 0,
     last_login_at        TIMESTAMP,
+    -- Set only while status = PENDING_DELETION: a daily job hard-purges the
+    -- mailbox (and all its mail data) on/after this instant. 15-day grace,
+    -- cancelable. ddl-auto adds the column.
+    delete_after         TIMESTAMP,
     created_at           TIMESTAMP    NOT NULL DEFAULT now(),
     CONSTRAINT uq_mail_account_local_domain UNIQUE (local_part, domain_id)
 );

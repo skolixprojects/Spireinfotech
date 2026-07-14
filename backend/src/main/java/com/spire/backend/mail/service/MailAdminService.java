@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -53,11 +54,15 @@ public class MailAdminService {
     private static final char[] PW_ALPHABET =
             "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789".toCharArray();
 
+    /** Grace window between "delete" and the automatic hard purge. */
+    private static final int DELETION_GRACE_DAYS = 15;
+
     private final MailDomainRepository mailDomainRepository;
     private final MailAccountRepository mailAccountRepository;
     private final MailAuditLogRepository mailAuditLogRepository;
     private final PasswordEncoder passwordEncoder;
     private final MailFolderService mailFolderService;
+    private final MailAccountPurgeService mailAccountPurgeService;
 
     // ─── Domains ────────────────────────────────────────────────────
 
@@ -247,10 +252,88 @@ public class MailAdminService {
         MailAccount target = mailAccountRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("MailAccount", "id", id));
         assertCanManageTarget(actor, target, false);
+        target.setDeleteAfter(null);                     // a reactivate also cancels a pending deletion
         target.setStatus(MailAccount.Status.ACTIVE);
         mailAccountRepository.save(target);
         writeAudit(actor, "MAILBOX_REACTIVATE", "MAILBOX", target.getId(), "reactivated " + emailOf(target));
         return toMailboxSummary(target);
+    }
+
+    // ─── Deletion (soft schedule → auto hard purge after a grace window) ──
+
+    /**
+     * Schedule a mailbox for deletion: it's disabled immediately (login gated)
+     * and hard-purged automatically after {@link #DELETION_GRACE_DAYS} days.
+     * Cancelable any time before then. Same authz as suspend (ADMIN: own-domain
+     * USER accounts; SUPER_ADMIN: anywhere) plus: never the last super admin and
+     * never your own mailbox.
+     */
+    @Transactional
+    public MailboxSummary scheduleDeletion(MailPrincipal principal, Long id) {
+        MailAccount actor = loadActor(principal);
+        MailAccount target = mailAccountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("MailAccount", "id", id));
+        assertCanManageTarget(actor, target, false);
+        if (target.getId().equals(actor.getId())) {
+            throw new IllegalArgumentException("You can't delete your own mailbox.");
+        }
+        assertNotLastUsableSuperAdmin(target);
+        LocalDateTime purgeAt = LocalDateTime.now().plusDays(DELETION_GRACE_DAYS);
+        target.setStatus(MailAccount.Status.PENDING_DELETION);
+        target.setDeleteAfter(purgeAt);
+        mailAccountRepository.save(target);
+        writeAudit(actor, "MAILBOX_DELETE_SCHEDULE", "MAILBOX", target.getId(),
+                "scheduled deletion of " + emailOf(target) + " (purge after " + purgeAt + ")");
+        return toMailboxSummary(target);
+    }
+
+    /** Cancel a pending deletion and reactivate the mailbox. */
+    @Transactional
+    public MailboxSummary cancelDeletion(MailPrincipal principal, Long id) {
+        MailAccount actor = loadActor(principal);
+        MailAccount target = mailAccountRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("MailAccount", "id", id));
+        assertCanManageTarget(actor, target, false);
+        if (target.getStatus() != MailAccount.Status.PENDING_DELETION) {
+            throw new IllegalArgumentException("That mailbox is not scheduled for deletion.");
+        }
+        target.setDeleteAfter(null);
+        target.setStatus(MailAccount.Status.ACTIVE);
+        mailAccountRepository.save(target);
+        writeAudit(actor, "MAILBOX_DELETE_CANCEL", "MAILBOX", target.getId(),
+                "cancelled deletion of " + emailOf(target));
+        return toMailboxSummary(target);
+    }
+
+    /**
+     * Hard-purge every mailbox whose grace window has elapsed. Called by the
+     * scheduled job (and the super-admin manual trigger). Each account is purged
+     * in its own transaction so one failure never blocks the rest.
+     */
+    @Transactional(readOnly = true)
+    public int purgeDueDeletions() {
+        List<MailAccount> due = mailAccountRepository.findByStatusAndDeleteAfterLessThanEqual(
+                MailAccount.Status.PENDING_DELETION, LocalDateTime.now());
+        int purged = 0;
+        for (MailAccount a : due) {
+            try {
+                mailAccountPurgeService.purge(a.getId());   // its own REQUIRES_NEW tx per account
+                purged++;
+            } catch (Exception e) {
+                log.warn("Scheduled mailbox purge failed for account {}: {}", a.getId(), e.toString());
+            }
+        }
+        if (purged > 0) log.info("Scheduled mailbox purge: removed {} mailbox(es).", purged);
+        return purged;
+    }
+
+    /** Super-admin manual trigger: process any mailboxes whose grace has elapsed now. */
+    public int runDueDeletions(MailPrincipal principal) {
+        MailAccount actor = loadActor(principal);
+        if (!isSuper(actor)) {
+            throw new AccessDeniedException("Only a super administrator can run deletions.");
+        }
+        return purgeDueDeletions();
     }
 
     // ─── Audit ──────────────────────────────────────────────────────
@@ -392,6 +475,7 @@ public class MailAdminService {
                 .quotaBytes(a.getQuotaBytes())
                 .mustChangePassword(a.getMustChangePassword())
                 .lastLoginAt(a.getLastLoginAt())
+                .deleteAfter(a.getDeleteAfter())
                 .createdAt(a.getCreatedAt())
                 .build();
     }

@@ -70,6 +70,11 @@ public class MailAccount {
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 
+    /** When set, the mailbox is scheduled for deletion and is hard-purged on or
+     *  after this instant (status is PENDING_DELETION during the grace window). */
+    @Column(name = "delete_after")
+    private LocalDateTime deleteAfter;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
@@ -79,6 +84,6 @@ public class MailAccount {
     }
 
     public enum Status {
-        ACTIVE, SUSPENDED
+        ACTIVE, SUSPENDED, PENDING_DELETION
     }
 }

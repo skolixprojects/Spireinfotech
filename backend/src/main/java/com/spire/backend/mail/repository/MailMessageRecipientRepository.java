@@ -23,4 +23,10 @@ public interface MailMessageRecipientRepository extends JpaRepository<MailMessag
     @Modifying
     @Query("delete from MailMessageRecipient r where r.message.id = :messageId")
     void purgeByMessageId(@Param("messageId") Long messageId);
+
+    /** Bulk-delete recipient rows where an account is the recipient — used when
+     *  deleting that mailbox (its recipient FK must go for surviving messages). */
+    @Modifying
+    @Query("delete from MailMessageRecipient r where r.recipient.id = :accountId")
+    void deleteByRecipient_Id(@Param("accountId") Long accountId);
 }

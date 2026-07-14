@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Search, Pencil, Ban, RotateCcw, KeyRound, RefreshCw, Loader2 } from "lucide-react";
+import { Plus, Search, Pencil, Ban, RotateCcw, KeyRound, RefreshCw, Loader2, Trash2, Undo2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 import { useMailAuth } from "@/lib/mail-auth-context";
 import {
   listDomains, listMailboxes, createMailbox, updateMailbox,
-  suspendMailbox, reactivateMailbox, resetPassword,
+  suspendMailbox, reactivateMailbox, resetPassword, deleteMailbox, cancelMailboxDeletion,
   type MailDomainSummary, type MailboxSummary, type MailCredentialResponse, type PagedResponse,
 } from "@/lib/mail-admin-api";
 import { Modal } from "./_components/Modal";
@@ -260,7 +260,7 @@ function MailboxRow({ row, isSuper, canManage, onChanged, onCred }: {
   const { toast } = useToast();
   const [editOpen, setEditOpen] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
-  const [confirm, setConfirm] = useState<null | "suspend" | "reactivate">(null);
+  const [confirm, setConfirm] = useState<null | "suspend" | "reactivate" | "delete" | "cancel">(null);
   const [busy, setBusy] = useState(false);
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
@@ -270,21 +270,36 @@ function MailboxRow({ row, isSuper, canManage, onChanged, onCred }: {
     finally { setBusy(false); setConfirm(null); }
   };
 
+  const CONFIRMS = {
+    suspend: { title: "Suspend mailbox", message: `Suspend ${row.email}? They won't be able to sign in until reactivated.`, label: "Suspend", danger: true, ok: "Mailbox suspended", act: () => suspendMailbox(row.id) },
+    reactivate: { title: "Reactivate mailbox", message: `Reactivate ${row.email}?`, label: "Reactivate", danger: false, ok: "Mailbox reactivated", act: () => reactivateMailbox(row.id) },
+    delete: { title: "Delete mailbox", message: `Delete ${row.email}? It is disabled now and permanently removed in 15 days — including its folders, rules, and the messages it sent. You can cancel any time before then.`, label: "Delete mailbox", danger: true, ok: "Scheduled for deletion", act: () => deleteMailbox(row.id) },
+    cancel: { title: "Cancel deletion", message: `Keep ${row.email}? This cancels the scheduled deletion and reactivates the mailbox.`, label: "Keep mailbox", danger: false, ok: "Deletion cancelled", act: () => cancelMailboxDeletion(row.id) },
+  } as const;
+  const cfg = confirm ? CONFIRMS[confirm] : null;
+
   return (
     <tr className="hover:bg-gray-50/60">
       <td className="px-4 py-3 font-medium text-gray-900">{row.email}</td>
       <td className="px-4 py-3 text-gray-600">{row.displayName || "—"}</td>
       <td className="px-4 py-3"><RoleBadge role={row.role} /></td>
-      <td className="px-4 py-3"><StatusBadge status={row.status} /></td>
+      <td className="px-4 py-3"><StatusBadge status={row.status} deleteAfter={row.deleteAfter} /></td>
       <td className="px-4 py-3 text-gray-500">{fmt(row.lastLoginAt)}</td>
       <td className="px-4 py-3">
         {canManage ? (
           <div className="flex items-center justify-end gap-1.5 text-gray-500">
-            <IconBtn title="Edit" onClick={() => setEditOpen(true)}><Pencil size={15} /></IconBtn>
-            {row.status === "ACTIVE"
-              ? <IconBtn title="Suspend" onClick={() => setConfirm("suspend")}><Ban size={15} /></IconBtn>
-              : <IconBtn title="Reactivate" onClick={() => setConfirm("reactivate")}><RotateCcw size={15} /></IconBtn>}
-            <IconBtn title="Reset password" onClick={() => setResetOpen(true)}><KeyRound size={15} /></IconBtn>
+            {row.status === "PENDING_DELETION" ? (
+              <IconBtn title="Cancel deletion" onClick={() => setConfirm("cancel")}><Undo2 size={15} /></IconBtn>
+            ) : (
+              <>
+                <IconBtn title="Edit" onClick={() => setEditOpen(true)}><Pencil size={15} /></IconBtn>
+                {row.status === "ACTIVE"
+                  ? <IconBtn title="Suspend" onClick={() => setConfirm("suspend")}><Ban size={15} /></IconBtn>
+                  : <IconBtn title="Reactivate" onClick={() => setConfirm("reactivate")}><RotateCcw size={15} /></IconBtn>}
+                <IconBtn title="Reset password" onClick={() => setResetOpen(true)}><KeyRound size={15} /></IconBtn>
+                <IconBtn title="Delete mailbox" danger onClick={() => setConfirm("delete")}><Trash2 size={15} /></IconBtn>
+              </>
+            )}
           </div>
         ) : (
           <span className="block text-right text-xs text-gray-300">—</span>
@@ -294,18 +309,14 @@ function MailboxRow({ row, isSuper, canManage, onChanged, onCred }: {
       <EditMailboxModal open={editOpen} onClose={() => setEditOpen(false)} row={row} isSuper={isSuper} onSaved={onChanged} />
       <ResetPasswordModal open={resetOpen} onClose={() => setResetOpen(false)} row={row} onCred={onCred} onDone={onChanged} />
       <ConfirmDialog
-        open={confirm !== null}
-        title={confirm === "suspend" ? "Suspend mailbox" : "Reactivate mailbox"}
-        message={confirm === "suspend"
-          ? `Suspend ${row.email}? They will be unable to sign in until reactivated.`
-          : `Reactivate ${row.email}?`}
-        confirmLabel={confirm === "suspend" ? "Suspend" : "Reactivate"}
-        danger={confirm === "suspend"}
+        open={cfg !== null}
+        title={cfg?.title ?? ""}
+        message={cfg?.message ?? ""}
+        confirmLabel={cfg?.label ?? "Confirm"}
+        danger={cfg?.danger}
         busy={busy}
         onClose={() => setConfirm(null)}
-        onConfirm={() => confirm === "suspend"
-          ? run(() => suspendMailbox(row.id), "Mailbox suspended")
-          : run(() => reactivateMailbox(row.id), "Mailbox reactivated")}
+        onConfirm={() => cfg && run(cfg.act, cfg.ok)}
       />
     </tr>
   );
@@ -442,9 +453,13 @@ function ResetPasswordModal({ open, onClose, row, onCred, onDone }: {
   );
 }
 
-function IconBtn({ title, onClick, children }: { title: string; onClick: () => void; children: React.ReactNode }) {
+function IconBtn({ title, onClick, children, danger }: { title: string; onClick: () => void; children: React.ReactNode; danger?: boolean }) {
   return (
-    <button title={title} onClick={onClick} className="p-1.5 rounded-md hover:bg-[#0F766E]/10 hover:text-[#0F766E] transition-colors">
+    <button
+      title={title}
+      onClick={onClick}
+      className={`p-1.5 rounded-md transition-colors ${danger ? "hover:bg-red-50 hover:text-red-600" : "hover:bg-[#0F766E]/10 hover:text-[#0F766E]"}`}
+    >
       {children}
     </button>
   );
@@ -454,7 +469,20 @@ function RoleBadge({ role }: { role: string }) {
     : role === "ADMIN" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600";
   return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{role}</span>;
 }
-function StatusBadge({ status }: { status: string }) {
+function StatusBadge({ status, deleteAfter }: { status: string; deleteAfter?: string | null }) {
+  if (status === "PENDING_DELETION") {
+    const days = deleteAfter
+      ? Math.max(0, Math.ceil((new Date(deleteAfter).getTime() - Date.now()) / 86400000))
+      : null;
+    return (
+      <span
+        title={deleteAfter ? `Permanently deleted on ${new Date(deleteAfter).toLocaleString()}` : undefined}
+        className="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+      >
+        {days != null ? `Deletes in ${days}d` : "Pending deletion"}
+      </span>
+    );
+  }
   const cls = status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700";
   return <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${cls}`}>{status}</span>;
 }

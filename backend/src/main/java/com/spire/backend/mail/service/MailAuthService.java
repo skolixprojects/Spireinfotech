@@ -143,6 +143,9 @@ public class MailAuthService {
      * reason here is not an enumeration oracle.
      */
     private void assertAccountUsable(MailAccount account) {
+        if (account.getStatus() == MailAccount.Status.PENDING_DELETION) {
+            throw new UnauthorizedException("This mailbox is scheduled for deletion.");
+        }
         if (account.getStatus() == MailAccount.Status.SUSPENDED) {
             throw new UnauthorizedException("This mailbox is suspended.");
         }

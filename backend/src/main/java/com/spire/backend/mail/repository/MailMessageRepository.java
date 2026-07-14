@@ -16,6 +16,10 @@ public interface MailMessageRepository extends JpaRepository<MailMessage, Long> 
     /** All messages in a conversation, oldest first (tie-break on id). */
     List<MailMessage> findByThreadIdOrderByCreatedAtAscIdAsc(Long threadId);
 
+    /** All messages sent by an account — used to purge a deleted mailbox's
+     *  outbound mail (the sender FK is NOT NULL, so the rows must go). */
+    List<MailMessage> findBySender_Id(Long senderId);
+
     /** Pessimistic-write lock on the message row, so the permanent-delete
      *  reference-count-then-purge/tombstone is atomic per message — concurrent
      *  permanent-deletes of the same shared message can't both tombstone and

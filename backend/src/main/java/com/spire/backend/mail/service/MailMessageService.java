@@ -296,6 +296,29 @@ public class MailMessageService {
         mailMessageRepository.deleteById(messageId);
     }
 
+    /**
+     * Purge all of an account's mail data when its mailbox is hard-deleted:
+     * every message it SENT is fully purged (the sender FK is NOT NULL, so those
+     * rows must go — this also removes recipients' copies + attachments + blobs);
+     * every entry it holds is removed (received mail — any message thereby left
+     * with no holders is purged); and its recipient rows on messages still held
+     * by others are deleted. Called from the account hard-purge, never a request.
+     */
+    @Transactional
+    public void purgeAccountMailData(Long accountId) {
+        for (MailMessage m : mailMessageRepository.findBySender_Id(accountId)) {
+            purgeMessage(m.getId());
+        }
+        for (MailMailboxEntry e : mailboxRepository.findByAccount_Id(accountId)) {
+            Long msgId = e.getMessage().getId();
+            mailboxRepository.delete(e);
+            if (mailboxRepository.countByMessage_Id(msgId) == 0) {
+                purgeMessage(msgId);   // orphaned received message — nobody holds it anymore
+            }
+        }
+        mailRecipientRepository.deleteByRecipient_Id(accountId);
+    }
+
     // ─── Contacts / counts ──────────────────────────────────────────
 
     @Transactional(readOnly = true)
