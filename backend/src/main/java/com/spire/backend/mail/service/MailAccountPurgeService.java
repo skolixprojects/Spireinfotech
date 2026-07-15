@@ -8,6 +8,7 @@ import com.spire.backend.mail.repository.MailFolderRepository;
 import com.spire.backend.mail.repository.MailRuleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,12 +47,14 @@ public class MailAccountPurgeService {
     private final MailRuleRepository mailRuleRepository;
     private final MailFolderRepository mailFolderRepository;
     private final MailMessageService mailMessageService;
+    private final JdbcTemplate jdbcTemplate;
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void purge(Long accountId) {
         MailAccount account = mailAccountRepository.findById(accountId).orElse(null);
         if (account == null) return;
         mailAuditLogRepository.deleteByActorAccount_Id(accountId);
+        purgeLegacySetupTokens(accountId);
         mailMessageService.purgeAccountMailData(accountId);
         mailRuleRepository.deleteByAccount_Id(accountId);
         List<MailFolder> folders = mailFolderRepository.findByAccount_IdOrderBySortOrderAscNameAsc(accountId);
@@ -63,5 +66,20 @@ public class MailAccountPurgeService {
         }
         mailAccountRepository.delete(account);
         log.info("Hard-purged mailbox account {}", accountId);
+    }
+
+    /**
+     * Phase 20 removed the MailSetupToken entity but deliberately LEFT its table,
+     * whose {@code account_id} is a NOT-NULL FK to mail_accounts. Clear any rows
+     * so the account delete can't FK-violate. Best-effort via a native delete —
+     * a fresh (post-Phase-20) install never created the table, so a failure here
+     * simply means there is nothing to clean.
+     */
+    private void purgeLegacySetupTokens(Long accountId) {
+        try {
+            jdbcTemplate.update("DELETE FROM mail_setup_tokens WHERE account_id = ?", accountId);
+        } catch (Exception e) {
+            log.debug("mail_setup_tokens cleanup skipped for account {}: {}", accountId, e.toString());
+        }
     }
 }
