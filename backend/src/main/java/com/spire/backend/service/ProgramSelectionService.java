@@ -88,10 +88,15 @@ public class ProgramSelectionService {
 
         // Idempotent return if already past this step.
         if (workflowService.isStatusAtLeast(user, WorkflowService.Status.PROGRAM_SELECTED)) {
-            return programSelectionRepository
+            ProgramSelection existing = programSelectionRepository
                     .findFirstByUserIdOrderBySelectionDateDesc(userId)
                     .orElseGet(() -> programSelectionRepository.save(
                             buildRow(userId, req)));
+            // Phase 1C self-heal: markStepComplete is idempotent (unconditional
+            // setter, pct recompute, save). Re-firing on already-complete users is
+            // safe. Fixes the historical bug where this branch skipped the flag.
+            profileCompletionService.markStepComplete(user, "PROGRAM_SELECTION");
+            return existing;
         }
 
         validate(req);

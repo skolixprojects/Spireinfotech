@@ -65,11 +65,16 @@ public class AcknowledgmentService {
 
         // ── Idempotent return if already accepted ───────────────────
         if (workflowService.isStatusAtLeast(user, WorkflowService.Status.ACKNOWLEDGMENT_ACCEPTED)) {
-            return acknowledgmentRepository
+            Acknowledgment existing = acknowledgmentRepository
                     .findByUserIdAndAcknowledgmentType(userId, TYPE_INTEREST_AND_ACCEPTANCE)
                     .stream()
                     .findFirst()
                     .orElseGet(() -> persist(user, req, httpRequest));
+            // Phase 1C self-heal: markStepComplete is idempotent (unconditional
+            // setter, pct recompute, save). Re-firing on already-complete users is
+            // safe. Fixes the historical bug where this branch skipped the flag.
+            profileCompletionService.markStepComplete(user, "ACKNOWLEDGMENT");
+            return existing;
         }
 
         // ── Validate ────────────────────────────────────────────────
