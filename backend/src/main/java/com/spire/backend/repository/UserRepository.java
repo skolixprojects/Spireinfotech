@@ -50,4 +50,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
     );
 
     List<User> findByCurrentStatus(String currentStatus);
+
+    // ── Referral queue (Prompt 4) ─────────────────────────────────
+    List<User> findByPipelineAndReferralStatusOrderByCreatedAtAsc(
+            String pipeline, String referralStatus);
+    long countByPipelineAndReferralStatus(String pipeline, String referralStatus);
+    long countByPipelineAndReferralStatusAndReferralReviewedAtAfter(
+            String pipeline, String referralStatus, LocalDateTime cutoff);
 }

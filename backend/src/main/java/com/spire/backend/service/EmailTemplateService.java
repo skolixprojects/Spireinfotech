@@ -176,6 +176,25 @@ public class EmailTemplateService {
                 wrap("Profile complete!", body));
     }
 
+    // ── Referral approval (Prompt 4) ────────────────────────────────
+    /**
+     * Sent when an ERM approves a REFERENCE-pipeline signup. The user
+     * has been sitting on /referral-pending and needs to know to come
+     * back and finish the six-step profile flow.
+     */
+    public void sendReferralApprovedEmail(User user) {
+        String first = firstName(user);
+        String body = p("Hi " + escape(first) + ",")
+                + p("Good news — your referral has been approved. "
+                        + "Log back in to " + brandName() + " to complete the remaining "
+                        + "profile steps and get started.")
+                + button("Log in", appUrl + "/login")
+                + muted("— " + brandName() + "");
+        emailService.sendEmail(user.getEmail(),
+                "Your " + brandName() + " referral is approved",
+                wrap("Referral approved", body));
+    }
+
     // ── 12. Weekly report reminder (Phase 5A — Mondays) ─────────────
     /**
      * Monday nudge for participants in WEEKLY_REPORTING_ACTIVE who

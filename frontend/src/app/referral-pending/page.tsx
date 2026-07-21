@@ -11,20 +11,47 @@ import { routeAfterAuth } from "@/lib/api";
 
 /**
  * Holding page for pipeline=REFERENCE users after they submit their
- * attribution. The ERM approves or rejects from the ERM dashboard
- * (wiring in Prompt 4). Until then:
+ * attribution. The ERM approves or rejects from the Referrals tab.
  *   - APPROVED → routeAfterAuth → /dashboard
  *   - REJECTED → routeAfterAuth → /login (account is dropped)
  *   - anything else non-REFERENCE-PENDING → routeAfterAuth handles it
  *
- * Manual "Check status" refresh + Log out are the only user actions.
- * (Auto-advance polling to be tightened in the ERM prompt.)
+ * Polls every 15s so an approved user advances without manual action.
+ * If a poll reveals the account was rejected (or the /me fetch fails
+ * because the account was dropped), the session is cleared and the
+ * user is sent to /login.
  */
+const POLL_INTERVAL_MS = 15_000;
+
 export default function ReferralPendingPage() {
   const router = useRouter();
   const { user, isLoading, isAuthenticated, refreshUser, logout } = useAuth();
 
   const [refreshing, setRefreshing] = useState(false);
+
+  // Shared re-route logic used by mount, manual check, and the poll.
+  // Returns true if the caller should stop polling (already navigated).
+  const evaluateAndRoute = async (): Promise<boolean> => {
+    const fresh = await refreshUser();
+    if (!fresh) {
+      // /me returned null — token invalid or account dropped. Clear
+      // the session and bounce to login; router.replace alone won't
+      // do it because the auth-context still holds the stale user.
+      logout();
+      return true;
+    }
+    if (fresh.referralStatus === "REJECTED"
+        || fresh.isActive === false) {
+      logout();
+      return true;
+    }
+    const target = routeAfterAuth(fresh);
+    if (target !== "/referral-pending") {
+      router.replace(target);
+      return true;
+    }
+    return false;
+  };
 
   useEffect(() => {
     if (isLoading) return;
@@ -33,25 +60,32 @@ export default function ReferralPendingPage() {
       return;
     }
     if (!user) return;
-    // On mount, pull a fresh profile so late-arriving ERM decisions
-    // surface immediately.
+
     let cancelled = false;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
     (async () => {
-      const fresh = await refreshUser();
-      if (cancelled) return;
-      const target = routeAfterAuth(fresh ?? user);
-      if (target !== "/referral-pending") router.replace(target);
+      // Initial evaluation on mount.
+      const done = await evaluateAndRoute();
+      if (cancelled || done) return;
+      // Gentle poll so an approved user advances without user action.
+      timer = setInterval(async () => {
+        const finished = await evaluateAndRoute();
+        if (finished && timer) { clearInterval(timer); timer = null; }
+      }, POLL_INTERVAL_MS);
     })();
-    return () => { cancelled = true; };
+
+    return () => {
+      cancelled = true;
+      if (timer) clearInterval(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoading, isAuthenticated]);
 
   const handleCheck = async () => {
     setRefreshing(true);
     try {
-      const fresh = await refreshUser();
-      const target = routeAfterAuth(fresh ?? user);
-      if (target !== "/referral-pending") router.replace(target);
+      await evaluateAndRoute();
     } finally {
       setRefreshing(false);
     }

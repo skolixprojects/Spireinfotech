@@ -22,6 +22,8 @@ export interface RoleDashboardTab {
   id: string;
   label: string;
   Icon: LucideIcon;
+  /** Optional numeric badge shown next to the label (hidden if 0/undefined). */
+  badge?: number;
 }
 
 export function RoleDashboardShell({
@@ -61,6 +63,7 @@ export function RoleDashboardShell({
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
         {tabs.map((t) => {
           const isActive = active === t.id;
+          const showBadge = typeof t.badge === "number" && t.badge > 0;
           return (
             <button key={t.id} onClick={() => onSelect(t.id)}
               className={
@@ -71,7 +74,15 @@ export function RoleDashboardShell({
               }
             >
               <t.Icon size={14} />
-              <span className="truncate">{t.label}</span>
+              <span className="truncate flex-1 text-left">{t.label}</span>
+              {showBadge && (
+                <span className={
+                  "text-[10px] font-bold px-1.5 py-0.5 rounded-full "
+                  + (isActive ? "bg-white text-[#0F766E]" : "bg-amber-200 text-amber-900")
+                }>
+                  {t.badge}
+                </span>
+              )}
             </button>
           );
         })}

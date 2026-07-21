@@ -1296,6 +1296,56 @@ export async function addErmNote(
   return wrapper.data;
 }
 
+// ─── ERM referral review (Prompt 4) ──────────────────────────────
+
+export interface ReferralQueueRow {
+  userId: number;
+  fullName: string | null;
+  email: string | null;
+  referralSource: string | null;
+  createdAt: string | null;
+  emailVerified: boolean;
+}
+
+export interface ReferralStats {
+  pending: number;
+  approvedThisWeek: number;
+  rejected: number;
+}
+
+export interface ReferralQueue {
+  stats: ReferralStats;
+  pending: ReferralQueueRow[];
+}
+
+export interface ReferralReviewResult {
+  success: boolean;
+  alreadyReviewed: boolean;
+  userId: number;
+  referralStatus: string;
+  email: string | null;
+  fullName: string | null;
+}
+
+export async function getReferralQueue(): Promise<ReferralQueue> {
+  const wrapper = await apiFetch<ApiResponse<ReferralQueue>>("/api/erm/referrals");
+  return wrapper.data ?? { stats: { pending: 0, approvedThisWeek: 0, rejected: 0 }, pending: [] };
+}
+
+export async function approveReferral(userId: number, note?: string): Promise<ReferralReviewResult> {
+  const wrapper = await apiFetch<ApiResponse<ReferralReviewResult>>(
+    `/api/erm/referrals/${userId}/approve`,
+    { method: "PUT", body: JSON.stringify({ note: note ?? "" }) });
+  return wrapper.data;
+}
+
+export async function rejectReferral(userId: number, note?: string): Promise<ReferralReviewResult> {
+  const wrapper = await apiFetch<ApiResponse<ReferralReviewResult>>(
+    `/api/erm/referrals/${userId}/reject`,
+    { method: "PUT", body: JSON.stringify({ note: note ?? "" }) });
+  return wrapper.data;
+}
+
 // ─── Phase 5B: Finance dashboard ─────────────────────────────────
 
 export interface FinanceCheckRow {

@@ -83,8 +83,15 @@ export default function DashboardPage() {
         return;
       }
 
-      if (status && !isDashboardStatus(status)) {
-        // Mid-onboarding — route to the matching step.
+      // Legacy status-bounce (getOnboardingRoute) is retired for
+      // users with a pipeline — routeAfterAuth above is authoritative
+      // and correctly routes APPROVED reference users to the
+      // in-dashboard checklist instead of a step page (they sit at
+      // ID_EMAIL_SENT status forever, which the legacy path would
+      // wrongly interpret as mid-onboarding). Only null-pipeline
+      // rows still fall through to the legacy path, effectively
+      // dead post-backfill but safe.
+      if (!currentUser.pipeline && status && !isDashboardStatus(status)) {
         router.replace(getOnboardingRoute(status));
         return;
       }

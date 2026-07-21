@@ -278,8 +278,21 @@ public class User {
     /**
      * PENDING | APPROVED | REJECTED. Set only for REFERENCE users;
      * DIRECT users stay null here. ERM approves or rejects from the
-     * ERM dashboard (wiring in Prompt 4).
+     * Referrals tab on the ERM dashboard.
      */
     @Column(name = "referral_status", length = 16)
     private String referralStatus;
+
+    // ── Referral review audit (Prompt 4) ────────────────────────────
+    // Stamped when an ERM approves or rejects the referral. Backs the
+    // "approved this week" stat + a light audit trail alongside the
+    // full user_records entry RecordService writes on every review.
+
+    /** When the ERM approved or rejected. Null until reviewed. */
+    @Column(name = "referral_reviewed_at")
+    private LocalDateTime referralReviewedAt;
+
+    /** userId of the ERM who reviewed the referral. Null until reviewed. */
+    @Column(name = "referral_reviewed_by")
+    private Long referralReviewedBy;
 }

@@ -51,6 +51,7 @@ public class ErmService {
     private final WeeklyReportRepository weeklyReportRepository;
     private final UserRecordRepository userRecordRepository;
     private final RecordService recordService;
+    private final EmailTemplateService emailTemplateService;
 
     /** Roster — participants assigned to this ERM. */
     @Transactional(readOnly = true)
@@ -203,5 +204,144 @@ public class ErmService {
             throw new UnauthorizedException(
                     "You are not the assigned ERM for this participant.");
         }
+    }
+
+    // ── Referral review (Prompt 4) ────────────────────────────────
+    //
+    // The referral queue is a GLOBAL shared work list — any ERM sees
+    // all pending referrals and first-to-review wins. Assignment of
+    // an ERM to the participant happens later via the onboarding
+    // chain (post-profileComplete), not here.
+
+    /** Queue snapshot: stats + pending rows in oldest-first order. */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getReferralQueue() {
+        List<Map<String, Object>> pending = userRepository
+                .findByPipelineAndReferralStatusOrderByCreatedAtAsc("REFERENCE", "PENDING")
+                .stream()
+                .map(u -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("userId", u.getId());
+                    row.put("fullName", u.getFullName());
+                    row.put("email", u.getEmail());
+                    row.put("referralSource", u.getReferralSource());
+                    row.put("createdAt", u.getCreatedAt());
+                    row.put("emailVerified", Boolean.TRUE.equals(u.getEmailVerified()));
+                    return row;
+                })
+                .toList();
+
+        long pendingCount = userRepository
+                .countByPipelineAndReferralStatus("REFERENCE", "PENDING");
+        long rejectedCount = userRepository
+                .countByPipelineAndReferralStatus("REFERENCE", "REJECTED");
+        long approvedThisWeek = userRepository
+                .countByPipelineAndReferralStatusAndReferralReviewedAtAfter(
+                        "REFERENCE", "APPROVED", LocalDateTime.now().minusDays(7));
+
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("pending", pendingCount);
+        stats.put("approvedThisWeek", approvedThisWeek);
+        stats.put("rejected", rejectedCount);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("stats", stats);
+        out.put("pending", pending);
+        return out;
+    }
+
+    /**
+     * Flips the referral PENDING → APPROVED. Does NOT run the
+     * onboarding chain and does NOT transition the workflow to
+     * DASHBOARD_ENABLED — the user still owes the 6-step profile
+     * flow; completeOnboarding fires on its own when they hit
+     * profileComplete (existing Phase-1C behavior).
+     *
+     * Idempotent-guarded: if the target is no longer PENDING, returns
+     * an "already reviewed" result rather than double-processing.
+     */
+    @Transactional
+    public Map<String, Object> approveReferral(Long ermUserId, Long targetUserId, String note) {
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", targetUserId));
+
+        if (!"PENDING".equals(target.getReferralStatus())) {
+            return alreadyReviewed(target);
+        }
+
+        target.setReferralStatus("APPROVED");
+        target.setReferralReviewedBy(ermUserId);
+        target.setReferralReviewedAt(LocalDateTime.now());
+        User saved = userRepository.save(target);
+
+        try {
+            recordService.record(saved.getId(), "REFERRAL_APPROVED",
+                    RecordService.Category.ACCOUNT,
+                    "Referral approved",
+                    "ERM " + ermUserId + " approved the referral",
+                    Map.of(
+                            "reviewedBy", ermUserId,
+                            "note", note == null ? "" : note
+                    ));
+        } catch (Exception ignored) { /* audit best-effort */ }
+
+        try {
+            emailTemplateService.sendReferralApprovedEmail(saved);
+        } catch (Exception ignored) { /* mailer best-effort */ }
+
+        return reviewResult(saved, "APPROVED", false);
+    }
+
+    /**
+     * Rejects a pending referral. Reuses the existing soft-delete
+     * surface (isActive=false + deactivatedAt) so the account is
+     * genuinely dropped — the login path's active-account check
+     * blocks re-entry. No rejection email is sent.
+     */
+    @Transactional
+    public Map<String, Object> rejectReferral(Long ermUserId, Long targetUserId, String note) {
+        User target = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", targetUserId));
+
+        if (!"PENDING".equals(target.getReferralStatus())) {
+            return alreadyReviewed(target);
+        }
+
+        target.setReferralStatus("REJECTED");
+        target.setReferralReviewedBy(ermUserId);
+        target.setReferralReviewedAt(LocalDateTime.now());
+        target.setIsActive(false);
+        target.setDeactivatedAt(LocalDateTime.now());
+        User saved = userRepository.save(target);
+
+        try {
+            recordService.record(saved.getId(), "REFERRAL_REJECTED",
+                    RecordService.Category.ACCOUNT,
+                    "Referral rejected",
+                    "ERM " + ermUserId + " rejected the referral; account soft-deleted",
+                    Map.of(
+                            "rejectedBy", ermUserId,
+                            "note", note == null ? "" : note
+                    ));
+        } catch (Exception ignored) { /* audit best-effort */ }
+
+        return reviewResult(saved, "REJECTED", false);
+    }
+
+    private Map<String, Object> alreadyReviewed(User target) {
+        return reviewResult(target,
+                target.getReferralStatus() == null ? "" : target.getReferralStatus(),
+                true);
+    }
+
+    private Map<String, Object> reviewResult(User target, String finalStatus, boolean alreadyReviewed) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("success", true);
+        out.put("alreadyReviewed", alreadyReviewed);
+        out.put("userId", target.getId());
+        out.put("referralStatus", finalStatus);
+        out.put("email", target.getEmail());
+        out.put("fullName", target.getFullName());
+        return out;
     }
 }

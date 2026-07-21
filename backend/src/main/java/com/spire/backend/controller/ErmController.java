@@ -28,6 +28,41 @@ public class ErmController {
     private final ErmService ermService;
     private final EmploymentService employmentService;
 
+    // ── Referral review (Prompt 4) ────────────────────────────────
+    //
+    // Global shared queue — any ERM sees all pending REFERENCE
+    // signups; first-to-review wins. Approve unlocks the 6-step
+    // profile flow (does not shortcut it); reject soft-deletes.
+
+    @GetMapping("/referrals")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> referralQueue() {
+        return ResponseEntity.ok(ApiResponse.success(ermService.getReferralQueue()));
+    }
+
+    @PutMapping("/referrals/{userId}/approve")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> approveReferral(
+            @PathVariable Long userId,
+            @RequestBody(required = false) Map<String, Object> body,
+            Authentication auth) {
+        Long me = Long.parseLong(auth.getPrincipal().toString());
+        Object noteRaw = body == null ? null : body.get("note");
+        String note = noteRaw == null ? "" : noteRaw.toString();
+        Map<String, Object> result = ermService.approveReferral(me, userId, note);
+        return ResponseEntity.ok(ApiResponse.success("Referral approved", result));
+    }
+
+    @PutMapping("/referrals/{userId}/reject")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> rejectReferral(
+            @PathVariable Long userId,
+            @RequestBody(required = false) Map<String, Object> body,
+            Authentication auth) {
+        Long me = Long.parseLong(auth.getPrincipal().toString());
+        Object noteRaw = body == null ? null : body.get("note");
+        String note = noteRaw == null ? "" : noteRaw.toString();
+        Map<String, Object> result = ermService.rejectReferral(me, userId, note);
+        return ResponseEntity.ok(ApiResponse.success("Referral rejected", result));
+    }
+
     @GetMapping("/participants")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> roster(Authentication auth) {
         Long me = Long.parseLong(auth.getPrincipal().toString());

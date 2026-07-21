@@ -3,19 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  AlertCircle, Briefcase, CheckCircle2, ClipboardList, FileText,
-  Loader2, MessageSquare, Send, Settings, Target, Users,
+  AlertCircle, Briefcase, Check, CheckCircle2, ClipboardList, FileText,
+  Loader2, MessageSquare, Search, Send, Settings, Target, UserCheck,
+  Users, X as XIcon,
 } from "lucide-react";
 
 import { RoleDashboardShell, type RoleDashboardTab }
   from "@/components/dashboard/RoleDashboardShell";
+import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "@/lib/auth-context";
 import {
-  addErmNote, approvePhase1, getErmParticipantDetail,
-  getErmPendingEmployment, getErmPendingPhaseApprovals, getErmReports,
-  getErmRoster, reviewErmReport, verifyEmployment,
+  addErmNote, approvePhase1, approveReferral,
+  getErmParticipantDetail, getErmPendingEmployment,
+  getErmPendingPhaseApprovals, getErmReports, getErmRoster,
+  getReferralQueue, rejectReferral, reviewErmReport, verifyEmployment,
   type ErmPendingEmploymentRow, type ErmPendingPhaseRow,
-  type ErmRosterRow, type WeeklyReportDTO,
+  type ErmRosterRow, type ReferralQueue, type ReferralQueueRow,
+  type WeeklyReportDTO,
 } from "@/lib/api";
 
 /**
@@ -34,26 +38,26 @@ import {
  */
 
 type TabId =
-  | "home" | "reports" | "comms" | "interviews"
+  | "referrals" | "home" | "reports" | "comms" | "interviews"
   | "employment" | "phase1" | "profile";
-
-const TABS: ReadonlyArray<RoleDashboardTab> = [
-  { id: "home",       label: "My Participants",  Icon: Users },
-  { id: "reports",    label: "Weekly Reports",   Icon: ClipboardList },
-  { id: "comms",      label: "Communications",   Icon: MessageSquare },
-  { id: "interviews", label: "Interviews",       Icon: Target },
-  { id: "employment", label: "Employment",       Icon: Briefcase },
-  { id: "phase1",     label: "Phase 1",          Icon: CheckCircle2 },
-  { id: "profile",    label: "Profile",          Icon: Settings },
-];
 
 export default function ErmDashboardPage() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
-  const [active, setActive] = useState<TabId>("home");
+  const [active, setActive] = useState<TabId>("referrals");
   const [roster, setRoster] = useState<ErmRosterRow[]>([]);
+  const [referralQueue, setReferralQueue] = useState<ReferralQueue | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const refreshReferrals = async () => {
+    try {
+      const q = await getReferralQueue();
+      setReferralQueue(q);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't load referrals");
+    }
+  };
 
   useEffect(() => {
     if (isLoading) return;
@@ -63,12 +67,28 @@ export default function ErmDashboardPage() {
       return;
     }
     let cancelled = false;
-    getErmRoster()
-      .then((r) => { if (!cancelled) setRoster(r); })
-      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Couldn't load roster"); })
+    Promise.allSettled([getErmRoster(), getReferralQueue()])
+      .then(([rosterRes, queueRes]) => {
+        if (cancelled) return;
+        if (rosterRes.status === "fulfilled") setRoster(rosterRes.value);
+        else setError(rosterRes.reason instanceof Error ? rosterRes.reason.message : "Couldn't load roster");
+        if (queueRes.status === "fulfilled") setReferralQueue(queueRes.value);
+      })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [isLoading, user, router]);
+
+  const TABS: ReadonlyArray<RoleDashboardTab> = [
+    { id: "referrals",  label: "Referrals",        Icon: UserCheck,
+      badge: referralQueue?.stats.pending ?? 0 },
+    { id: "home",       label: "My Participants",  Icon: Users },
+    { id: "reports",    label: "Weekly Reports",   Icon: ClipboardList },
+    { id: "comms",      label: "Communications",   Icon: MessageSquare },
+    { id: "interviews", label: "Interviews",       Icon: Target },
+    { id: "employment", label: "Employment",       Icon: Briefcase },
+    { id: "phase1",     label: "Phase 1",          Icon: CheckCircle2 },
+    { id: "profile",    label: "Profile",          Icon: Settings },
+  ];
 
   if (isLoading || loading) {
     return <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">
@@ -86,6 +106,9 @@ export default function ErmDashboardPage() {
           <AlertCircle size={14} /> {error}
         </p>
       )}
+      {active === "referrals" && (
+        <ReferralsTab queue={referralQueue} onRefresh={refreshReferrals} />
+      )}
       {active === "home" && <RosterTab roster={roster} />}
       {active === "reports" && <ReportsTab />}
       {active === "comms" && <CommsTab roster={roster} />}
@@ -97,6 +120,288 @@ export default function ErmDashboardPage() {
         link={{ label: "Open profile", href: "/profile" }} />}
     </RoleDashboardShell>
   );
+}
+
+/* ── Referrals tab ────────────────────────────────────────────── */
+
+function ReferralsTab({ queue, onRefresh }: {
+  queue: ReferralQueue | null;
+  onRefresh: () => Promise<void>;
+}) {
+  const { toast } = useToast();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState<"approve" | "reject" | null>(null);
+  const [search, setSearch] = useState("");
+
+  const pending = queue?.pending ?? [];
+  const stats = queue?.stats ?? { pending: 0, approvedThisWeek: 0, rejected: 0 };
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return pending;
+    return pending.filter((r) =>
+      (r.fullName ?? "").toLowerCase().includes(q)
+      || (r.email ?? "").toLowerCase().includes(q));
+  }, [pending, search]);
+
+  // Auto-select the top row when the queue lands (or the selection is gone).
+  useEffect(() => {
+    if (selectedId != null && pending.some((r) => r.userId === selectedId)) return;
+    setSelectedId(filtered[0]?.userId ?? null);
+    setNote("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queue]);
+
+  const selected = pending.find((r) => r.userId === selectedId) ?? null;
+
+  const handleReview = async (action: "approve" | "reject") => {
+    if (!selected || busy) return;
+    setBusy(action);
+    try {
+      const fn = action === "approve" ? approveReferral : rejectReferral;
+      const result = await fn(selected.userId, note.trim() || undefined);
+      if (result.alreadyReviewed) {
+        toast("info", "Another ERM already reviewed this referral.");
+      } else {
+        toast(
+          action === "approve" ? "success" : "info",
+          action === "approve"
+            ? `Approved ${selected.fullName ?? selected.email ?? "referral"}`
+            : `Rejected ${selected.fullName ?? selected.email ?? "referral"}`
+        );
+      }
+      setSelectedId(null);
+      setNote("");
+      await onRefresh();
+    } catch (e) {
+      toast("error", e instanceof Error ? e.message : "Review failed");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="font-serif text-2xl font-bold text-gray-900">Referrals</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Approve unlocks the participant&apos;s onboarding steps. Reject drops the account.
+        </p>
+      </div>
+
+      {/* Stat strip */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Stat label="Pending" value={stats.pending} accent="amber" />
+        <Stat label="Approved this week" value={stats.approvedThisWeek} accent="emerald" />
+        <Stat label="Rejected" value={stats.rejected} accent="rose" />
+      </div>
+
+      {/* Two-pane */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,360px)_1fr] gap-4">
+        {/* Queue */}
+        <div className="rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden flex flex-col min-h-[480px]">
+          <div className="p-3 border-b border-gray-100">
+            <div className="relative">
+              <Search size={13}
+                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search name or email"
+                className="w-full pl-7 pr-2.5 py-1.5 text-xs rounded-md border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E]"
+              />
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-gray-400 italic px-4 py-6 text-center">
+                {pending.length === 0
+                  ? "No pending referrals."
+                  : "No matches for that search."}
+              </p>
+            ) : filtered.map((r) => {
+              const isSel = r.userId === selectedId;
+              return (
+                <button
+                  key={r.userId}
+                  type="button"
+                  onClick={() => { setSelectedId(r.userId); setNote(""); }}
+                  className={
+                    "w-full text-left px-3 py-2.5 flex items-start gap-2.5 transition cursor-pointer "
+                    + (isSel ? "bg-[#f0fdf9] border-l-2 border-l-[#0F766E]"
+                             : "hover:bg-gray-50 border-l-2 border-l-transparent")
+                  }
+                >
+                  <Avatar name={r.fullName ?? r.email ?? "?"} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">
+                      {r.fullName ?? "(no name)"}
+                    </p>
+                    <p className="text-[11px] text-gray-500 truncate">{r.email}</p>
+                    <p className="text-[10px] text-gray-400 mt-0.5">
+                      submitted {formatAgo(r.createdAt)}
+                    </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Detail panel */}
+        <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-5 min-h-[480px]">
+          {!selected ? (
+            <div className="h-full flex flex-col items-center justify-center text-center py-10">
+              <UserCheck size={28} className="text-gray-300 mb-2" />
+              <p className="text-sm text-gray-500">
+                {pending.length === 0
+                  ? "No referrals to review right now."
+                  : "Select a referral from the queue to review."}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <Avatar name={selected.fullName ?? selected.email ?? "?"} size="lg" />
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-serif text-lg font-bold text-gray-900 truncate">
+                    {selected.fullName ?? "(no name)"}
+                  </h2>
+                  <p className="text-xs text-gray-500 truncate">{selected.email}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-violet-100 text-violet-700">
+                      Reference
+                    </span>
+                    {selected.emailVerified && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-700">
+                        <CheckCircle2 size={9} /> Email verified
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-4 text-sm">
+                <DetailRow label="Signed up" value={formatDate(selected.createdAt)} />
+                <DetailRow label="Email verified"
+                  value={selected.emailVerified ? "Yes" : "No"} />
+              </dl>
+
+              <div>
+                <label className="block text-[11px] uppercase tracking-wider font-semibold text-gray-500 mb-1">
+                  Verification notes (optional)
+                </label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={3}
+                  placeholder="Add context for the audit log — how you verified, who referred, etc."
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E]"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => handleReview("approve")}
+                  disabled={busy !== null}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm hover:shadow-md transition disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {busy === "approve"
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <Check size={14} />}
+                  {busy === "approve" ? "Approving…" : "Approve"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleReview("reject")}
+                  disabled={busy !== null}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-bold bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow-md transition disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {busy === "reject"
+                    ? <Loader2 size={14} className="animate-spin" />
+                    : <XIcon size={14} />}
+                  {busy === "reject" ? "Rejecting…" : "Reject"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, accent }: {
+  label: string;
+  value: number;
+  accent: "amber" | "emerald" | "rose";
+}) {
+  const bar =
+    accent === "amber" ? "bg-amber-500" :
+    accent === "emerald" ? "bg-emerald-500" :
+    "bg-rose-500";
+  return (
+    <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-4 relative overflow-hidden">
+      <span className={"absolute left-0 top-0 bottom-0 w-1 " + bar} />
+      <p className="text-[11px] uppercase tracking-wider font-semibold text-gray-500 ml-2">
+        {label}
+      </p>
+      <p className="text-3xl font-bold text-gray-900 mt-1 ml-2">{value}</p>
+    </div>
+  );
+}
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[10px] uppercase tracking-wider font-semibold text-gray-500">
+        {label}
+      </dt>
+      <dd className="text-sm text-gray-800 mt-0.5">{value}</dd>
+    </div>
+  );
+}
+
+function Avatar({ name, size = "md" }: { name: string; size?: "md" | "lg" }) {
+  const initials = name.trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+  const cls = size === "lg" ? "w-11 h-11 text-sm" : "w-8 h-8 text-[11px]";
+  return (
+    <div className={
+      "shrink-0 rounded-full bg-[#0F766E] text-white flex items-center justify-center font-bold "
+      + cls
+    }>
+      {initials}
+    </div>
+  );
+}
+
+function formatAgo(iso: string | null | undefined): string {
+  if (!iso) return "recently";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "recently";
+  const diffMs = Date.now() - t;
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return `${Math.floor(days / 7)}w ago`;
+}
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return "—";
+  return new Date(t).toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit",
+  });
 }
 
 /* ── Roster + detail ─────────────────────────────────────────── */
