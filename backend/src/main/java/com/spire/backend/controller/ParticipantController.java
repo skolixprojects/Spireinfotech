@@ -74,7 +74,6 @@ public class ParticipantController {
     private final com.spire.backend.service.ParticipantDashboardService participantDashboardService;
     private final com.spire.backend.service.WeeklyReportService weeklyReportService;
     private final com.spire.backend.service.ErmAssignmentService ermAssignmentService;
-    private final com.spire.backend.service.CoachAssignmentService coachAssignmentService;
     private final com.spire.backend.service.EmploymentService employmentService;
     private final com.spire.backend.service.PaymentService paymentService;
     private final com.spire.backend.service.CheckTrackingService checkTrackingService;
@@ -450,7 +449,7 @@ public class ParticipantController {
                 participantDashboardService.snapshot(userId)));
     }
 
-    /** Team contact cards — ERM + four coach roles. */
+    /** Team contact card — ERM contact card. */
     @GetMapping("/team")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getTeam(Authentication auth) {
@@ -463,7 +462,6 @@ public class ParticipantController {
             erm.put("bio", e.getBio());
             out.put("erm", erm);
         });
-        out.put("coaches", coachAssignmentService.getAssignedCoaches(userId));
         return ResponseEntity.ok(ApiResponse.success(out));
     }
 

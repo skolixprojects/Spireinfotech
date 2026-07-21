@@ -65,7 +65,6 @@ public class ParticipantDashboardService {
     private final UserRecordRepository userRecordRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final ErmAssignmentService ermAssignmentService;
-    private final CoachAssignmentService coachAssignmentService;
     private final WorkflowService workflowService;
 
     @Transactional(readOnly = true)
@@ -106,7 +105,6 @@ public class ParticipantDashboardService {
             team.put("ermName", e.getFullName());
             team.put("ermEmail", e.getEmail());
         });
-        team.put("coaches", coachAssignmentService.getAssignedCoaches(userId));
         out.put("team", team);
 
         // Recent activity (last 5 user_records). Newest first.
@@ -164,7 +162,6 @@ public class ParticipantDashboardService {
             case "WELCOME_SENT" -> 11;
             case "DEEPTHI_INTRO_SENT" -> 12;
             case "ERM_ASSIGNED" -> 13;
-            case "COACHES_ASSIGNED" -> 14;
             case "DASHBOARD_ENABLED" -> 15;
             case "WEEKLY_REPORTING_ACTIVE" -> 16;
             case "EMPLOYMENT_ACCEPTED" -> 17;

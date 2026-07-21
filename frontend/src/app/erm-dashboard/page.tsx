@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle, Briefcase, CheckCircle2, ClipboardList, FileText,
-  Loader2, MessageSquare, Send, Settings, Target, Users, GraduationCap,
+  Loader2, MessageSquare, Send, Settings, Target, Users,
 } from "lucide-react";
 
 import { RoleDashboardShell, type RoleDashboardTab }
@@ -35,7 +35,7 @@ import {
 
 type TabId =
   | "home" | "reports" | "comms" | "interviews"
-  | "employment" | "phase1" | "coaches" | "profile";
+  | "employment" | "phase1" | "profile";
 
 const TABS: ReadonlyArray<RoleDashboardTab> = [
   { id: "home",       label: "My Participants",  Icon: Users },
@@ -44,7 +44,6 @@ const TABS: ReadonlyArray<RoleDashboardTab> = [
   { id: "interviews", label: "Interviews",       Icon: Target },
   { id: "employment", label: "Employment",       Icon: Briefcase },
   { id: "phase1",     label: "Phase 1",          Icon: CheckCircle2 },
-  { id: "coaches",    label: "Coaches",          Icon: GraduationCap },
   { id: "profile",    label: "Profile",          Icon: Settings },
 ];
 
@@ -93,7 +92,6 @@ export default function ErmDashboardPage() {
       {active === "interviews" && <InterviewsTab />}
       {active === "employment" && <EmploymentTab />}
       {active === "phase1" && <Phase1Tab />}
-      {active === "coaches" && <CoachesTab roster={roster} />}
       {active === "profile" && <Placeholder title="Profile"
         copy="Edit your ERM profile from the standard profile page."
         link={{ label: "Open profile", href: "/profile" }} />}
@@ -197,7 +195,6 @@ function DetailPanel({ detail, onClose }: {
   const agreement = detail.agreement as Record<string, string> | undefined;
   const documents = (detail.documents as Array<Record<string, unknown>>) ?? [];
   const reports = (detail.reports as Array<Record<string, unknown>>) ?? [];
-  const coaches = (detail.coaches as Array<Record<string, string>>) ?? [];
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -251,22 +248,6 @@ function DetailPanel({ detail, onClose }: {
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700 ml-auto">
                   {String(r.status)}
                 </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </DetailBlock>
-
-      <DetailBlock title="Coach team">
-        {coaches.length === 0 ? (
-          <p className="text-xs text-gray-400 italic">No coaches assigned.</p>
-        ) : (
-          <ul className="text-xs space-y-1">
-            {coaches.map((c, idx) => (
-              <li key={idx} className="flex items-center gap-2">
-                <span className="font-semibold">{c.coachRole}</span>
-                <span className="text-gray-700">— {c.name || "Unassigned"}</span>
-                {c.email && <span className="text-gray-400 ml-auto">{c.email}</span>}
               </li>
             ))}
           </ul>
@@ -711,30 +692,6 @@ function InterviewsTab() {
         interview-training section. Use the Weekly Reports tab to drill in
         per participant.
       </p>
-    </div>
-  );
-}
-
-/* ── Coaches tab ─────────────────────────────────────────────── */
-
-function CoachesTab({ roster }: { roster: ErmRosterRow[] }) {
-  return (
-    <div className="space-y-4">
-      <h1 className="font-serif text-2xl font-bold text-gray-900">Coach assignments</h1>
-      <p className="text-sm text-gray-500">
-        Read-only view of which coaches are paired with each of your
-        participants. Open a participant from the My Participants tab to
-        see their full team.
-      </p>
-      <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden divide-y divide-gray-100">
-        {roster.map((r) => (
-          <div key={r.userId} className="px-4 py-2.5 text-sm flex items-center gap-3">
-            <span className="font-medium text-gray-900 flex-1 truncate">{r.fullName ?? "—"}</span>
-            <span className="font-mono text-xs text-gray-700">{r.participantId ?? "—"}</span>
-            <span className="text-xs text-gray-500">{r.program ?? "—"}</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 }

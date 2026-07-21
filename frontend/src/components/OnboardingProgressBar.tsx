@@ -74,7 +74,6 @@ export function stepFromStatus(status: string | null | undefined): number {
     case "WELCOME_SENT":
     case "DEEPTHI_INTRO_SENT":
     case "ERM_ASSIGNED":
-    case "COACHES_ASSIGNED":
       return 8;
     case "DASHBOARD_ENABLED":
     case "WEEKLY_REPORTING_ACTIVE":

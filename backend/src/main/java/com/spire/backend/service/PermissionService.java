@@ -2,7 +2,6 @@ package com.spire.backend.service;
 
 import com.spire.backend.entity.ErmAssignment;
 import com.spire.backend.entity.User;
-import com.spire.backend.repository.CoachAssignmentRepository;
 import com.spire.backend.repository.ErmAssignmentRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,9 +12,8 @@ import java.util.Set;
  * Centralised role-based access checks for Phase 1A resources.
  *
  * Backed by the participant-lifecycle role set (PARTICIPANT, ERM,
- * COACH, TECHNICAL_ADVISOR, OPERATIONS_ADMIN, FINANCE,
- * SYSTEM_ADMIN). Legacy role names are accepted for backward
- * compatibility:
+ * OPERATIONS_ADMIN, FINANCE, SYSTEM_ADMIN). Legacy role names are
+ * accepted for backward compatibility:
  *   STUDENT  → PARTICIPANT
  *   ADMIN    → OPERATIONS_ADMIN
  *   INSTRUCTOR / TRAINER are left untouched — they remain valid
@@ -38,7 +36,6 @@ public class PermissionService {
     );
 
     private final ErmAssignmentRepository ermAssignmentRepository;
-    private final CoachAssignmentRepository coachAssignmentRepository;
 
     /** Pulls the role name off a user with null-defence + uppercase. */
     public String roleOf(User user) {
@@ -71,22 +68,11 @@ public class PermissionService {
                 && assignment.getErmUserId().equals(viewer.getId());
     }
 
-    /** True when the viewer is one of the user's active coaches. */
-    public boolean isAssignedCoachFor(User viewer, User target) {
-        if (viewer == null || target == null) return false;
-        return coachAssignmentRepository
-                .findByUserIdAndStatus(target.getId(), "ACTIVE")
-                .stream()
-                .anyMatch(a -> a.getCoachUserId() != null
-                        && a.getCoachUserId().equals(viewer.getId()));
-    }
-
     // ── Resource-level gates ──────────────────────────────────────
 
     /**
      * Document vault — visible to the document owner, their assigned
-     * ERM, or any Operations Admin / System Admin. Coaches do NOT
-     * see ID documents by default.
+     * ERM, or any Operations Admin / System Admin.
      */
     public boolean canViewDocuments(User viewer, User target) {
         if (viewer == null || target == null) return false;

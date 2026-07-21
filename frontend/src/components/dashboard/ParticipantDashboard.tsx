@@ -322,8 +322,6 @@ function HomeTab({ data, team, userEmail, onJumpTo }: {
 }) {
   const firstName = (data.fullName ?? userEmail ?? "there").split(" ")[0];
   const progressPct = Math.round((data.roadmapStep / data.roadmapTotal) * 100);
-  const coaches = team?.coaches ?? {};
-  const coachEntries = Object.entries(coaches);
 
   return (
     <div className="space-y-5">
@@ -400,10 +398,6 @@ function HomeTab({ data, team, userEmail, onJumpTo }: {
       {/* Team summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         <SmallTeamCard role="ERM" name={team?.erm?.name ?? null} email={team?.erm?.email ?? null} />
-        {coachEntries.slice(0, 3).map(([label, name]) => (
-          <SmallTeamCard key={label} role={label}
-            name={name && name !== "Awaiting assignment" ? name : null} />
-        ))}
       </div>
 
       {/* Stats + recent activity */}
@@ -478,8 +472,7 @@ function SmallTeamCard({ role, name, email }: {
 
 /* ── Team tab ─────────────────────────────────────────────────── */
 
-function TeamTab({ team, data }: { team: ParticipantTeam | null; data: DashboardData }) {
-  const coaches = Object.entries(team?.coaches ?? {});
+function TeamTab({ team }: { team: ParticipantTeam | null; data: DashboardData }) {
   return (
     <div className="space-y-4">
       <h1 className="font-serif text-2xl font-bold text-gray-900">Your support team</h1>
@@ -491,25 +484,9 @@ function TeamTab({ team, data }: { team: ParticipantTeam | null; data: Dashboard
           name={team?.erm?.name ?? null}
           email={team?.erm?.email ?? null}
           subtitle="Primary communication owner — reviews your weekly reports and guides program execution." />
-        {coaches.map(([label, name]) => (
-          <BigTeamCard key={label} role={label}
-            name={name && name !== "Awaiting assignment" ? name : null}
-            subtitle={subtitleForRole(label, data.program?.skillset)} />
-        ))}
       </div>
     </div>
   );
-}
-
-function subtitleForRole(role: string, skillset?: string): string {
-  switch (role) {
-    case "Career Coach": return "General career guidance, job-market navigation.";
-    case "Resume Specialist": return "Resume edits, profile / LinkedIn optimisation.";
-    case "Technical Advisor":
-      return `Technical mentor — ${skillset ?? "matched to your skillset"}.`;
-    case "Interview Coach": return "Mock interviews, communication coaching.";
-    default: return "";
-  }
 }
 
 function BigTeamCard({ role, name, email, subtitle }: {

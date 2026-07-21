@@ -21,15 +21,13 @@ import java.util.Optional;
  *   1. Welcome email (Email #8) → WELCOME_SENT
  *   2. Coordinator intro (Email #9) → DEEPTHI_INTRO_SENT
  *   3. Pick + assign an ERM, email both sides (Email #10) → ERM_ASSIGNED
- *   4. Pick + assign coaches, email participant (Email #11) → COACHES_ASSIGNED
- *   5. Open the dashboard → DASHBOARD_ENABLED
+ *   4. Open the dashboard → DASHBOARD_ENABLED
  *
  * Every step is best-effort: an email outage doesn't roll back a
- * workflow transition, and a missing ERM / no-available-coach
- * scenario leaves the row pending without blocking the chain.
- * Gate 5 is enforced by skipping {@code DASHBOARD_ENABLED} if no
- * ERM exists yet — the participant stays on /welcome until an
- * admin manually assigns one, at which point the same chain re-runs.
+ * workflow transition, and a missing ERM scenario leaves the row
+ * pending without blocking the chain. The dashboard is enabled once
+ * ERM is assigned — the participant stays on /welcome until an admin
+ * manually assigns one, at which point the same chain re-runs.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,7 +37,6 @@ public class OnboardingService {
     private final WorkflowService workflowService;
     private final EmailTemplateService emailTemplateService;
     private final ErmAssignmentService ermAssignmentService;
-    private final CoachAssignmentService coachAssignmentService;
     private final ProgramSelectionRepository programSelectionRepository;
     private final RecordService recordService;
 
@@ -106,22 +103,17 @@ public class OnboardingService {
         // Step 3: ERM assignment
         boolean ermNow = ensureErm(user);
 
-        // Step 4: Coach assignment (independent of ERM — if no
-        // coaches available we still record the row).
-        boolean anyCoach = ensureCoaches(user);
-
-        // Step 5: Dashboard. Gate 5 — needs ERM + at least one
-        // coach. If either is missing, leave the workflow on the
-        // last-completed step so the welcome page keeps polling
-        // and surfaces the pending state.
-        if (ermNow && anyCoach) {
+        // Step 4: Dashboard. Enabled once ERM is assigned; if not,
+        // leave the workflow on the last-completed step so the welcome
+        // page keeps polling and surfaces the pending state.
+        if (ermNow) {
             if (!workflowService.isStatusAtLeast(user, WorkflowService.Status.DASHBOARD_ENABLED)) {
                 workflowService.transition(user,
                         WorkflowService.Status.DASHBOARD_ENABLED, "dashboard_enabled");
             }
         } else {
-            log.info("Dashboard NOT enabled yet for user {} — erm={} anyCoach={}",
-                    user.getId(), ermNow, anyCoach);
+            log.info("Dashboard NOT enabled yet for user {} — erm={}",
+                    user.getId(), ermNow);
         }
     }
 
@@ -132,20 +124,17 @@ public class OnboardingService {
         boolean welcome = workflowService.isStatusAtLeast(user, WorkflowService.Status.WELCOME_SENT);
         boolean coord = workflowService.isStatusAtLeast(user, WorkflowService.Status.DEEPTHI_INTRO_SENT);
         boolean erm = workflowService.isStatusAtLeast(user, WorkflowService.Status.ERM_ASSIGNED);
-        boolean coaches = workflowService.isStatusAtLeast(user, WorkflowService.Status.COACHES_ASSIGNED);
         boolean dashboard = workflowService.isStatusAtLeast(user, WorkflowService.Status.DASHBOARD_ENABLED);
         out.put("workflowStatus", user.getCurrentStatus());
         out.put("welcomeEmailSent", welcome);
         out.put("coordinatorIntroSent", coord);
         out.put("ermAssigned", erm);
-        out.put("coachesAssigned", coaches);
         out.put("dashboardReady", dashboard);
 
         ermAssignmentService.getAssignedErm(user.getId()).ifPresent(e -> {
             out.put("ermName", e.getFullName());
             out.put("ermEmail", e.getEmail());
         });
-        out.put("coaches", coachAssignmentService.getAssignedCoaches(user.getId()));
         return out;
     }
 
@@ -187,32 +176,4 @@ public class OnboardingService {
         return true;
     }
 
-    /** Assigns coaches across the four canonical roles, emails the
-     *  participant the team list (with "Awaiting assignment" for
-     *  any role we couldn't fill). Returns true when at least one
-     *  coach was assigned. */
-    private boolean ensureCoaches(User user) {
-        boolean alreadyAssigned = workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.COACHES_ASSIGNED);
-        if (alreadyAssigned && coachAssignmentService.hasAnyCoach(user.getId())) return true;
-
-        Map<String, String> outcome = coachAssignmentService.assignCoaches(user);
-        boolean anyAssigned = outcome.values().stream()
-                .anyMatch(v -> v != null && !v.equalsIgnoreCase("Awaiting assignment"));
-
-        if (anyAssigned) {
-            try {
-                emailTemplateService.sendCoachAssignmentEmail(user, outcome);
-            } catch (Exception e) {
-                log.warn("Coach assignment email failed: {}", e.getMessage());
-            }
-            workflowService.transition(user,
-                    WorkflowService.Status.COACHES_ASSIGNED, "coaches_assigned");
-        } else {
-            recordService.logAction(user.getId(), RecordService.Category.ACCOUNT,
-                    "Coach assignment pending",
-                    "No matching coaches available — left for manual assignment", null);
-        }
-        return anyAssigned;
-    }
 }

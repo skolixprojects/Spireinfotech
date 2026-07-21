@@ -44,9 +44,6 @@ export default function DashboardPage() {
       // Staff roles never render the participant dashboard.
       const role = (user.role ?? "").toUpperCase();
       if (role === "ERM") { router.replace("/erm-dashboard"); return; }
-      if (role === "COACH" || role === "TECHNICAL_ADVISOR") {
-        router.replace("/coach-dashboard"); return;
-      }
       if (role === "FINANCE") { router.replace("/finance-dashboard"); return; }
       if (role === "OPERATIONS_ADMIN" || role === "SYSTEM_ADMIN") {
         router.replace("/operations"); return;

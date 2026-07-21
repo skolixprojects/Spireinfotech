@@ -67,7 +67,7 @@ public class DataSeeder implements CommandLineRunner {
         // ADMIN as OPERATIONS_ADMIN via PermissionService's role
         // alias set. Idempotent, like the block above.
         String[] phase1aRoles = {
-                "PARTICIPANT", "ERM", "COACH", "TECHNICAL_ADVISOR",
+                "PARTICIPANT", "ERM",
                 "OPERATIONS_ADMIN", "FINANCE", "SYSTEM_ADMIN",
         };
         for (String name : phase1aRoles) {
@@ -566,36 +566,28 @@ public class DataSeeder implements CommandLineRunner {
     // instructor_id=NULL; honoring that would need a schema + entity change
     // (loosen nullable=false), which is out of scope for a seed-data task.
     /**
-     * Phase 4 — seed at least one ERM and one of each coach role so
-     * the OnboardingService can actually assign team members on a
-     * fresh deploy. All idempotent (existsByEmail short-circuits).
-     * Default password "spire-team-2026" — change in any production
-     * deploy via the admin panel.
+     * Phase 4 — seed at least one ERM so the OnboardingService can
+     * actually assign team members on a fresh deploy. Idempotent
+     * (existsByEmail short-circuits). Default password
+     * "spire-team-2026" — change in any production deploy via the
+     * admin panel.
      */
     private void seedPhase4Team() {
         Role ermRole = roleRepository.findByName("ERM").orElse(null);
-        Role coachRole = roleRepository.findByName("COACH").orElse(null);
-        Role techAdvisorRole = roleRepository.findByName("TECHNICAL_ADVISOR").orElse(null);
         Role financeRole = roleRepository.findByName("FINANCE").orElse(null);
         Role opsAdminRole = roleRepository.findByName("OPERATIONS_ADMIN").orElse(null);
-        if (ermRole == null || coachRole == null || techAdvisorRole == null) {
+        if (ermRole == null) {
             log.warn("Phase 4 roles missing — skipping seed");
             return;
         }
         String defaultPassword = passwordEncoder.encode("spire-team-2026");
 
-        // Legacy dev seeds — kept for back-compat with any tests /
-        // scripts that hard-coded these addresses. Default password
-        // is the shared "spire-team-2026"; production should rotate
+        // Legacy dev seed — kept for back-compat with any tests /
+        // scripts that hard-coded this address. Default password is
+        // the shared "spire-team-2026"; production should rotate
         // through the admin panel.
         seedTeamUser("deepthi.erm@spire.dev", "Deepthi R", ermRole, defaultPassword,
                 "Program coordinator and Employee Relationship Manager.");
-        seedTeamUser("arjun.coach@spire.dev", "Arjun Menon", coachRole, defaultPassword,
-                "Career coach — resume reviews, profile administration, job-market navigation.");
-        seedTeamUser("priya.tech@spire.dev", "Priya Sharma", techAdvisorRole, defaultPassword,
-                "Technical advisor — Java Full Stack, Python Full Stack, Cloud & DevOps.");
-        seedTeamUser("rahul.interview@spire.dev", "Rahul Kapoor", coachRole, defaultPassword,
-                "Interview coach — mock interviews, communication training.");
 
         // Production-style staff accounts — one per role, each with
         // a distinct password so credentials can be handed out
@@ -604,12 +596,6 @@ public class DataSeeder implements CommandLineRunner {
         seedTeamUser("erm@spireitco.com", "Deepthi R", ermRole,
                 passwordEncoder.encode("SpireERM@2026"),
                 "Employee Relationship Manager — primary participant point of contact.");
-        seedTeamUser("coach@spireitco.com", "Arjun Mehta", coachRole,
-                passwordEncoder.encode("SpireCoach@2026"),
-                "Career coach — resume, profile, interview prep.");
-        seedTeamUser("advisor@spireitco.com", "Priya Sharma", techAdvisorRole,
-                passwordEncoder.encode("SpireAdvisor@2026"),
-                "Technical advisor — Java, Python, Cloud & DevOps mentorship.");
         if (financeRole != null) {
             seedTeamUser("finance@spireitco.com", "Rahul Kumar", financeRole,
                     passwordEncoder.encode("SpireFinance@2026"),

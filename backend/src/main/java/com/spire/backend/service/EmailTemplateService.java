@@ -325,34 +325,6 @@ public class EmailTemplateService {
                 wrap("New participant assignment", body));
     }
 
-    // ── 13. Coach / advisor assignment (Phase 4 Step 14) ────────────
-    /**
-     * Sent after coaches have been assigned (or marked pending).
-     * Accepts a map keyed by role label ("Career Coach", "Technical
-     * Advisor", …) → coach display name. Roles with no available
-     * assignee can pass through with value "Awaiting assignment".
-     */
-    public void sendCoachAssignmentEmail(User user, java.util.Map<String, String> coachesByRole) {
-        StringBuilder rows = new StringBuilder();
-        if (coachesByRole != null) {
-            for (java.util.Map.Entry<String, String> e : coachesByRole.entrySet()) {
-                rows.append(safe(e.getKey())).append(": ").append(safe(e.getValue())).append("\n");
-            }
-        }
-        String[] receiptLines = rows.toString().split("\n");
-        String body = p("Dear " + escape(user.getFullName() == null ? "there" : user.getFullName()) + ",")
-                + p("Your support team has been assembled:")
-                + receipt(receiptLines)
-                + p("Your first checkpoint will be scheduled by your ERM. You can view your "
-                        + "team contacts in your dashboard.")
-                + button("Enter Your Dashboard", appUrl + "/dashboard")
-                + p("Regards,<br/>" + brandName() + "");
-        emailService.sendEmail(
-                user.getEmail(),
-                "Your coaching team — " + brandName() + "",
-                wrap("Your coaching team", body));
-    }
-
     // ── 1c. Program selection confirmation (Phase 3A) ───────────────
     /**
      * Sent immediately after a participant finalises their program

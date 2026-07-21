@@ -12,17 +12,14 @@ import com.spire.backend.entity.ParticipantDocument;
 import com.spire.backend.entity.Payment;
 import com.spire.backend.service.AdminRevenueService;
 import com.spire.backend.service.AdminService;
-import com.spire.backend.service.CoachAssignmentService;
 import com.spire.backend.service.CourseService;
 import com.spire.backend.service.DocumentService;
 import com.spire.backend.service.ErmAssignmentService;
 import com.spire.backend.service.InstructorRequestService;
 import com.spire.backend.service.OnboardingService;
 import com.spire.backend.service.ProfileService;
-import com.spire.backend.repository.CoachAssignmentRepository;
 import com.spire.backend.repository.ErmAssignmentRepository;
 import com.spire.backend.repository.UserRepository;
-import com.spire.backend.entity.CoachAssignment;
 import com.spire.backend.entity.ErmAssignment;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -55,11 +52,9 @@ public class AdminController {
     private final AdminRevenueService adminRevenueService;
     private final DocumentService documentService;
     private final ErmAssignmentService ermAssignmentService;
-    private final CoachAssignmentService coachAssignmentService;
     private final OnboardingService onboardingService;
     private final UserRepository userRepository;
     private final ErmAssignmentRepository ermAssignmentRepository;
-    private final CoachAssignmentRepository coachAssignmentRepository;
     private final com.spire.backend.repository.UserRecordRepository userRecordRepository;
     private final com.spire.backend.repository.AgreementAcceptanceRepository agreementAcceptanceRepository;
 
@@ -386,7 +381,6 @@ public class AdminController {
             row.put("skillset", u.getSelectedTechnology());
             row.put("currentStatus", status);
             row.put("ermAssigned", ermAssignmentService.getAssignedErm(u.getId()).isPresent());
-            row.put("coachesAssigned", coachAssignmentService.hasAnyCoach(u.getId()));
             rows.add(row);
         }
         return ResponseEntity.ok(ApiResponse.success(rows));
@@ -430,53 +424,6 @@ public class AdminController {
                 Map.of(
                         "ermUserId", erm.getId(),
                         "ermName", erm.getFullName() == null ? "" : erm.getFullName(),
-                        "workflowStatus", refreshed.getCurrentStatus()
-                )));
-    }
-
-    /**
-     * Manually assigns a coach to a participant for a specific
-     * coach_role. Body: {@code { coachUserId: 42, coachRole:
-     * "CAREER_COACH" }}. Re-runs the OnboardingService chain after.
-     */
-    @PutMapping("/assignments/coach/{participantId}")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> assignCoach(
-            @PathVariable Long participantId,
-            @RequestBody Map<String, Object> body) {
-        Object coachIdRaw = body.get("coachUserId");
-        String coachRole = (String) body.get("coachRole");
-        if (coachIdRaw == null || coachRole == null || coachRole.isBlank()) {
-            throw new IllegalArgumentException("coachUserId and coachRole are required");
-        }
-        Long coachUserId = coachIdRaw instanceof Number n ? n.longValue() : Long.parseLong(coachIdRaw.toString());
-        com.spire.backend.entity.User participant = userRepository.findById(participantId)
-                .orElseThrow(() -> new com.spire.backend.exception.ResourceNotFoundException(
-                        "User", "id", participantId));
-        userRepository.findById(coachUserId)
-                .orElseThrow(() -> new com.spire.backend.exception.ResourceNotFoundException(
-                        "User", "id", coachUserId));
-
-        // Replace any existing assignment for that role.
-        coachAssignmentRepository
-                .findByUserIdAndStatus(participantId, "ACTIVE")
-                .stream()
-                .filter(a -> coachRole.equals(a.getCoachRole()))
-                .forEach(coachAssignmentRepository::delete);
-        CoachAssignment row = CoachAssignment.builder()
-                .userId(participantId)
-                .coachUserId(coachUserId)
-                .coachRole(coachRole)
-                .status("ACTIVE")
-                .build();
-        coachAssignmentRepository.save(row);
-
-        onboardingService.completeOnboarding(participant);
-        com.spire.backend.entity.User refreshed = userRepository.findById(participantId).orElse(participant);
-        return ResponseEntity.ok(ApiResponse.success(
-                "Coach assigned",
-                Map.of(
-                        "coachUserId", coachUserId,
-                        "coachRole", coachRole,
                         "workflowStatus", refreshed.getCurrentStatus()
                 )));
     }
@@ -628,8 +575,6 @@ public class AdminController {
                 .filter(u -> u.getRole() != null && u.getRole().getName() != null)
                 .collect(java.util.stream.Collectors.groupingBy(u -> u.getRole().getName().toUpperCase()));
         out.put("erm", byRole.getOrDefault("ERM", java.util.List.of()).stream().map(toRow).toList());
-        out.put("coach", byRole.getOrDefault("COACH", java.util.List.of()).stream().map(toRow).toList());
-        out.put("technicalAdvisor", byRole.getOrDefault("TECHNICAL_ADVISOR", java.util.List.of()).stream().map(toRow).toList());
         return ResponseEntity.ok(ApiResponse.success(out));
     }
 }

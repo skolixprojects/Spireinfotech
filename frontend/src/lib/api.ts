@@ -698,12 +698,9 @@ export interface WelcomeStatus {
   welcomeEmailSent?: boolean;
   coordinatorIntroSent?: boolean;
   ermAssigned?: boolean;
-  coachesAssigned?: boolean;
   dashboardReady?: boolean;
   ermName?: string | null;
   ermEmail?: string | null;
-  /** label → coach name (or "Awaiting assignment"). */
-  coaches?: Record<string, string>;
 }
 
 export async function getWelcomeStatus(): Promise<WelcomeStatus> {
@@ -742,7 +739,6 @@ export interface ParticipantDashboard {
   team?: {
     ermName?: string | null;
     ermEmail?: string | null;
-    coaches?: Record<string, string>;
   };
   recentActivity?: { title: string; category: string; createdAt: string }[];
   stats?: { weeksEnrolled: number; reportsSubmitted: number };
@@ -760,7 +756,6 @@ export async function getParticipantDashboard(): Promise<ParticipantDashboard> {
 
 export interface ParticipantTeam {
   erm?: { name: string | null; email: string | null; bio: string | null };
-  coaches?: Record<string, string>;
 }
 
 export async function getParticipantTeam(): Promise<ParticipantTeam> {
@@ -1266,115 +1261,6 @@ export async function addErmNote(
   return wrapper.data;
 }
 
-// ─── Phase 5B: Coach dashboard ───────────────────────────────────
-
-export interface CoachParticipantRow {
-  userId: number;
-  participantId: string | null;
-  fullName: string | null;
-  technology: string | null;
-  targetJobTitle: string | null;
-  program: string | null;
-  phase: string | null;
-  coachRole: string | null;
-  sessions: number;
-  currentStatus: string | null;
-}
-
-export interface CoachingSessionDTO {
-  id?: number;
-  participantUserId: number;
-  coachUserId?: number;
-  sessionDate?: string | null;
-  topic?: string | null;
-  notes?: string | null;
-  nextSteps?: string | null;
-  durationMinutes?: number | null;
-  createdAt?: string | null;
-}
-
-export interface CoachingTaskDTO {
-  id?: number;
-  participantUserId: number;
-  coachUserId?: number;
-  title: string;
-  description?: string | null;
-  dueDate?: string | null;
-  status?: string;
-  createdAt?: string | null;
-}
-
-export interface CoachingFeedbackDTO {
-  id?: number;
-  participantUserId: number;
-  coachUserId?: number;
-  feedbackType?: string;
-  content: string;
-  rating?: number | null;
-  createdAt?: string | null;
-}
-
-export async function getCoachParticipants(): Promise<CoachParticipantRow[]> {
-  const wrapper = await apiFetch<ApiResponse<CoachParticipantRow[]>>(
-    "/api/coaches/participants");
-  return wrapper.data ?? [];
-}
-
-export async function getCoachParticipantDetail(participantId: number): Promise<Record<string, unknown>> {
-  const wrapper = await apiFetch<ApiResponse<Record<string, unknown>>>(
-    `/api/coaches/participants/${participantId}`);
-  return wrapper.data ?? {};
-}
-
-export async function listCoachSessions(participantId?: number): Promise<CoachingSessionDTO[]> {
-  const qs = participantId ? `?participantId=${participantId}` : "";
-  const wrapper = await apiFetch<ApiResponse<CoachingSessionDTO[]>>(
-    `/api/coaches/sessions${qs}`);
-  return wrapper.data ?? [];
-}
-
-export async function createCoachSession(body: CoachingSessionDTO): Promise<CoachingSessionDTO> {
-  const wrapper = await apiFetch<ApiResponse<CoachingSessionDTO>>(
-    "/api/coaches/sessions",
-    { method: "POST", body: JSON.stringify(body) });
-  return wrapper.data;
-}
-
-export async function listCoachTasks(participantId?: number): Promise<CoachingTaskDTO[]> {
-  const qs = participantId ? `?participantId=${participantId}` : "";
-  const wrapper = await apiFetch<ApiResponse<CoachingTaskDTO[]>>(
-    `/api/coaches/tasks${qs}`);
-  return wrapper.data ?? [];
-}
-
-export async function createCoachTask(body: CoachingTaskDTO): Promise<CoachingTaskDTO> {
-  const wrapper = await apiFetch<ApiResponse<CoachingTaskDTO>>(
-    "/api/coaches/tasks",
-    { method: "POST", body: JSON.stringify(body) });
-  return wrapper.data;
-}
-
-export async function updateCoachTaskStatus(taskId: number, status: string): Promise<CoachingTaskDTO> {
-  const wrapper = await apiFetch<ApiResponse<CoachingTaskDTO>>(
-    `/api/coaches/tasks/${taskId}/status`,
-    { method: "PUT", body: JSON.stringify({ status }) });
-  return wrapper.data;
-}
-
-export async function listCoachFeedback(participantId?: number): Promise<CoachingFeedbackDTO[]> {
-  const qs = participantId ? `?participantId=${participantId}` : "";
-  const wrapper = await apiFetch<ApiResponse<CoachingFeedbackDTO[]>>(
-    `/api/coaches/feedback${qs}`);
-  return wrapper.data ?? [];
-}
-
-export async function createCoachFeedback(body: CoachingFeedbackDTO): Promise<CoachingFeedbackDTO> {
-  const wrapper = await apiFetch<ApiResponse<CoachingFeedbackDTO>>(
-    "/api/coaches/feedback",
-    { method: "POST", body: JSON.stringify(body) });
-  return wrapper.data;
-}
-
 // ─── Phase 5B: Finance dashboard ─────────────────────────────────
 
 export interface FinanceCheckRow {
@@ -1474,14 +1360,12 @@ export async function getOperationsExceptions(): Promise<OperationsException[]> 
 
 export interface StaffPool {
   erm: { id: number; fullName: string; email: string }[];
-  coach: { id: number; fullName: string; email: string }[];
-  technicalAdvisor: { id: number; fullName: string; email: string }[];
 }
 
 export async function getStaffPool(): Promise<StaffPool> {
   const wrapper = await apiFetch<ApiResponse<StaffPool>>(
     "/api/admin/operations/staff-pool");
-  return wrapper.data ?? { erm: [], coach: [], technicalAdvisor: [] };
+  return wrapper.data ?? { erm: [] };
 }
 
 export async function getAssignmentQueue(): Promise<Record<string, unknown>[]> {
@@ -1500,26 +1384,14 @@ export async function assignErmToParticipant(
   return wrapper.data;
 }
 
-export async function assignCoachToParticipant(
-  participantId: number,
-  coachUserId: number,
-  coachRole: string,
-): Promise<unknown> {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(
-    `/api/admin/assignments/coach/${participantId}`,
-    { method: "PUT", body: JSON.stringify({ coachUserId, coachRole }) });
-  return wrapper.data;
-}
-
 /**
  * Returns the dashboard route for the caller based on their primary
  * role. Used by /login after a successful auth and by route guards
- * to avoid sending a coach to the participant dashboard etc.
+ * to avoid sending users to the wrong dashboard.
  */
 export function dashboardRouteForRole(role: string | null | undefined): string {
   const r = (role ?? "").toUpperCase();
   if (r === "ERM") return "/erm-dashboard";
-  if (r === "COACH" || r === "TECHNICAL_ADVISOR") return "/coach-dashboard";
   if (r === "FINANCE") return "/finance-dashboard";
   // OPERATIONS_ADMIN / SYSTEM_ADMIN run the participant-lifecycle
   // operations console at /operations (enrollment queue, doc review,
@@ -1567,7 +1439,6 @@ export function getOnboardingRoute(status: string | null | undefined): string {
     case "WELCOME_SENT":
     case "DEEPTHI_INTRO_SENT":
     case "ERM_ASSIGNED":
-    case "COACHES_ASSIGNED":
     case "DASHBOARD_ENABLED":
     case "WEEKLY_REPORTING_ACTIVE":
     case "EMPLOYMENT_ACCEPTED":

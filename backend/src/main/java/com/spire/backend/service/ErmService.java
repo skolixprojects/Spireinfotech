@@ -10,7 +10,6 @@ import com.spire.backend.entity.WeeklyReport;
 import com.spire.backend.exception.ResourceNotFoundException;
 import com.spire.backend.exception.UnauthorizedException;
 import com.spire.backend.repository.AgreementAcceptanceRepository;
-import com.spire.backend.repository.CoachAssignmentRepository;
 import com.spire.backend.repository.ErmAssignmentRepository;
 import com.spire.backend.repository.ParticipantDocumentRepository;
 import com.spire.backend.repository.ProgramSelectionRepository;
@@ -45,7 +44,6 @@ import java.util.Objects;
 public class ErmService {
 
     private final ErmAssignmentRepository ermAssignmentRepository;
-    private final CoachAssignmentRepository coachAssignmentRepository;
     private final UserRepository userRepository;
     private final ProgramSelectionRepository programSelectionRepository;
     private final ParticipantDocumentRepository participantDocumentRepository;
@@ -134,18 +132,6 @@ public class ErmService {
         }
 
         out.put("reports", weeklyReportRepository.findByUserIdOrderByWeekStartDesc(participantId));
-        out.put("coaches", coachAssignmentRepository
-                .findByUserIdAndStatus(participantId, "ACTIVE").stream()
-                .map(ca -> {
-                    User c = ca.getCoachUserId() == null ? null
-                            : userRepository.findById(ca.getCoachUserId()).orElse(null);
-                    return Map.<String, Object>of(
-                            "coachRole", ca.getCoachRole() == null ? "" : ca.getCoachRole(),
-                            "name", c == null || c.getFullName() == null ? "" : c.getFullName(),
-                            "email", c == null || c.getEmail() == null ? "" : c.getEmail()
-                    );
-                })
-                .toList());
 
         ErmAssignment myRow = ermAssignmentRepository
                 .findFirstByUserIdOrderByAssignedDateDesc(participantId).orElse(null);

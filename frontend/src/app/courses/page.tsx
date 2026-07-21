@@ -46,7 +46,6 @@ export default function CoursesPage() {
   const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
     || role === "TRAINER" || role === "SYSTEM_ADMIN"
     || role === "OPERATIONS_ADMIN" || role === "ERM"
-    || role === "COACH" || role === "TECHNICAL_ADVISOR"
     || role === "FINANCE";
   const [selectedLevel, setSelectedLevel] = useState<string>("All");
   const [search, setSearch] = useState("");

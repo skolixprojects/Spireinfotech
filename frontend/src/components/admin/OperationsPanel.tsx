@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertCircle, ClipboardList, FileText, Inbox, Loader2, ShieldCheck,
   UserCog, Users,
 } from "lucide-react";
 
 import {
-  assignCoachToParticipant, assignErmToParticipant,
+  assignErmToParticipant,
   getAgreementQueue, getAssignmentQueue, getAuditTrail,
   getEnrollmentQueue, getOperationsExceptions, getStaffPool,
   type AuditRow, type OperationsException, type OperationsQueueRow,
@@ -160,24 +160,10 @@ function AssignmentsPanel() {
     return () => { cancelled = true; };
   }, []);
 
-  const allCoaches = useMemo(() => [
-    ...(staff?.coach ?? []),
-    ...(staff?.technicalAdvisor ?? []),
-  ], [staff]);
-
   const handleErm = async (participantId: number, ermUserId: number) => {
     setBusy(participantId); setError("");
     try {
       await assignErmToParticipant(participantId, ermUserId);
-      await refresh();
-    } catch (e) { setError(e instanceof Error ? e.message : "Assign failed"); }
-    finally { setBusy(null); }
-  };
-
-  const handleCoach = async (participantId: number, coachUserId: number, role: string) => {
-    setBusy(participantId); setError("");
-    try {
-      await assignCoachToParticipant(participantId, coachUserId, role);
       await refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Assign failed"); }
     finally { setBusy(null); }
@@ -226,42 +212,6 @@ function AssignmentsPanel() {
                           <option key={u.id} value={u.id}>{u.fullName} ({u.email})</option>
                         ))}
                       </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase tracking-wider font-semibold text-gray-500 mb-0.5">
-                      Coach {r.coachesAssigned ? "(some assigned)" : ""}
-                    </label>
-                    <div className="flex gap-1">
-                      <select id={`coach-pick-${uid}`}
-                        className="flex-1 px-2 py-1.5 text-xs rounded-md border border-gray-200"
-                        defaultValue=""
-                      >
-                        <option value="">— Pick coach —</option>
-                        {allCoaches.map((u) => (
-                          <option key={u.id} value={u.id}>{u.fullName}</option>
-                        ))}
-                      </select>
-                      <select id={`coach-role-${uid}`}
-                        className="px-2 py-1.5 text-xs rounded-md border border-gray-200"
-                        defaultValue="CAREER_COACH"
-                      >
-                        <option value="CAREER_COACH">Career</option>
-                        <option value="RESUME_SPECIALIST">Resume</option>
-                        <option value="TECHNICAL_ADVISOR">Tech</option>
-                        <option value="INTERVIEW_COACH">Interview</option>
-                      </select>
-                      <button type="button"
-                        onClick={() => {
-                          const cidEl = document.getElementById(`coach-pick-${uid}`) as HTMLSelectElement | null;
-                          const roleEl = document.getElementById(`coach-role-${uid}`) as HTMLSelectElement | null;
-                          if (!cidEl?.value) return;
-                          handleCoach(uid, Number(cidEl.value), roleEl?.value ?? "CAREER_COACH");
-                        }}
-                        disabled={busy === uid}
-                        className="px-2 py-1.5 rounded-md text-[10px] font-bold bg-[#0F766E] text-white hover:bg-[#0D9488] disabled:opacity-60 cursor-pointer">
-                        Assign
-                      </button>
                     </div>
                   </div>
                 </div>

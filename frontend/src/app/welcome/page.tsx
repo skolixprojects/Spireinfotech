@@ -32,13 +32,9 @@ import {
 
 const POLL_INTERVAL_MS = 5_000;
 
-const COACH_LABELS = [
-  "Career Coach",
-  "Resume Specialist",
-  "Technical Advisor",
-  "Interview Coach",
-] as const;
-
+// TODO: /welcome is slated to retire in the two-pipeline restructure —
+// the coach cards + coach status row were removed in the coach-role
+// deletion pass; the remaining ERM-only view is intentionally minimal.
 export default function WelcomePage() {
   const router = useRouter();
   const { isAuthenticated, isLoading: authLoading, refreshUser } = useAuth();
@@ -165,7 +161,6 @@ export default function WelcomePage() {
   }
 
   const firstName = profile?.fullName?.split(" ")[0] ?? "there";
-  const coaches = status.coaches ?? {};
   const dashboardReady = !!status.dashboardReady;
 
   return (
@@ -204,9 +199,6 @@ export default function WelcomePage() {
                 ? `Relationship manager assigned: ${status.ermName}`
                 : "Assigning your relationship manager..."}
               inProgress={!status.ermAssigned} />
-            <StatusRow done={!!status.coachesAssigned}
-              label="Assigning your coaching team..."
-              inProgress={!status.coachesAssigned} />
             <StatusRow done={dashboardReady}
               label={dashboardReady ? "Dashboard ready" : "Preparing your dashboard..."}
               inProgress={!dashboardReady} />
@@ -224,17 +216,6 @@ export default function WelcomePage() {
               name={status.ermName ?? null}
               email={status.ermEmail ?? null}
             />
-            {COACH_LABELS.map((label) => {
-              const name = coaches[label];
-              const isPending = !name || name === "Awaiting assignment";
-              return (
-                <TeamCard
-                  key={label}
-                  role={label}
-                  name={isPending ? null : name}
-                />
-              );
-            })}
           </div>
         </div>
 
