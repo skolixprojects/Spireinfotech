@@ -81,6 +81,7 @@ public class ParticipantController {
     private final com.spire.backend.repository.PaymentLedgerRepository paymentLedgerRepository;
     private final com.spire.backend.service.ProfileCompletionService profileCompletionService;
     private final com.spire.backend.service.WishlistService wishlistService;
+    private final com.spire.backend.service.RecordService recordService;
     private final com.spire.backend.service.EnrollmentService enrollmentService;
 
     /** Public — anyone can enroll. Behind the scenes walks the workflow
@@ -796,6 +797,81 @@ public class ParticipantController {
                         "success", true,
                         "completion", profileCompletionService.getStatus(user)
                 )));
+    }
+
+    // ── Two-pipeline attribution (Prompt 3) ─────────────────────────
+
+    /** Allowed values for the /how-did-you-hear screen. */
+    private static final java.util.Set<String> ATTRIBUTION_SOURCES = java.util.Set.of(
+            "SOCIAL_MEDIA", "GOOGLE_SEARCH", "FRIEND_COLLEAGUE",
+            "EVENT_WEBINAR", "REFERENCE");
+
+    /**
+     * Captures the attribution source and forks the user's pipeline.
+     * Idempotent — a re-submission returns the current UserDTO
+     * unchanged (first submission wins).
+     *   - REFERENCE  → pipeline=REFERENCE, referralStatus=PENDING;
+     *                  user waits on /referral-pending for ERM approval.
+     *   - Any other  → pipeline=DIRECT, referralStatus=null;
+     *                  transitions to DASHBOARD_ENABLED and lands
+     *                  on /dashboard with full access.
+     */
+    @PostMapping("/attribution")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<UserDTO>> submitAttribution(
+            @RequestBody Map<String, Object> body,
+            Authentication auth) {
+        Long userId = Long.parseLong(auth.getPrincipal().toString());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+
+        // Idempotent: first submission wins.
+        if (user.getPipeline() != null && !user.getPipeline().isBlank()) {
+            return ResponseEntity.ok(ApiResponse.success(UserDTO.from(user)));
+        }
+
+        Object rawSource = body == null ? null : body.get("source");
+        String source = rawSource == null ? "" : rawSource.toString().trim().toUpperCase();
+        if (!ATTRIBUTION_SOURCES.contains(source)) {
+            throw new IllegalArgumentException(
+                    "source must be one of: " + String.join(", ", ATTRIBUTION_SOURCES));
+        }
+
+        user.setReferralSource(source);
+        if ("REFERENCE".equals(source)) {
+            user.setPipeline("REFERENCE");
+            user.setReferralStatus("PENDING");
+            // No workflow transition: the user waits for ERM approval.
+        } else {
+            user.setPipeline("DIRECT");
+            user.setReferralStatus(null);
+            try {
+                workflowService.transition(user,
+                        com.spire.backend.service.WorkflowService.Status.DASHBOARD_ENABLED,
+                        "direct_pipeline_attribution");
+            } catch (Exception ignored) {
+                // Tolerant: if a legacy user's currentStatus was already
+                // past DASHBOARD_ENABLED, transition is a no-op audit.
+            }
+        }
+        User saved = userRepository.save(user);
+
+        try {
+            recordService.record(saved.getId(), "ATTRIBUTION_CAPTURED",
+                    com.spire.backend.service.RecordService.Category.ACCOUNT,
+                    "Attribution captured",
+                    "User selected " + source + " → pipeline " + saved.getPipeline(),
+                    Map.of(
+                            "source", source,
+                            "pipeline", saved.getPipeline() == null ? "" : saved.getPipeline(),
+                            "referralStatus", saved.getReferralStatus() == null ? "" : saved.getReferralStatus()
+                    ));
+        } catch (Exception ignored) {
+            // Audit failure is best-effort — never blocks the fork.
+        }
+
+        return ResponseEntity.ok(ApiResponse.success(
+                "Attribution captured", UserDTO.from(saved)));
     }
 
     // ── Phase 1C: wishlist ─────────────────────────────────────────

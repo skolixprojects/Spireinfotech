@@ -72,6 +72,17 @@ export interface UserDTO {
   programSelectionComplete?: boolean;
   agreementComplete?: boolean;
   checkUploadComplete?: boolean;
+
+  // ── Two-pipeline attribution + fork ───────────────────────────
+  // Null pipeline means the user has not yet answered the
+  // /how-did-you-hear screen. routeAfterAuth uses these three
+  // fields to pick the correct post-verify landing page.
+  /** SOCIAL_MEDIA | GOOGLE_SEARCH | FRIEND_COLLEAGUE | EVENT_WEBINAR | REFERENCE. */
+  referralSource?: string | null;
+  /** DIRECT | REFERENCE. */
+  pipeline?: string | null;
+  /** PENDING | APPROVED | REJECTED — set only for REFERENCE pipeline. */
+  referralStatus?: string | null;
 }
 
 export interface AuthResponse {
@@ -331,6 +342,30 @@ export async function submitBasicInfo(
     method: "POST",
     body: JSON.stringify(data),
   });
+  return wrapper.data;
+}
+
+// ─── Two-pipeline attribution ─────────────────────────────────────
+
+export type AttributionSource =
+  | "SOCIAL_MEDIA"
+  | "GOOGLE_SEARCH"
+  | "FRIEND_COLLEAGUE"
+  | "EVENT_WEBINAR"
+  | "REFERENCE";
+
+/**
+ * Captures how the user heard about Spire and forks their pipeline.
+ * REFERENCE users enter a PENDING state and wait for ERM approval;
+ * every other source flips them straight to the DIRECT pipeline
+ * with full dashboard access. Idempotent — a re-submission returns
+ * the current user unchanged.
+ */
+export async function submitAttribution(source: AttributionSource): Promise<UserDTO> {
+  const wrapper = await apiFetch<ApiResponse<UserDTO>>(
+    "/api/participants/attribution",
+    { method: "POST", body: JSON.stringify({ source }) },
+  );
   return wrapper.data;
 }
 
@@ -1395,6 +1430,34 @@ export function dashboardRouteForRole(role: string | null | undefined): string {
   if (r === "ACCOUNTS") return "/accounts-dashboard";
   if (r === "ADMIN") return "/admin";
   if (r === "INSTRUCTOR") return "/instructor";
+  return "/dashboard";
+}
+
+/**
+ * Canonical post-auth routing for participant-side users, driven by
+ * the two-pipeline fields (not the legacy workflow-status ladder).
+ * Every post-verify decision funnels through here so verify-email,
+ * the attribution screen, /dashboard, /referral-pending, and the
+ * per-page guards all agree.
+ *
+ *   pipeline null              → /how-did-you-hear (attribution)
+ *   pipeline DIRECT            → /dashboard
+ *   pipeline REFERENCE PENDING → /referral-pending
+ *   pipeline REFERENCE APPROVED→ /dashboard
+ *   pipeline REFERENCE REJECTED→ /login (account is dropped)
+ *
+ * Staff role dispatch (ERM/Accounts/Admin/Instructor) is separate
+ * and runs BEFORE this — see dashboard/page.tsx.
+ */
+export function routeAfterAuth(user: UserDTO | null | undefined): string {
+  if (!user) return "/login";
+  if (!user.pipeline) return "/how-did-you-hear";
+  if (user.pipeline === "DIRECT") return "/dashboard";
+  if (user.pipeline === "REFERENCE") {
+    if (user.referralStatus === "APPROVED") return "/dashboard";
+    if (user.referralStatus === "REJECTED") return "/login";
+    return "/referral-pending"; // PENDING or any other transient state
+  }
   return "/dashboard";
 }
 

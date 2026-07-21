@@ -65,6 +65,14 @@ public class ProfileDTO {
     private Boolean agreementComplete;
     private Boolean checkUploadComplete;
 
+    // ── Two-pipeline attribution + fork ─────────────────────────
+    // Mirrored from UserDTO so the auth-context refresh path
+    // (/api/users/profile → ProfileDTO) keeps the same fields
+    // available client-side without an extra fetch.
+    private String referralSource;
+    private String pipeline;
+    private String referralStatus;
+
     private Integer enrolledCoursesCount;
     private Integer completedCoursesCount;
     private Integer certificatesCount;
@@ -203,6 +211,9 @@ public class ProfileDTO {
                 .programSelectionComplete(Boolean.TRUE.equals(user.getProgramSelectionComplete()))
                 .agreementComplete(Boolean.TRUE.equals(user.getAgreementComplete()))
                 .checkUploadComplete(Boolean.TRUE.equals(user.getCheckUploadComplete()))
+                .referralSource(user.getReferralSource())
+                .pipeline(user.getPipeline())
+                .referralStatus(user.getReferralStatus())
                 .enrolledCoursesCount(enrolledCoursesCount)
                 .completedCoursesCount(completedCoursesCount)
                 .certificatesCount(certificatesCount)

@@ -105,7 +105,9 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
     || role === "ERM" || role === "ACCOUNTS";
   useEffect(() => {
-    if (user && !isStaff && user.profileComplete === false) {
+    if (user && !isStaff
+        && user.pipeline === "REFERENCE"
+        && user.profileComplete === false) {
       router.replace("/dashboard?tab=complete-profile");
     }
   }, [user, isStaff, router]);
@@ -219,11 +221,12 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
       router.push(`/login?redirect=/courses/${id}`);
       return;
     }
-    // Phase 1C gate — incomplete profile pops the modal instead of
-    // hitting the backend. The backend ships the same 403 if we get
-    // through anyway (race against the auth context), and the catch
-    // below also pops the modal in that case.
-    if (user && user.profileComplete === false) {
+    // Two-pipeline gate: only REFERENCE users with an incomplete
+    // profile hit the modal. Backend ships the same 403 as a race
+    // guard; the catch below re-pops the modal in that case.
+    if (user
+        && user.pipeline === "REFERENCE"
+        && user.profileComplete === false) {
       setShowProfileGate(true);
       return;
     }

@@ -55,11 +55,14 @@ export default function CoursesPage() {
   // worst case the fetch fails silently and we show no progress bars.
   const [progressByCourseId, setProgressByCourseId] = useState<Record<number, number>>({});
 
-  // Phase 1C strict gate — logged-in participants with an incomplete
-  // profile can't see the catalog. Bounce them to the dashboard's
-  // Complete Profile tab. Public visitors and staff fall through.
+  // Two-pipeline gate: only REFERENCE users with an incomplete
+  // profile are bounced to the checklist. DIRECT users (and any
+  // legacy/null pipeline) pass through freely. Staff + anonymous
+  // visitors also fall through.
   useEffect(() => {
-    if (user && !isStaff && user.profileComplete === false) {
+    if (user && !isStaff
+        && user.pipeline === "REFERENCE"
+        && user.profileComplete === false) {
       router.replace("/dashboard?tab=complete-profile");
     }
   }, [user, isStaff, router]);

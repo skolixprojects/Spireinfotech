@@ -71,6 +71,17 @@ public class UserDTO {
     private Boolean agreementComplete;
     private Boolean checkUploadComplete;
 
+    // ── Two-pipeline attribution + fork ─────────────────────────
+    // pipeline drives every post-verify routing decision (see
+    // routeAfterAuth in lib/api.ts). Null pipeline → user has not
+    // yet answered the attribution screen → route to /how-did-you-hear.
+    /** SOCIAL_MEDIA | GOOGLE_SEARCH | FRIEND_COLLEAGUE | EVENT_WEBINAR | REFERENCE. */
+    private String referralSource;
+    /** DIRECT | REFERENCE. */
+    private String pipeline;
+    /** PENDING | APPROVED | REJECTED — set only for REFERENCE pipeline. */
+    private String referralStatus;
+
     public static UserDTO from(User user) {
         return UserDTO.builder()
                 .id(user.getId())
@@ -101,6 +112,9 @@ public class UserDTO {
                 .programSelectionComplete(Boolean.TRUE.equals(user.getProgramSelectionComplete()))
                 .agreementComplete(Boolean.TRUE.equals(user.getAgreementComplete()))
                 .checkUploadComplete(Boolean.TRUE.equals(user.getCheckUploadComplete()))
+                .referralSource(user.getReferralSource())
+                .pipeline(user.getPipeline())
+                .referralStatus(user.getReferralStatus())
                 .build();
     }
 }

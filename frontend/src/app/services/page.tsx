@@ -23,7 +23,9 @@ export default function ServicesPage() {
   const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
     || role === "ERM" || role === "ACCOUNTS";
   useEffect(() => {
-    if (user && !isStaff && user.profileComplete === false) {
+    if (user && !isStaff
+        && user.pipeline === "REFERENCE"
+        && user.profileComplete === false) {
       router.replace("/dashboard?tab=complete-profile");
     }
   }, [user, isStaff, router]);

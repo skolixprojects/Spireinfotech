@@ -255,4 +255,31 @@ public class User {
 
     @Column(name = "last_profile_reminder_at")
     private LocalDateTime lastProfileReminderAt;
+
+    // ── Two-pipeline attribution + fork (Prompt 3) ──────────────────
+    // Captured on the /how-did-you-hear screen the user sees after
+    // email verification. Every user answers; only "REFERENCE"
+    // routes into the reference pipeline. The other four answers set
+    // pipeline=DIRECT and unlock full access immediately.
+    //
+    // Nullable for the same ddl-auto migration reason as the Phase-1C
+    // flags above — Postgres refuses NOT NULL on an added column
+    // against an existing table without a DEFAULT. Backfill SQL
+    // grandfathers pre-launch users to DIRECT.
+
+    /** SOCIAL_MEDIA | GOOGLE_SEARCH | FRIEND_COLLEAGUE | EVENT_WEBINAR | REFERENCE. */
+    @Column(name = "referral_source", length = 32)
+    private String referralSource;
+
+    /** DIRECT | REFERENCE. Null until the attribution screen is submitted. */
+    @Column(name = "pipeline", length = 16)
+    private String pipeline;
+
+    /**
+     * PENDING | APPROVED | REJECTED. Set only for REFERENCE users;
+     * DIRECT users stay null here. ERM approves or rejects from the
+     * ERM dashboard (wiring in Prompt 4).
+     */
+    @Column(name = "referral_status", length = 16)
+    private String referralStatus;
 }

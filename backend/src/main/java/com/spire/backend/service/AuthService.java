@@ -291,22 +291,12 @@ public class AuthService {
             }
         }
 
-        // Phase 1C: lift the user straight to DASHBOARD_ENABLED so
-        // the frontend lands them on /dashboard immediately after
-        // verifying email. The remaining lifecycle (acknowledgment,
-        // documents, program, agreement, check upload) becomes the
-        // progressive "Complete Your Profile" surface inside the
-        // dashboard — not a gate that blocks login. The welcome →
-        // ERM → coaches chain is deferred to triggerProfileCompletionFlow,
-        // fired only when all six profile sub-steps are checked off.
-        try {
-            workflowService.transition(saved,
-                    WorkflowService.Status.DASHBOARD_ENABLED, "dashboard_enabled_quick_signup");
-        } catch (Exception ignored) {
-            // Tolerant of pre-existing users whose workflow already
-            // advanced past DASHBOARD_ENABLED — the transition row
-            // still records the event but doesn't roll them backward.
-        }
+        // Two-pipeline (Prompt 3): the DASHBOARD_ENABLED transition
+        // used to fire here unconditionally. It now moves into the
+        // /api/participants/attribution endpoint, gated on pipeline —
+        // DIRECT attributions transition; REFERENCE attributions wait
+        // for ERM approval. verify-code leaves the user at ID_EMAIL_SENT
+        // and the frontend routes them to /how-did-you-hear.
 
         return buildAuthResponse(saved);
     }

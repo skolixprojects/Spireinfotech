@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
 import { useAuth } from "@/lib/auth-context";
-import { getOnboardingRoute, isDashboardStatus } from "@/lib/api";
+import { getOnboardingRoute, isDashboardStatus, routeAfterAuth } from "@/lib/api";
 import ParticipantDashboard from "@/components/dashboard/ParticipantDashboard";
 
 /**
@@ -48,11 +48,28 @@ export default function DashboardPage() {
       if (role === "ADMIN") { router.replace("/admin"); return; }
       if (role === "INSTRUCTOR") { router.replace("/instructor"); return; }
 
+      // Two-pipeline routing: a null-pipeline user must answer the
+      // attribution screen first; a REFERENCE-PENDING user waits on
+      // /referral-pending; only DIRECT + REFERENCE-APPROVED users
+      // reach the dashboard body. Refresh first so a late-arriving
+      // ERM decision or attribution submission is visible immediately.
+      let currentUser = user;
+      if (!currentUser.pipeline) {
+        const fresh = await refreshUser();
+        if (cancelled) return;
+        currentUser = fresh ?? currentUser;
+      }
+      const target = routeAfterAuth(currentUser);
+      if (target !== "/dashboard") {
+        router.replace(target);
+        return;
+      }
+
       // Participant lifecycle. Pull a fresh profile if the in-memory
       // copy is missing critical fields — the auth context can hold
       // stale data after soft navigations.
-      let status = user.currentStatus;
-      let participantId = user.participantId;
+      let status = currentUser.currentStatus;
+      let participantId = currentUser.participantId;
       if (!status || !participantId) {
         const fresh = await refreshUser();
         if (cancelled) return;

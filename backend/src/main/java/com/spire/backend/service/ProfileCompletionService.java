@@ -174,8 +174,16 @@ public class ProfileCompletionService {
         }
     }
 
-    /** True when the user has crossed the gate that unlocks purchases. */
+    /**
+     * True when the user has crossed the gate that unlocks purchases.
+     *
+     * Two-pipeline (Prompt 3): only REFERENCE users must clear the
+     * six-step gate. DIRECT users (and any legacy non-REFERENCE
+     * pipeline value, including null on pre-launch rows the backfill
+     * will grandfather to DIRECT) always pass.
+     */
     public boolean canEnrollInCourses(User user) {
+        if (!"REFERENCE".equals(user.getPipeline())) return true;
         return Boolean.TRUE.equals(user.getProfileComplete());
     }
 }

@@ -92,10 +92,18 @@ function greeting(): string {
 export default function ParticipantDashboard() {
   const { user, logout } = useAuth();
   const searchParams = useSearchParams();
+  // Two-pipeline gate: the Phase-1C checklist + tab-locks only apply
+  // to REFERENCE users. DIRECT users see the full dashboard with no
+  // "Complete Profile" tab, no banner, no sidebar % badge, no lock
+  // screens on Weekly / My Courses.
+  const isReferenceGated = user?.pipeline === "REFERENCE";
   // Sync the tab to the ?tab=... query param so the gate modal /
   // banner / "Continue Setup" links can deep-link into the right
-  // section. Defaults to "home" otherwise.
-  const initialTab = (searchParams.get("tab") as TabId) || "home";
+  // section. Defaults to "home" otherwise. Non-reference users who
+  // land here via a stale link get bounced to "home".
+  const requestedTab = (searchParams.get("tab") as TabId) || "home";
+  const initialTab: TabId = (!isReferenceGated && requestedTab === "complete-profile")
+    ? "home" : requestedTab;
   const [active, setActive] = useState<TabId>(initialTab);
   const [data, setData] = useState<DashboardData | null>(null);
   const [team, setTeam] = useState<ParticipantTeam | null>(null);
@@ -167,12 +175,12 @@ export default function ParticipantDashboard() {
         </button>
       </div>
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {NAV.map((n) => {
+        {NAV.filter((n) => n.id !== "complete-profile" || isReferenceGated).map((n) => {
           const isActive = active === n.id;
-          // Phase 1C — surface the completion percentage as a badge
-          // beside the "Complete Profile" tab. Hidden once the user
-          // is fully done.
+          // Sidebar completion percentage badge — reference-only, and
+          // hidden once the user is fully done.
           const showBadge = n.id === "complete-profile"
+            && isReferenceGated
             && !user?.profileComplete
             && typeof user?.profileCompletionPct === "number";
           return (
@@ -254,23 +262,27 @@ export default function ParticipantDashboard() {
           </button>
           <span className="text-[10px] font-mono text-gray-400">{data.participantId ?? ""}</span>
         </div>
-        <ProfileCompletionBanner
-          onContinueSetup={() => setActive("complete-profile")}
-        />
+        {isReferenceGated && (
+          <ProfileCompletionBanner
+            onContinueSetup={() => setActive("complete-profile")}
+          />
+        )}
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
           {active === "home" && (
             <HomeTab data={data} team={team} userEmail={user?.email ?? null}
               onJumpTo={(t) => setActive(t)} />
           )}
-          {active === "complete-profile" && <ProfileCompletionChecklist />}
+          {active === "complete-profile" && isReferenceGated && <ProfileCompletionChecklist />}
           {active === "courses" && (
+            // DIRECT users skip the gate entirely; MyCoursesTab receives
+            // profileComplete=true and renders the real tab.
             <MyCoursesTab
-              profileComplete={Boolean(user?.profileComplete)}
+              profileComplete={!isReferenceGated || Boolean(user?.profileComplete)}
               onContinueSetup={() => setActive("complete-profile")}
             />
           )}
           {active === "weekly" && (
-            user?.profileComplete
+            (!isReferenceGated || user?.profileComplete)
               ? <WeeklyTab dashboardData={data} />
               : <LockedTabView
                   title="Weekly Report"

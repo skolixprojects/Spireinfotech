@@ -135,12 +135,13 @@ function VerifyEmailInner() {
       const auth = await verifyCode(email, code);
       setSuccess(true);
       setSession(auth);
-      // Phase 1C: verify-code mints the participant ID AND walks
-      // the workflow straight to DASHBOARD_ENABLED. The participant
-      // lands on /dashboard immediately; the remaining lifecycle
-      // steps live inside the "Complete Your Profile" tab. No more
-      // bouncing through /participant-id, /acknowledgment, etc.
-      setTimeout(() => { window.location.href = "/dashboard"; }, 800);
+      // Two-pipeline (Prompt 3): freshly verified users always have a
+      // null pipeline, so they land on the attribution screen. That
+      // screen sets pipeline=DIRECT (→ /dashboard) or
+      // pipeline=REFERENCE (→ /referral-pending) and re-routes them
+      // via routeAfterAuth. Full page reload keeps the auth-context
+      // stale-user race away from the guard.
+      setTimeout(() => { window.location.href = "/how-did-you-hear"; }, 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");
       setShake((n) => n + 1);
