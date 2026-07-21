@@ -12,7 +12,9 @@ CREATE TABLE users (
     full_name VARCHAR(100),
     avatar_url TEXT,
     bio TEXT,
-    role VARCHAR(20) DEFAULT 'STUDENT' CHECK (role IN ('STUDENT', 'INSTRUCTOR', 'TRAINER', 'ADMIN')),
+    -- Legacy/unused column — the entity uses a role_id FK to the roles table (authoritative).
+    -- CHECK list kept accurate against the current five canonical roles for any cold-boot from this file.
+    role VARCHAR(20) DEFAULT 'STUDENT' CHECK (role IN ('STUDENT', 'INSTRUCTOR', 'ADMIN', 'ERM', 'ACCOUNTS')),
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
 );

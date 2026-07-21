@@ -103,9 +103,7 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   // supervisor view). isStaff mirrors /courses page.
   const role = user?.role?.toUpperCase() ?? "";
   const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
-    || role === "TRAINER" || role === "SYSTEM_ADMIN"
-    || role === "OPERATIONS_ADMIN" || role === "ERM"
-    || role === "FINANCE";
+    || role === "ERM" || role === "ACCOUNTS";
   useEffect(() => {
     if (user && !isStaff && user.profileComplete === false) {
       router.replace("/dashboard?tab=complete-profile");

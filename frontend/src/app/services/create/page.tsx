@@ -43,7 +43,7 @@ export default function CreateServicePage() {
   const [success, setSuccess] = useState(false);
 
   const role = user?.role?.toUpperCase();
-  const canCreate = role === "ADMIN" || role === "TRAINER";
+  const canCreate = role === "ADMIN" || role === "INSTRUCTOR";
 
   useEffect(() => {
     if (!canCreate) return;
@@ -51,7 +51,7 @@ export default function CreateServicePage() {
     getUsers()
       .then((data) => {
         const filtered = ((data ?? []) as UserRow[]).filter(
-          (u) => u.role?.toUpperCase() === "TRAINER"
+          (u) => u.role?.toUpperCase() === "INSTRUCTOR"
         );
         setTrainers(filtered);
       })
@@ -257,8 +257,8 @@ export default function CreateServicePage() {
                 </div>
               ) : trainers.length === 0 ? (
                 <p className="text-xs text-gray-500">
-                  No users with TRAINER role yet. You can create the service now and assign a
-                  trainer later.
+                  No users with INSTRUCTOR role yet. You can create the service now and assign an
+                  instructor later.
                 </p>
               ) : (
                 <select

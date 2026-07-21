@@ -49,32 +49,27 @@ public class DataSeeder implements CommandLineRunner {
     @Override
     @Transactional
     public void run(String... args) {
-        // Seed roles first (idempotent)
+        // Seed the five canonical roles (idempotent).
+        // Consolidation history:
+        //   PARTICIPANT   → merged into STUDENT
+        //   TRAINER       → merged into INSTRUCTOR
+        //   OPERATIONS_ADMIN, SYSTEM_ADMIN → merged into ADMIN
+        //   FINANCE       → renamed to ACCOUNTS
+        // ERM stays. See backfill/2026-07-role-consolidation.sql for the
+        // one-off DB backfill that drops the drained legacy rows.
         Role studentRole = roleRepository.findByName("STUDENT")
                 .orElseGet(() -> roleRepository.save(Role.builder().name("STUDENT").build()));
         Role instructorRole = roleRepository.findByName("INSTRUCTOR")
                 .orElseGet(() -> roleRepository.save(Role.builder().name("INSTRUCTOR").build()));
         Role adminRole = roleRepository.findByName("ADMIN")
                 .orElseGet(() -> roleRepository.save(Role.builder().name("ADMIN").build()));
-        Role trainerRole = roleRepository.findByName("TRAINER")
-                .orElseGet(() -> roleRepository.save(Role.builder().name("TRAINER").build()));
-        log.info("Roles ready: STUDENT({}), INSTRUCTOR({}), TRAINER({}), ADMIN({})",
-                studentRole.getId(), instructorRole.getId(), trainerRole.getId(), adminRole.getId());
-
-        // Phase 1A roles — added alongside the legacy LMS roles, not
-        // replacing them. Legacy STUDENT and ADMIN rows continue to
-        // work; the new code paths treat STUDENT as PARTICIPANT and
-        // ADMIN as OPERATIONS_ADMIN via PermissionService's role
-        // alias set. Idempotent, like the block above.
-        String[] phase1aRoles = {
-                "PARTICIPANT", "ERM",
-                "OPERATIONS_ADMIN", "FINANCE", "SYSTEM_ADMIN",
-        };
-        for (String name : phase1aRoles) {
-            roleRepository.findByName(name).orElseGet(() ->
-                    roleRepository.save(Role.builder().name(name).build()));
-        }
-        log.info("Phase 1A roles ensured: {}", String.join(", ", phase1aRoles));
+        Role ermRole = roleRepository.findByName("ERM")
+                .orElseGet(() -> roleRepository.save(Role.builder().name("ERM").build()));
+        Role accountsRole = roleRepository.findByName("ACCOUNTS")
+                .orElseGet(() -> roleRepository.save(Role.builder().name("ACCOUNTS").build()));
+        log.info("Roles ready: STUDENT({}), INSTRUCTOR({}), ADMIN({}), ERM({}), ACCOUNTS({})",
+                studentRole.getId(), instructorRole.getId(), adminRole.getId(),
+                ermRole.getId(), accountsRole.getId());
 
         // ── Audit cleanup migrations (idempotent) ───────────────────
         // Rename legacy workflow status strings to match the PRD
@@ -207,7 +202,7 @@ public class DataSeeder implements CommandLineRunner {
             // Backfill on already-seeded dev DBs that predate the services
             // feature. Idempotent — does nothing if the trainer + 4 services
             // already exist.
-            seedServicesAndTrainer(trainerRole);
+            seedServicesAndTrainer(instructorRole);
             // Bring legacy course/service prices up to the new realistic
             // values. Only touches courses that still hold the OLD seed
             // price so any admin-edited price is preserved.
@@ -547,9 +542,9 @@ public class DataSeeder implements CommandLineRunner {
 
         log.info("Seeded enrollments.");
 
-        // Services + trainer (idempotent: also called from the early-return
+        // Services + author (idempotent: also called from the early-return
         // branch above so both fresh and previously-seeded DBs get them).
-        seedServicesAndTrainer(trainerRole);
+        seedServicesAndTrainer(instructorRole);
 
         log.info("Database seeding complete!");
     }
@@ -574,8 +569,8 @@ public class DataSeeder implements CommandLineRunner {
      */
     private void seedPhase4Team() {
         Role ermRole = roleRepository.findByName("ERM").orElse(null);
-        Role financeRole = roleRepository.findByName("FINANCE").orElse(null);
-        Role opsAdminRole = roleRepository.findByName("OPERATIONS_ADMIN").orElse(null);
+        Role accountsRole = roleRepository.findByName("ACCOUNTS").orElse(null);
+        Role adminRole = roleRepository.findByName("ADMIN").orElse(null);
         if (ermRole == null) {
             log.warn("Phase 4 roles missing — skipping seed");
             return;
@@ -596,19 +591,19 @@ public class DataSeeder implements CommandLineRunner {
         seedTeamUser("erm@spireitco.com", "Deepthi R", ermRole,
                 passwordEncoder.encode("SpireERM@2026"),
                 "Employee Relationship Manager — primary participant point of contact.");
-        if (financeRole != null) {
-            seedTeamUser("finance@spireitco.com", "Rahul Kumar", financeRole,
+        if (accountsRole != null) {
+            seedTeamUser("finance@spireitco.com", "Rahul Kumar", accountsRole,
                     passwordEncoder.encode("SpireFinance@2026"),
-                    "Finance — payment plans, invoices, check tracking.");
+                    "Accounts — payment plans, invoices, check tracking.");
         } else {
-            log.warn("FINANCE role missing — finance@spireitco.com not seeded");
+            log.warn("ACCOUNTS role missing — finance@spireitco.com not seeded");
         }
-        if (opsAdminRole != null) {
-            seedTeamUser("admin@spireitco.com", "Admin User", opsAdminRole,
+        if (adminRole != null) {
+            seedTeamUser("admin@spireitco.com", "Admin User", adminRole,
                     passwordEncoder.encode("SpireAdmin@2026"),
-                    "Operations admin — enrollment queue, document review, assignments.");
+                    "Admin — enrollment queue, document review, assignments.");
         } else {
-            log.warn("OPERATIONS_ADMIN role missing — admin@spireitco.com not seeded");
+            log.warn("ADMIN role missing — admin@spireitco.com not seeded");
         }
     }
 
@@ -629,15 +624,15 @@ public class DataSeeder implements CommandLineRunner {
         log.info("Seeded team user {} ({}) with role {}", email, fullName, role.getName());
     }
 
-    private void seedServicesAndTrainer(Role trainerRole) {
+    private void seedServicesAndTrainer(Role instructorRole) {
         User meera = userRepository.findByEmail("meera@spire.dev")
                 .orElseGet(() -> {
-                    log.info("Seeding trainer user: meera@spire.dev");
+                    log.info("Seeding services author: meera@spire.dev");
                     return userRepository.save(User.builder()
                             .email("meera@spire.dev")
                             .passwordHash(passwordEncoder.encode("password123"))
                             .fullName("Meera Iyer")
-                            .role(trainerRole)
+                            .role(instructorRole)
                             .bio("Career coach with 12+ years guiding professionals through resumes, interviews, and placement.")
                             .build());
                 });

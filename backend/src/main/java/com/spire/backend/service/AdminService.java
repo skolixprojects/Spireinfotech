@@ -44,7 +44,6 @@ public class AdminService {
     public Map<String, Object> getAnalytics() {
         long totalStudents = countUsersWithRole("STUDENT");
         long totalInstructors = countUsersWithRole("INSTRUCTOR");
-        long totalTrainers = countUsersWithRole("TRAINER");
         long totalAdmins = countUsersWithRole("ADMIN");
 
         long totalCoursesOnly = courseRepository.findAll().stream()
@@ -72,7 +71,6 @@ public class AdminService {
         stats.put("totalUsers", userRepository.count());
         stats.put("totalStudents", totalStudents);
         stats.put("totalInstructors", totalInstructors);
-        stats.put("totalTrainers", totalTrainers);
         stats.put("totalAdmins", totalAdmins);
         stats.put("totalCourses", totalCoursesOnly);
         stats.put("totalServices", totalServices);

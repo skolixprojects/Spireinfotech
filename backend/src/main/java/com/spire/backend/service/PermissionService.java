@@ -9,15 +9,9 @@ import org.springframework.stereotype.Service;
 import java.util.Set;
 
 /**
- * Centralised role-based access checks for Phase 1A resources.
- *
- * Backed by the participant-lifecycle role set (PARTICIPANT, ERM,
- * OPERATIONS_ADMIN, FINANCE, SYSTEM_ADMIN). Legacy role names are
- * accepted for backward compatibility:
- *   STUDENT  → PARTICIPANT
- *   ADMIN    → OPERATIONS_ADMIN
- *   INSTRUCTOR / TRAINER are left untouched — they remain valid
- *   roles in the existing LMS surface alongside the new ones.
+ * Centralised role-based access checks for participant-lifecycle
+ * resources. Backed by the five canonical roles: STUDENT, INSTRUCTOR,
+ * ADMIN, ERM, ACCOUNTS.
  *
  * Every method takes the {@code viewer} (the caller) and the
  * {@code target} (the user whose data is being read). Returning
@@ -28,12 +22,8 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class PermissionService {
 
-    private static final Set<String> ADMIN_ROLES = Set.of(
-            "OPERATIONS_ADMIN", "SYSTEM_ADMIN", "ADMIN"
-    );
-    private static final Set<String> FINANCE_ROLES = Set.of(
-            "FINANCE", "SYSTEM_ADMIN"
-    );
+    private static final Set<String> ADMIN_ROLES = Set.of("ADMIN");
+    private static final Set<String> FINANCE_ROLES = Set.of("ACCOUNTS", "ADMIN");
 
     private final ErmAssignmentRepository ermAssignmentRepository;
 
@@ -53,10 +43,6 @@ public class PermissionService {
         return FINANCE_ROLES.contains(roleOf(viewer));
     }
 
-    public boolean isSystemAdmin(User viewer) {
-        return "SYSTEM_ADMIN".equals(roleOf(viewer));
-    }
-
     /** True when the viewer is the user's currently-assigned ERM. */
     public boolean isAssignedErmFor(User viewer, User target) {
         if (viewer == null || target == null) return false;
@@ -72,7 +58,7 @@ public class PermissionService {
 
     /**
      * Document vault — visible to the document owner, their assigned
-     * ERM, or any Operations Admin / System Admin.
+     * ERM, or any Admin.
      */
     public boolean canViewDocuments(User viewer, User target) {
         if (viewer == null || target == null) return false;
@@ -83,17 +69,16 @@ public class PermissionService {
 
     /**
      * Cheque images / check_documents — strictest tier. Visible to
-     * Finance and System Admin only. Operations Admin needs explicit
-     * elevation (not granted here).
+     * Accounts and Admin only.
      */
     public boolean canViewCheckImages(User viewer) {
         return isFinance(viewer);
     }
 
     /**
-     * Payment plan, invoices, ledger details — Finance and System
-     * Admin. Participants see their OWN payment data via a separate
-     * narrower check below.
+     * Payment plan, invoices, ledger details — Accounts and Admin.
+     * Participants see their OWN payment data via a separate narrower
+     * check below.
      */
     public boolean canViewPaymentDetails(User viewer) {
         return isFinance(viewer);
@@ -106,9 +91,8 @@ public class PermissionService {
     }
 
     /**
-     * Workflow transitions — Operations Admin or the assigned ERM.
-     * Used by the participant management UI to gate "advance step"
-     * buttons.
+     * Workflow transitions — Admin or the assigned ERM. Used by the
+     * participant management UI to gate "advance step" buttons.
      */
     public boolean canTransitionWorkflow(User viewer, User target) {
         if (viewer == null || target == null) return false;

@@ -42,7 +42,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','OPERATIONS_ADMIN','SYSTEM_ADMIN')")  // Double-layer: URL config + method-level
+@PreAuthorize("hasRole('ADMIN')")  // matches the /api/admin/** URL matcher in SecurityConfig
 public class AdminController {
 
     private final AdminService adminService;

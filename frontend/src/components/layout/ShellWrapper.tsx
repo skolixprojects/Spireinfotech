@@ -25,7 +25,7 @@ const FULLSCREEN_ROUTES = [
   // Phase 5A/B — role-scoped dashboards own their full chrome
   // (sidebar + main column). Don't wrap them in the marketing-site
   // Navbar/Footer, which would compete with the sidebar layout.
-  "/dashboard", "/erm-dashboard", "/finance-dashboard",
+  "/dashboard", "/erm-dashboard", "/accounts-dashboard",
   "/operations",
   // Internal mail module — its own (mail) layout owns the chrome; the
   // LMS Navbar/Footer must never render over it. ("/mail" via startsWith

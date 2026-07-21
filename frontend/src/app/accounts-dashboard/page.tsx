@@ -32,9 +32,13 @@ import {
  *   excepts  — finance exceptions (Phase 7 placeholder)
  *
  * Per PRD §13, this is the ONLY role with un-redacted access to
- * check images. The route is locked to FINANCE / SYSTEM_ADMIN /
- * OPERATIONS_ADMIN at both the page level (router guard below)
- * and the API level.
+ * check images. The route is locked to ACCOUNTS at the page level
+ * (router guard below); ADMIN also has access via the FinanceController
+ * @PreAuthorize (hasAnyRole('ACCOUNTS','ADMIN')).
+ *
+ * Internal names (FinanceDashboardPage, /api/finance calls, Finance*
+ * DTOs) are retained; only the role gate, route folder, and
+ * user-facing labels reflect the rename to Accounts.
  */
 
 type TabId = "home" | "plans" | "invoices" | "payments" | "checks" | "tracking" | "excepts";
@@ -61,7 +65,7 @@ export default function FinanceDashboardPage() {
     if (isLoading) return;
     if (!user) { router.replace("/login"); return; }
     const role = (user.role ?? "").toUpperCase();
-    if (role !== "FINANCE" && role !== "SYSTEM_ADMIN" && role !== "OPERATIONS_ADMIN") {
+    if (role !== "ACCOUNTS") {
       router.replace("/dashboard");
       return;
     }
@@ -82,7 +86,7 @@ export default function FinanceDashboardPage() {
   }
 
   return (
-    <RoleDashboardShell title="Finance" tabs={TABS}
+    <RoleDashboardShell title="Accounts" tabs={TABS}
       active={active} onSelect={(id) => setActive(id as TabId)}
     >
       {error && (
@@ -115,7 +119,7 @@ function OverviewTab({ checks }: { checks: FinanceCheckRow[] }) {
 
   return (
     <div className="space-y-5">
-      <h1 className="font-serif text-2xl font-bold text-gray-900">Finance overview</h1>
+      <h1 className="font-serif text-2xl font-bold text-gray-900">Accounts overview</h1>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Stat label="Active payment plans" value={summary?.activePlans ?? 0} />
         <Stat label="Unpaid invoices" value={summary?.unpaidInvoices ?? 0} accent="amber" />
@@ -638,7 +642,7 @@ function ExceptionsTab() {
 
   return (
     <div className="space-y-5">
-      <h1 className="font-serif text-2xl font-bold text-gray-900">Finance exceptions</h1>
+      <h1 className="font-serif text-2xl font-bold text-gray-900">Accounts exceptions</h1>
 
       <div className="space-y-2">
         <p className="text-[11px] uppercase tracking-wider font-semibold text-gray-500">
@@ -756,9 +760,9 @@ function ChecksTab({ checks, onRefresh }: {
     <div className="space-y-4">
       <h1 className="font-serif text-2xl font-bold text-gray-900">Check soft-copies</h1>
       <p className="text-sm text-gray-500">
-        Finance and authorised operations admins are the only roles
-        permitted to view un-redacted check images. Approve to record
-        receipt, reject to request a re-upload from the participant.
+        Accounts and admins are the only roles permitted to view
+        un-redacted check images. Approve to record receipt, reject to
+        request a re-upload from the participant.
       </p>
       <div className="rounded-2xl border border-gray-100 bg-white overflow-hidden">
         <table className="w-full text-sm">

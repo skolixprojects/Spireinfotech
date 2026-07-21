@@ -74,9 +74,9 @@ function LoginForm() {
         await import("@/lib/api");
       // Staff roles route to their own dashboards regardless of
       // currentStatus (they don't have a participant lifecycle).
-      // Resolve via dashboardRouteForRole so legacy ADMIN, SYSTEM_ADMIN,
-      // OPERATIONS_ADMIN, INSTRUCTOR, etc. all funnel through the
-      // same map — no hand-maintained role list to forget on.
+      // Resolve via dashboardRouteForRole so ADMIN, ERM, ACCOUNTS,
+      // INSTRUCTOR all funnel through the same map — no hand-
+      // maintained role list to forget on.
       const roleRoute = dashboardRouteForRole(role);
       if (roleRoute !== "/dashboard") {
         window.location.href = roleRoute;

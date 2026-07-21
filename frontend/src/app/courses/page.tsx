@@ -44,9 +44,7 @@ export default function CoursesPage() {
   // participants. Anonymous visitors can still browse the catalog;
   // they hit /enroll the moment they click "Enroll".
   const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
-    || role === "TRAINER" || role === "SYSTEM_ADMIN"
-    || role === "OPERATIONS_ADMIN" || role === "ERM"
-    || role === "FINANCE";
+    || role === "ERM" || role === "ACCOUNTS";
   const [selectedLevel, setSelectedLevel] = useState<string>("All");
   const [search, setSearch] = useState("");
   const [courses, setCourses] = useState<CourseItem[]>([]);

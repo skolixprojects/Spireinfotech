@@ -1392,14 +1392,7 @@ export async function assignErmToParticipant(
 export function dashboardRouteForRole(role: string | null | undefined): string {
   const r = (role ?? "").toUpperCase();
   if (r === "ERM") return "/erm-dashboard";
-  if (r === "FINANCE") return "/finance-dashboard";
-  // OPERATIONS_ADMIN / SYSTEM_ADMIN run the participant-lifecycle
-  // operations console at /operations (enrollment queue, doc review,
-  // agreement queue, assignments, audit, exceptions). The legacy
-  // ADMIN role keeps /admin, which still hosts the LMS surface
-  // (courses, sessions, revenue, mentor pools, instructor approvals).
-  // Two distinct routes so the two admin personas don't collide.
-  if (r === "OPERATIONS_ADMIN" || r === "SYSTEM_ADMIN") return "/operations";
+  if (r === "ACCOUNTS") return "/accounts-dashboard";
   if (r === "ADMIN") return "/admin";
   if (r === "INSTRUCTOR") return "/instructor";
   return "/dashboard";

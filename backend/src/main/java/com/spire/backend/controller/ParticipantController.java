@@ -208,8 +208,7 @@ public class ParticipantController {
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(a -> {
                     String r = a.getAuthority();
-                    return "ROLE_ADMIN".equals(r) || "ROLE_OPERATIONS_ADMIN".equals(r)
-                            || "ROLE_SYSTEM_ADMIN".equals(r) || "ROLE_ERM".equals(r);
+                    return "ROLE_ADMIN".equals(r) || "ROLE_ERM".equals(r);
                 });
         ParticipantDocument doc = documentService.get(documentId, callerId, isAdmin);
 

@@ -111,7 +111,7 @@ public class AuthService {
      * Re-uses the existing OTP-generation + emailing primitives from
      * {@link #register} but does NOT delegate to it — we want the
      * extended fields persisted in the same insert (rather than a
-     * follow-up UPDATE) and the role to be PARTICIPANT, not STUDENT.
+     * follow-up UPDATE).
      */
     @Transactional
     public RegistrationResponse enrollParticipant(ParticipantEnrollRequest request) {
@@ -129,10 +129,9 @@ public class AuthService {
             throw new IllegalArgumentException("Email already registered");
         }
 
-        Role participantRole = roleRepository.findByName("PARTICIPANT")
-                .orElseGet(() -> roleRepository.findByName("STUDENT")
-                        .orElseThrow(() -> new IllegalStateException(
-                                "Neither PARTICIPANT nor STUDENT role exists")));
+        Role studentRole = roleRepository.findByName("STUDENT")
+                .orElseThrow(() -> new IllegalStateException(
+                        "Default role STUDENT not found in database"));
 
         String code = generateCode();
         LocalDateTime now = LocalDateTime.now();
@@ -141,7 +140,7 @@ public class AuthService {
                 .email(request.getEmail().trim().toLowerCase())
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName().trim())
-                .role(participantRole)
+                .role(studentRole)
                 .phone(request.getPhone())
                 .isActive(true)
                 .emailVerified(false)

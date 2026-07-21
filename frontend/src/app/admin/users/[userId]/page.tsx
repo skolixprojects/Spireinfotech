@@ -22,7 +22,7 @@ import { UserRecordsPanel } from "@/components/admin/UserRecordsPanel";
 import { cn } from "@/lib/utils";
 import { formatISTDate, formatISTWithZone } from "@/lib/datetime";
 
-const ROLES = ["STUDENT", "INSTRUCTOR", "TRAINER", "ADMIN"] as const;
+const ROLES = ["STUDENT", "INSTRUCTOR", "ADMIN", "ERM", "ACCOUNTS"] as const;
 
 function initialsOf(name: string | null | undefined): string {
   if (!name) return "U";

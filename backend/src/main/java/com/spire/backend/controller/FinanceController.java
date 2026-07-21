@@ -26,19 +26,21 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Phase 5B Finance dashboard endpoints. Gated to the FINANCE role
- * (system / operations admins can also read check images through the
- * existing admin paths, but the Finance-specific review workflow
- * lives here).
+ * Phase 5B Accounts dashboard endpoints. Gated to the ACCOUNTS role
+ * (admins can also read check images through the existing admin
+ * paths, but the Accounts-specific review workflow lives here).
  *
  * Per PRD §13, this is the ONLY role with un-redacted access to
- * check images and check-tracking data. Coaches and ERMs never reach
- * these endpoints.
+ * check images and check-tracking data. ERMs never reach these
+ * endpoints.
+ *
+ * Internal names (class, /api/finance URL, Finance* DTOs) retained
+ * for now; only the role gate + user-facing labels reflect the rename.
  */
 @RestController
 @RequestMapping("/api/finance")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('FINANCE','SYSTEM_ADMIN','OPERATIONS_ADMIN')")
+@PreAuthorize("hasAnyRole('ACCOUNTS','ADMIN')")
 public class FinanceController {
 
     private final CheckDocumentRepository checkRepository;

@@ -122,7 +122,7 @@ public class CourseController {
     // ─── Create course (ADMIN or approved INSTRUCTOR) ───────────────
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR', 'TRAINER')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'INSTRUCTOR')")
     public ResponseEntity<ApiResponse<CourseDTO>> createCourse(
             @Valid @RequestBody CourseRequest dto, Authentication authentication) {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
@@ -136,19 +136,9 @@ public class CourseController {
                     .body(ApiResponse.error("Your instructor account is pending approval."));
         }
 
-        // Trainers can only create services. Instructors can only create courses.
-        // Admins can create either.
-        String roleName = user.getRole().getName();
-        String requestedType = (dto.getType() != null && !dto.getType().isBlank())
-                ? dto.getType().toUpperCase() : "COURSE";
-        if ("TRAINER".equals(roleName) && !"SERVICE".equals(requestedType)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Trainers can only create services."));
-        }
-        if ("INSTRUCTOR".equals(roleName) && !"COURSE".equals(requestedType)) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(ApiResponse.error("Instructors can only create courses."));
-        }
+        // Post-role-consolidation: TRAINER folded into INSTRUCTOR, so
+        // instructors can create either COURSE or SERVICE (formerly
+        // trainer-only). Admins still create either.
 
         CourseDTO created = courseService.createCourse(dto, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Course created", created));

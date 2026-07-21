@@ -21,9 +21,7 @@ export default function ServicesPage() {
   // staff + anonymous visitors fall through.
   const role = user?.role?.toUpperCase() ?? "";
   const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
-    || role === "TRAINER" || role === "SYSTEM_ADMIN"
-    || role === "OPERATIONS_ADMIN" || role === "ERM"
-    || role === "FINANCE";
+    || role === "ERM" || role === "ACCOUNTS";
   useEffect(() => {
     if (user && !isStaff && user.profileComplete === false) {
       router.replace("/dashboard?tab=complete-profile");
@@ -38,7 +36,7 @@ export default function ServicesPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const canCreate = role === "ADMIN" || role === "TRAINER";
+  const canCreate = role === "ADMIN" || role === "INSTRUCTOR";
 
   return (
     <section className="mx-auto max-w-7xl px-6 pt-32 pb-20 min-h-screen">

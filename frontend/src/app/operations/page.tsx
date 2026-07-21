@@ -16,8 +16,9 @@ import { OperationsPanel } from "@/components/admin/OperationsPanel";
  * Distinct route from /admin (which retains the LMS admin surface:
  * courses, sessions, revenue, mentor pools, instructor approvals).
  *
- * Gated to OPERATIONS_ADMIN / SYSTEM_ADMIN. Legacy ADMIN users land
- * on /admin instead per dashboardRouteForRole.
+ * Gated to ADMIN. dashboardRouteForRole sends admins to /admin (the
+ * LMS surface); /operations remains as the participant-lifecycle
+ * operations tool that admins can navigate to explicitly.
  *
  * Renders the participant-lifecycle operations queues:
  *   • Enrollment queue
@@ -41,9 +42,8 @@ export default function OperationsPage() {
       return;
     }
     const role = (user.role ?? "").toUpperCase();
-    if (role !== "OPERATIONS_ADMIN" && role !== "SYSTEM_ADMIN") {
-      // Anyone else routed away — legacy ADMIN to /admin, others to
-      // their natural dashboard. dashboardRouteForRole picks correctly.
+    if (role !== "ADMIN") {
+      // Anyone else routed away to their natural dashboard.
       import("@/lib/api").then(({ dashboardRouteForRole }) => {
         router.replace(dashboardRouteForRole(role));
       });
@@ -59,7 +59,7 @@ export default function OperationsPage() {
   }
 
   const role = (user?.role ?? "").toUpperCase();
-  if (role !== "OPERATIONS_ADMIN" && role !== "SYSTEM_ADMIN") {
+  if (role !== "ADMIN") {
     return null;
   }
 

@@ -38,12 +38,6 @@ const INSTRUCTOR_LINKS = [
   { label: "Profile", href: "/profile" },
 ];
 
-const TRAINER_LINKS = [
-  { label: "Services", href: "/services" },
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Profile", href: "/profile" },
-];
-
 const ADMIN_LINKS = [
   { label: "Courses", href: "/courses" },
   { label: "Services", href: "/services" },
@@ -61,7 +55,6 @@ function pickNavLinks(
   switch (upper) {
     case "ADMIN": return ADMIN_LINKS;
     case "INSTRUCTOR": return INSTRUCTOR_LINKS;
-    case "TRAINER": return TRAINER_LINKS;
     default:
       // Phase 1C: hide /courses, /services, and /cart from
       // participant nav until the profile is 100% complete. They
@@ -184,8 +177,7 @@ export function Navbar() {
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
                           <LayoutDashboard size={16} /> Dashboard
                         </Link>
-                        {(user.role?.toUpperCase() !== "STUDENT"
-                          && user.role?.toUpperCase() !== "PARTICIPANT")
+                        {user.role?.toUpperCase() !== "STUDENT"
                           || user.profileComplete ? (
                           <Link href="/courses" onClick={() => setDropdownOpen(false)}
                             className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
