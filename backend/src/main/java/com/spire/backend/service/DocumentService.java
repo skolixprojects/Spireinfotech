@@ -267,8 +267,9 @@ public class DocumentService {
     private User requireGatedUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.ACKNOWLEDGMENT_ACCEPTED)) {
+        // Gate on the boolean flag (authoritative for the checklist)
+        // instead of the status ladder (bookkeeping).
+        if (!Boolean.TRUE.equals(user.getAcknowledgmentComplete())) {
             throw new UnauthorizedException(
                     "Complete the acknowledgment step before uploading documents.");
         }

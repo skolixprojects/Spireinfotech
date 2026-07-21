@@ -58,13 +58,18 @@ public class AcknowledgmentService {
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
         // ── Gate ────────────────────────────────────────────────────
-        if (!workflowService.isStatusAtLeast(user, WorkflowService.Status.ID_EMAIL_SENT)) {
+        // Reads the boolean flag directly instead of the status ladder —
+        // the ladder is bookkeeping only; the flag is authoritative.
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
             throw new UnauthorizedException(
                     "Complete email verification and receive your participant ID first.");
         }
 
         // ── Idempotent return if already accepted ───────────────────
-        if (workflowService.isStatusAtLeast(user, WorkflowService.Status.ACKNOWLEDGMENT_ACCEPTED)) {
+        // Reads the completion flag (same source the checklist +
+        // /completion endpoint use) so this branch can never diverge
+        // from what the client sees — closes the ack-bug regression class.
+        if (Boolean.TRUE.equals(user.getAcknowledgmentComplete())) {
             Acknowledgment existing = acknowledgmentRepository
                     .findByUserIdAndAcknowledgmentType(userId, TYPE_INTEREST_AND_ACCEPTANCE)
                     .stream()

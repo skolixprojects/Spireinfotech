@@ -197,8 +197,9 @@ public class ParticipantCheckService {
     private User requireGatedUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.PROGRAM_SELECTED)) {
+        // Gate on the boolean flag (authoritative) instead of the
+        // status ladder (bookkeeping).
+        if (!Boolean.TRUE.equals(user.getProgramSelectionComplete())) {
             throw new UnauthorizedException(
                     "Complete program selection before uploading check soft-copies.");
         }

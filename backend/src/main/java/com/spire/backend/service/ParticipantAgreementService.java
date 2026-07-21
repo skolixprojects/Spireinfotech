@@ -50,11 +50,11 @@ public class ParticipantAgreementService {
     ) {
         User user = requireGatedUser(userId);
 
-        // Idempotent re-sign — if the user has already moved past
-        // AGREEMENT_COMPLETED (e.g. they're on the check-upload step
-        // already), route them forward without re-running anything.
-        if (workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.CHECK_COPY_UPLOADED)) {
+        // Idempotent re-sign — read the completion flags directly
+        // (same source the checklist uses) instead of the status
+        // ladder. Order matters: check-upload past first so a user
+        // who is fully done routes to /welcome, not /check-upload.
+        if (Boolean.TRUE.equals(user.getCheckUploadComplete())) {
             return Map.of(
                     "success", true,
                     "alreadySigned", true,
@@ -62,8 +62,7 @@ public class ParticipantAgreementService {
                     "nextStep", "/welcome"
             );
         }
-        if (workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.AGREEMENT_COMPLETED)) {
+        if (Boolean.TRUE.equals(user.getAgreementComplete())) {
             return Map.of(
                     "success", true,
                     "alreadySigned", true,
@@ -116,8 +115,9 @@ public class ParticipantAgreementService {
     private User requireGatedUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.PROGRAM_SELECTED)) {
+        // Gate on the boolean flag (authoritative) instead of the
+        // status ladder (bookkeeping).
+        if (!Boolean.TRUE.equals(user.getProgramSelectionComplete())) {
             throw new UnauthorizedException(
                     "Complete program selection before reaching the agreement step.");
         }

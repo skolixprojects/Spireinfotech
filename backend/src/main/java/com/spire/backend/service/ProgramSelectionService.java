@@ -63,8 +63,10 @@ public class ProgramSelectionService {
     public ProgramSelection saveDraft(Long userId, ProgramSelectionRequest req) {
         User user = requireGatedUser(userId);
         // Past-the-finish-line guard: don't let a stray draft call
-        // mutate a finalised row once the workflow has moved on.
-        if (workflowService.isStatusAtLeast(user, WorkflowService.Status.AGREEMENT_SENT)) {
+        // mutate a finalised row once the user has signed the
+        // agreement. Reads the agreement completion flag directly
+        // instead of the AGREEMENT_SENT status ladder value.
+        if (Boolean.TRUE.equals(user.getAgreementComplete())) {
             throw new UnauthorizedException(
                     "Program selection has already been locked for agreement signing.");
         }
@@ -86,8 +88,10 @@ public class ProgramSelectionService {
     public ProgramSelection submit(Long userId, ProgramSelectionRequest req) {
         User user = requireGatedUser(userId);
 
-        // Idempotent return if already past this step.
-        if (workflowService.isStatusAtLeast(user, WorkflowService.Status.PROGRAM_SELECTED)) {
+        // Idempotent return if already past this step. Reads the
+        // completion flag (same source the checklist uses) so this
+        // branch can never diverge from what the client sees.
+        if (Boolean.TRUE.equals(user.getProgramSelectionComplete())) {
             ProgramSelection existing = programSelectionRepository
                     .findFirstByUserIdOrderBySelectionDateDesc(userId)
                     .orElseGet(() -> programSelectionRepository.save(
@@ -160,8 +164,9 @@ public class ProgramSelectionService {
     private User requireGatedUser(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.DOCUMENTS_SUBMITTED)) {
+        // Gate on the boolean flag (authoritative) instead of the
+        // status ladder (bookkeeping).
+        if (!Boolean.TRUE.equals(user.getDocumentsComplete())) {
             throw new UnauthorizedException(
                     "Upload your required documents before selecting a program.");
         }
