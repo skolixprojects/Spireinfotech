@@ -161,9 +161,12 @@ public class AuthService {
                         "phone", user.getPhone() != null ? user.getPhone() : ""
                 ));
 
-        // Workflow ladder: DRAFT_STARTED → BASIC_INFO_SUBMITTED → EMAIL_VERIFICATION_PENDING
-        workflowService.transition(user, WorkflowService.Status.BASIC_INFO_SUBMITTED, "enrollment");
-        workflowService.transition(user, WorkflowService.Status.EMAIL_VERIFICATION_PENDING, "otp_sent");
+        // Phase 5B: the two lower-ladder transitions (BASIC_INFO_SUBMITTED,
+        // EMAIL_VERIFICATION_PENDING) were removed alongside the enum values.
+        // The user rests at DRAFT_STARTED (the entity default) until either
+        // the DIRECT attribution jumps them to DASHBOARD_ENABLED, or the
+        // reference onboarding chain lifts them through WELCOME_SENT →
+        // DEEPTHI_INTRO_SENT → ERM_ASSIGNED → DASHBOARD_ENABLED.
 
         try { emailTemplateService.sendVerificationCodeEmail(user, code); } catch (Exception ignored) {}
 
@@ -251,20 +254,13 @@ public class AuthService {
                 "User verified email via 6-digit code",
                 Map.of("email", saved.getEmail()));
 
-        // Phase 1B: walk the workflow forward + mint the participant
-        // ID + send the ID email. All best-effort below the verify
-        // itself — the user is already verified, so a mailer outage
-        // can't roll back the gate. We still attempt the transitions
-        // in the same Tx so the workflow_states audit row reflects
-        // the actual state on the user record.
-        try {
-            workflowService.transition(saved,
-                    WorkflowService.Status.EMAIL_VERIFIED, "email_verified");
-        } catch (Exception e) {
-            // Tolerant of pre-Phase-1B users whose currentStatus was
-            // backfilled past EMAIL_VERIFIED — the transition still
-            // records an audit row but doesn't move them backward.
-        }
+        // Phase 5B: the lower-ladder transitions (EMAIL_VERIFIED,
+        // PARTICIPANT_ID_CREATED, ID_EMAIL_SENT) were removed along
+        // with the enum values. The user stays at DRAFT_STARTED after
+        // verify; emailVerified (a separate flag) is the authoritative
+        // record that verification succeeded. We still mint the ID and
+        // send the ID email — those side-effects are what the user cares
+        // about; the status bookkeeping around them is gone.
 
         // Only mint an ID if the user hasn't already got one. The
         // ParticipantIdService is itself idempotent but skipping the
@@ -273,16 +269,11 @@ public class AuthService {
             try {
                 String issued = participantIdService.issue(saved);
                 saved.setParticipantId(issued);
-                workflowService.transition(saved,
-                        WorkflowService.Status.PARTICIPANT_ID_CREATED, "id_generated");
                 try {
                     emailTemplateService.sendParticipantIdEmail(saved, issued);
-                    workflowService.transition(saved,
-                            WorkflowService.Status.ID_EMAIL_SENT, "id_email_sent");
                 } catch (Exception ignored) {
-                    // Email send failure — still report ID_CREATED so
-                    // the frontend can show the page. Resend is a
-                    // follow-up admin action.
+                    // Email send failure — the ID is minted, frontend
+                    // can show it, resend is a follow-up admin action.
                 }
             } catch (Exception e) {
                 // ID issuance failure shouldn't block verification.
@@ -291,12 +282,9 @@ public class AuthService {
             }
         }
 
-        // Two-pipeline (Prompt 3): the DASHBOARD_ENABLED transition
-        // used to fire here unconditionally. It now moves into the
-        // /api/participants/attribution endpoint, gated on pipeline —
-        // DIRECT attributions transition; REFERENCE attributions wait
-        // for ERM approval. verify-code leaves the user at ID_EMAIL_SENT
-        // and the frontend routes them to /how-did-you-hear.
+        // Two-pipeline: the frontend routes verified users to
+        // /how-did-you-hear; the attribution endpoint sets pipeline
+        // and (for DIRECT) transitions to DASHBOARD_ENABLED.
 
         return buildAuthResponse(saved);
     }

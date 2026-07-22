@@ -12,25 +12,22 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Map;
 
 /**
- * Phase 1A: 20-step participant lifecycle state machine.
+ * Participant lifecycle state machine (Phase 5B trimmed ladder).
  *
- * Every status change funnels through {@link #transition} so the
- * append-only {@code workflow_states} table plus the existing
- * {@code user_records} audit log always agree. The 6 {@code can…}
- * gate methods are the canonical authority for "is this action
- * allowed yet?" — controllers must call them before mutating any
- * downstream resource (creating a participant ID, sending the agreement,
- * enabling the dashboard, …).
- *
- * The ordering of {@link Status} values reflects the on-paper
- * 20-step sequence; {@link #ordinal(Status)} treats that ordering
- * as a monotonic ladder for {@link #isStatusAtLeast}.
+ * The pre-dashboard onboarding steps used to have per-status
+ * entries; Phase 5A moved every gate onto the boolean completion
+ * flags on User, and Phase 5B removed the vestigial status writes.
+ * DRAFT_STARTED is now the single "pre-dashboard, onboarding in
+ * progress" sentinel; every user rests there until either the
+ * DIRECT attribution transitions them straight to DASHBOARD_ENABLED
+ * or the reference onboarding chain lifts them through
+ * WELCOME_SENT → DEEPTHI_INTRO_SENT → ERM_ASSIGNED → DASHBOARD_ENABLED.
  *
  * Soft validation: {@link #transition} accepts ANY status change
- * (no whitelist of allowed pairs). The workflow_states row records
- * the from/to pair so an out-of-order move is auditable. Adding a
- * strict whitelist is left for a follow-up once the on-paper flow
- * is locked in.
+ * (no whitelist of allowed pairs, no forward-only guard). Forward
+ * jumps are used by the DIRECT-attribution and onboarding-chain
+ * paths; the workflow_states row records the from/to pair so any
+ * out-of-order move remains auditable.
  */
 @Service
 @RequiredArgsConstructor
@@ -38,31 +35,17 @@ import java.util.Map;
 public class WorkflowService {
 
     /**
-     * The 26 status codes the participant lifecycle uses. Ordered to
-     * match the on-paper 20-step ladder; later statuses are "higher"
-     * for the {@link #isStatusAtLeast} comparison. The codes also
-     * cover the post-Phase-1 payment/invoicing tail (PAYMENT_PLAN_…
-     * through PAYMENTS_TRACKED) so a single workflow string drives
-     * the whole journey.
+     * The 12 canonical lifecycle statuses. DRAFT_STARTED is the
+     * pre-dashboard sentinel (below DASHBOARD_ENABLED so upper-
+     * lifecycle gates still block users during onboarding). The tail
+     * from WEEKLY_REPORTING_ACTIVE through PAYMENTS_TRACKED drives
+     * the payment/invoicing lifecycle.
      */
     public enum Status {
         DRAFT_STARTED,
-        BASIC_INFO_SUBMITTED,
-        EMAIL_VERIFICATION_PENDING,
-        EMAIL_VERIFIED,
-        PARTICIPANT_ID_CREATED,
-        ID_EMAIL_SENT,
-        ACKNOWLEDGMENT_ACCEPTED,
-        DOCUMENTS_SUBMITTED,
-        PROGRAM_SELECTED,
-        AGREEMENT_SENT,
-        AGREEMENT_COMPLETED,
-        CHECK_COPY_UPLOADED,
-        SIGNED_AGREEMENT_SENT_TO_ERM,
         WELCOME_SENT,
         DEEPTHI_INTRO_SENT,
         ERM_ASSIGNED,
-        COACHES_ASSIGNED,
         DASHBOARD_ENABLED,
         WEEKLY_REPORTING_ACTIVE,
         EMPLOYMENT_ACCEPTED,
@@ -98,31 +81,16 @@ public class WorkflowService {
         return currentStatus(user).ordinal() >= target.ordinal();
     }
 
-    // ── 6 gates: the canonical "is this allowed yet?" answers ──────
+    // ── Gate helpers ───────────────────────────────────────────────
 
     /** Email-verified — required before minting a participant ID. */
     public boolean canCreateParticipantId(User user) {
         return Boolean.TRUE.equals(user.getEmailVerified());
     }
 
-    /** Acknowledgment accepted — required before opening document upload. */
-    public boolean canSubmitDocuments(User user) {
-        return isStatusAtLeast(user, Status.ACKNOWLEDGMENT_ACCEPTED);
-    }
-
-    /** Program selected — required before issuing an agreement envelope. */
-    public boolean canStartAgreement(User user) {
-        return isStatusAtLeast(user, Status.PROGRAM_SELECTED);
-    }
-
     /** ERM assigned — required before pairing coaches. */
     public boolean canAssignCoaches(User user) {
         return isStatusAtLeast(user, Status.ERM_ASSIGNED);
-    }
-
-    /** Coaches assigned — required before opening the participant dashboard. */
-    public boolean canEnableDashboard(User user) {
-        return isStatusAtLeast(user, Status.COACHES_ASSIGNED);
     }
 
     /** Phase 1 complete — required before activating the payment plan. */

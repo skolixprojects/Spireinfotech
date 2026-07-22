@@ -36,28 +36,23 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ParticipantDashboardService {
 
-    /** Names of the 20 lifecycle steps in display order. */
+    /**
+     * Roadmap labels in display order, aligned with stepForStatus().
+     * Phase 5B: shrank from 20 to 9 alongside the ladder trim — the
+     * pre-dashboard onboarding is now one row ("Onboarding") because
+     * the six sub-steps live inside the "Complete Your Profile" tab
+     * and drive off the boolean flags.
+     */
     public static final List<String> ROADMAP_STEPS = List.of(
-            "Enrollment",
-            "Email verification",
-            "Participant ID",
-            "Acknowledgment",
-            "Documents",
-            "Program selection",
-            "Agreement sent",
-            "Check upload",
-            "Agreement complete",
-            "Signed to ERM",
-            "Welcome",
-            "Coordinator intro",
-            "ERM assigned",
-            "Coaches assigned",
-            "Dashboard active",
-            "Weekly reporting",
-            "Employment accepted",
-            "Phase 1 complete",
-            "Payment plan",
-            "Payments tracked"
+            "Onboarding",           // 1  DRAFT_STARTED
+            "Welcome",              // 2  WELCOME_SENT
+            "Coordinator intro",    // 3  DEEPTHI_INTRO_SENT
+            "ERM assigned",         // 4  ERM_ASSIGNED
+            "Dashboard active",     // 5  DASHBOARD_ENABLED
+            "Weekly reporting",     // 6  WEEKLY_REPORTING_ACTIVE
+            "Employment accepted",  // 7  EMPLOYMENT_ACCEPTED
+            "Phase 1 complete",     // 8  PHASE_1_COMPLETED
+            "Payments"              // 9  PAYMENT_PLAN_ACCEPTED / CHECK_TRACKING_ADDED / INVOICING_ACTIVE / PAYMENTS_TRACKED
     );
 
     private final UserRepository userRepository;
@@ -145,29 +140,27 @@ public class ParticipantDashboardService {
 
     // ── Helpers ────────────────────────────────────────────────
 
-    /** Maps backend workflow status → 1-20 step number. */
+    /**
+     * Maps backend workflow status → phase number for the participant
+     * dashboard roadmap. Phase 5B: the lower ladder is gone, so every
+     * pre-dashboard user sits at DRAFT_STARTED (phase 1); phases 2-4
+     * are the middle chain; phases 5-9 are the upper lifecycle.
+     */
     public static int stepForStatus(String status) {
         if (status == null) return 1;
         return switch (status) {
-            case "DRAFT_STARTED", "BASIC_INFO_SUBMITTED" -> 1;
-            case "EMAIL_VERIFICATION_PENDING", "EMAIL_VERIFIED" -> 2;
-            case "PARTICIPANT_ID_CREATED", "ID_EMAIL_SENT" -> 3;
-            case "ACKNOWLEDGMENT_ACCEPTED" -> 4;
-            case "DOCUMENTS_SUBMITTED", "DOC_REVIEW_PENDING" -> 5;
-            case "PROGRAM_SELECTED" -> 6;
-            case "AGREEMENT_SENT" -> 7;
-            case "AGREEMENT_COMPLETED" -> 8;
-            case "CHECK_COPY_UPLOADED" -> 9;
-            case "SIGNED_AGREEMENT_SENT_TO_ERM" -> 10;
-            case "WELCOME_SENT" -> 11;
-            case "DEEPTHI_INTRO_SENT" -> 12;
-            case "ERM_ASSIGNED" -> 13;
-            case "DASHBOARD_ENABLED" -> 15;
-            case "WEEKLY_REPORTING_ACTIVE" -> 16;
-            case "EMPLOYMENT_ACCEPTED" -> 17;
-            case "PHASE_1_COMPLETED" -> 18;
-            case "PAYMENT_PLAN_ACCEPTED" -> 19;
-            case "CHECK_TRACKING_ADDED", "INVOICING_ACTIVE", "PAYMENTS_TRACKED" -> 20;
+            case "DRAFT_STARTED" -> 1;
+            case "WELCOME_SENT" -> 2;
+            case "DEEPTHI_INTRO_SENT" -> 3;
+            case "ERM_ASSIGNED" -> 4;
+            case "DASHBOARD_ENABLED" -> 5;
+            case "WEEKLY_REPORTING_ACTIVE" -> 6;
+            case "EMPLOYMENT_ACCEPTED" -> 7;
+            case "PHASE_1_COMPLETED" -> 8;
+            case "PAYMENT_PLAN_ACCEPTED",
+                 "CHECK_TRACKING_ADDED",
+                 "INVOICING_ACTIVE",
+                 "PAYMENTS_TRACKED" -> 9;
             default -> 1;
         };
     }

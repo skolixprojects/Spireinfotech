@@ -127,9 +127,8 @@ public class ProgramSelectionService {
         }
         userRepository.save(user);
 
-        workflowService.transition(user,
-                WorkflowService.Status.PROGRAM_SELECTED,
-                "program_selected");
+        // Phase 5B: PROGRAM_SELECTED status transition removed;
+        // the boolean flag flipped by markStepComplete is authoritative.
         profileCompletionService.markStepComplete(user, "PROGRAM_SELECTION");
 
         Map<String, Object> details = new HashMap<>();

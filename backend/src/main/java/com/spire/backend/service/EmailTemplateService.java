@@ -215,32 +215,9 @@ public class EmailTemplateService {
                 wrap("Your weekly report is due", body));
     }
 
-    // ── 3. Document upload reminder (cron-driven) ────────────────────
-    /**
-     * Email #3 — nudge for participants stuck at ID_EMAIL_SENT or
-     * ACKNOWLEDGMENT_ACCEPTED without uploading documents. Fired by
-     * the daily document-reminder cron; safe to call repeatedly (the
-     * cron itself rate-limits per user).
-     */
-    public void sendDocumentReminderEmail(User user) {
-        String firstName = firstName(user);
-        String body = p("Dear " + escape(firstName) + ",")
-                + p("Your Participant ID (<strong>"
-                        + safe(user.getParticipantId())
-                        + "</strong>) has been created. To continue with your "
-                        + "enrollment, please upload your required documents:")
-                + bullet("Government-issued ID")
-                + bullet("Work Authorization / Visa (if applicable)")
-                + bullet("Resume / CV")
-                + button("Upload Documents", appUrl + "/document-upload")
-                + p("If you've already uploaded everything, you can ignore "
-                        + "this reminder — we'll send another only if anything "
-                        + "still looks outstanding.")
-                + p("Regards,<br/>" + brandName() + "");
-        emailService.sendEmail(user.getEmail(),
-                "Action needed: Complete your documents — " + brandName() + "",
-                wrap("Document upload reminder", body));
-    }
+    // Phase 5B: sendDocumentReminderEmail deleted alongside its only
+    // caller (DocumentReminderJob). ProfileReminderJob covers the
+    // "you haven't finished onboarding" nudge across all six steps.
 
     // ── 6. Check upload confirmation (Phase 3B) ─────────────────────
     /**

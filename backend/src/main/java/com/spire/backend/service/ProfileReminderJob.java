@@ -15,9 +15,8 @@ import java.util.List;
 
 /**
  * Phase 1C — daily nudge for participants under 100% profile
- * completion. Modelled on {@link DocumentReminderJob}: idempotent,
- * per-user throttled, max 3 reminders per user lifetime so a stuck
- * signup never gets pinged forever.
+ * completion. Idempotent, per-user throttled, max 3 reminders per
+ * user lifetime so a stuck signup never gets pinged forever.
  *
  * Cron: daily at 04:00 UTC ≈ 09:30 IST. Also reachable via the Vercel
  * cron route at {@code /api/cron/profile-reminder} which proxies in

@@ -108,12 +108,8 @@ public class AcknowledgmentService {
 
         Acknowledgment saved = persist(user, req, httpRequest);
 
-        // ── Workflow transition ─────────────────────────────────────
-        workflowService.transition(user,
-                WorkflowService.Status.ACKNOWLEDGMENT_ACCEPTED,
-                "acknowledgment");
-
-        // ── Progressive profile flag (Phase 1C) ─────────────────────
+        // Phase 5B: ACKNOWLEDGMENT_ACCEPTED status transition removed;
+        // the boolean flag flipped by markStepComplete is authoritative.
         profileCompletionService.markStepComplete(user, "ACKNOWLEDGMENT");
 
         recordService.record(user.getId(), "ACKNOWLEDGMENT_ACCEPTED",

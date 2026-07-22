@@ -71,36 +71,11 @@ public class DataSeeder implements CommandLineRunner {
                 studentRole.getId(), instructorRole.getId(), adminRole.getId(),
                 ermRole.getId(), accountsRole.getId());
 
-        // ── Audit cleanup migrations (idempotent) ───────────────────
-        // Rename legacy workflow status strings to match the PRD
-        // vocabulary, and drop the never-used docusign_envelopes
-        // shadow table. All statements are no-ops if the rows / table
-        // don't exist, so re-running the seeder is safe.
-        try {
-            int u1 = jdbcTemplate.update(
-                    "UPDATE users SET current_status = 'AGREEMENT_SENT' "
-                    + "WHERE current_status = 'DOCUSIGN_SENT'");
-            int u2 = jdbcTemplate.update(
-                    "UPDATE users SET current_status = 'AGREEMENT_COMPLETED' "
-                    + "WHERE current_status = 'DOCUSIGN_COMPLETED'");
-            int w1 = jdbcTemplate.update(
-                    "UPDATE workflow_states SET from_status = 'AGREEMENT_SENT' "
-                    + "WHERE from_status = 'DOCUSIGN_SENT'");
-            int w2 = jdbcTemplate.update(
-                    "UPDATE workflow_states SET to_status = 'AGREEMENT_SENT' "
-                    + "WHERE to_status = 'DOCUSIGN_SENT'");
-            int w3 = jdbcTemplate.update(
-                    "UPDATE workflow_states SET from_status = 'AGREEMENT_COMPLETED' "
-                    + "WHERE from_status = 'DOCUSIGN_COMPLETED'");
-            int w4 = jdbcTemplate.update(
-                    "UPDATE workflow_states SET to_status = 'AGREEMENT_COMPLETED' "
-                    + "WHERE to_status = 'DOCUSIGN_COMPLETED'");
-            log.info("Workflow status rename: users updated = {} + {}, "
-                    + "workflow_states updated = {} + {} + {} + {}",
-                    u1, u2, w1, w2, w3, w4);
-        } catch (Exception e) {
-            log.warn("Status rename migration skipped: {}", e.getMessage());
-        }
+        // Phase 5B: the DOCUSIGN_* → AGREEMENT_* rename block was
+        // deleted here — AGREEMENT_SENT / AGREEMENT_COMPLETED are no
+        // longer valid enum values, so re-running that migration would
+        // rewrite rows into removed states. Production Railway rows
+        // have long since been migrated; the block was a no-op.
 
         try {
             // Postgres + MySQL both accept this form. The IF EXISTS

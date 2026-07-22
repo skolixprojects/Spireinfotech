@@ -1521,27 +1521,11 @@ export function routeAfterAuth(user: UserDTO | null | undefined): string {
  */
 export function getOnboardingRoute(status: string | null | undefined): string {
   switch (status) {
+    // Phase 5B: only DRAFT_STARTED remains as a pre-dashboard status.
+    // Its natural landing page is /how-did-you-hear if the user has
+    // no pipeline yet, else /dashboard — the dashboard guard picks
+    // via routeAfterAuth. Every survivor status lands on /dashboard.
     case "DRAFT_STARTED":
-    case "BASIC_INFO_SUBMITTED":
-      return "/enroll";
-    case "EMAIL_VERIFICATION_PENDING":
-      return "/verify-email";
-    // Phase 1C: every post-verification status lands on /dashboard.
-    // The remaining onboarding steps (acknowledgment, documents,
-    // program selection, agreement, check upload) live inside the
-    // "Complete Your Profile" tab and are no longer a hard gate.
-    // The dashboard's gate banner + checklist tab handle the rest.
-    case "EMAIL_VERIFIED":
-    case "PARTICIPANT_ID_CREATED":
-    case "ID_EMAIL_SENT":
-    case "ACKNOWLEDGMENT_ACCEPTED":
-    case "DOC_REVIEW_PENDING":
-    case "DOCUMENTS_SUBMITTED":
-    case "PROGRAM_SELECTED":
-    case "AGREEMENT_SENT":
-    case "AGREEMENT_COMPLETED":
-    case "CHECK_COPY_UPLOADED":
-    case "SIGNED_AGREEMENT_SENT_TO_ERM":
     case "WELCOME_SENT":
     case "DEEPTHI_INTRO_SENT":
     case "ERM_ASSIGNED":

@@ -64,21 +64,17 @@ export default function WelcomePage() {
           router.replace("/dashboard");
           return;
         }
-        // Earlier in the lifecycle — bounce back to that step.
-        const earlierSteps = [
-          "DRAFT_STARTED", "BASIC_INFO_SUBMITTED",
-          "EMAIL_VERIFICATION_PENDING", "EMAIL_VERIFIED",
-          "PARTICIPANT_ID_CREATED", "ID_EMAIL_SENT",
-          "ACKNOWLEDGMENT_ACCEPTED", "DOCUMENTS_SUBMITTED",
-          "DOC_REVIEW_PENDING", "PROGRAM_SELECTED",
-          "AGREEMENT_SENT", "AGREEMENT_COMPLETED",
-        ];
+        // Earlier in the lifecycle — bounce back to that step. Post
+        // Phase 5B trim, only DRAFT_STARTED remains as a pre-dashboard
+        // status; every other survivor is at or above WELCOME_SENT
+        // and belongs on this page.
+        const earlierSteps = ["DRAFT_STARTED"];
         if (s && earlierSteps.includes(s)) {
           router.replace(getOnboardingRoute(s));
           return;
         }
-        // Eligible (CHECK_COPY_UPLOADED → COACHES_ASSIGNED) OR
-        // unknown/null. Render and let the poll loop show progress.
+        // Eligible (WELCOME_SENT and above) OR unknown/null. Render
+        // and let the poll loop show progress.
         setProfile(me);
         const [progRes, statusRes] = await Promise.allSettled([
           getProgramSelection(),

@@ -223,9 +223,8 @@ public class DocumentService {
                     "message", "Please upload all required documents before continuing."
             );
         }
-        workflowService.transition(user,
-                WorkflowService.Status.DOCUMENTS_SUBMITTED,
-                "docs_complete");
+        // Phase 5B: DOCUMENTS_SUBMITTED status transition removed;
+        // the boolean flag flipped by markStepComplete is authoritative.
         profileCompletionService.markStepComplete(user, "DOCUMENTS");
         return Map.of(
                 "success", true,

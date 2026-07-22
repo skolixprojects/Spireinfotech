@@ -366,11 +366,9 @@ public class AdminController {
         for (com.spire.backend.entity.User u : userRepository.findAll()) {
             String status = u.getCurrentStatus();
             if (status == null) continue;
-            boolean pending = "SIGNED_AGREEMENT_SENT_TO_ERM".equals(status)
-                    || "WELCOME_SENT".equals(status)
+            boolean pending = "WELCOME_SENT".equals(status)
                     || "DEEPTHI_INTRO_SENT".equals(status)
-                    || "ERM_ASSIGNED".equals(status)
-                    || "COACHES_ASSIGNED".equals(status);
+                    || "ERM_ASSIGNED".equals(status);
             if (!pending) continue;
 
             Map<String, Object> row = new java.util.LinkedHashMap<>();
@@ -431,13 +429,13 @@ public class AdminController {
     // ─── Phase 5B Operations tabs ───────────────────────────────────
 
     /**
-     * Participants stuck at DRAFT_STARTED or BASIC_INFO_SUBMITTED —
-     * Operations Admin's "Enrollment Queue" tab.
+     * Participants stuck at DRAFT_STARTED — Operations Admin's
+     * "Enrollment Queue" tab. Phase 5B: with the lower ladder gone,
+     * every mid-onboarding user rests at DRAFT_STARTED.
      */
     @GetMapping("/operations/enrollment-queue")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> enrollmentQueue() {
-        java.util.Set<String> incomplete = java.util.Set.of(
-                "DRAFT_STARTED", "BASIC_INFO_SUBMITTED", "EMAIL_VERIFICATION_PENDING");
+        java.util.Set<String> incomplete = java.util.Set.of("DRAFT_STARTED");
         List<Map<String, Object>> rows = userRepository.findAll().stream()
                 .filter(u -> incomplete.contains(u.getCurrentStatus() == null ? "" : u.getCurrentStatus()))
                 .map(u -> {
@@ -457,16 +455,22 @@ public class AdminController {
     /**
      * All participants who reached the agreement step but haven't
      * completed it — Operations Admin's "Agreement Queue" tab.
+     *
+     * Phase 5B: reimplemented on the boolean {@code agreementComplete}
+     * flag (authoritative for the 6-step gate) instead of the removed
+     * AGREEMENT_SENT / CHECK_COPY_UPLOADED statuses. Scoped to
+     * pipeline=REFERENCE participants who have started the agreement
+     * step — a REFERENCE user must have completed program-selection
+     * before the agreement step is meaningful, and a DIRECT user
+     * doesn't run the 6-step gate at all.
      */
     @GetMapping("/operations/agreement-queue")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> agreementQueue() {
         List<Map<String, Object>> rows = new java.util.ArrayList<>();
         for (com.spire.backend.entity.User u : userRepository.findAll()) {
-            String status = u.getCurrentStatus();
-            if (status == null) continue;
-            boolean inFlight = "AGREEMENT_SENT".equals(status)
-                    || "CHECK_COPY_UPLOADED".equals(status);
-            if (!inFlight) continue;
+            if (!"REFERENCE".equals(u.getPipeline())) continue;
+            if (!Boolean.TRUE.equals(u.getProgramSelectionComplete())) continue;
+            if (Boolean.TRUE.equals(u.getAgreementComplete())) continue;
             com.spire.backend.entity.AgreementAcceptance a =
                     agreementAcceptanceRepository.findByUserId(u.getId()).orElse(null);
             Map<String, Object> r = new java.util.LinkedHashMap<>();
@@ -474,7 +478,7 @@ public class AdminController {
             r.put("participantId", u.getParticipantId());
             r.put("fullName", u.getFullName());
             r.put("email", u.getEmail());
-            r.put("currentStatus", status);
+            r.put("currentStatus", u.getCurrentStatus());
             r.put("agreementStatus", a == null ? "NOT_STARTED" : a.getStatus());
             r.put("agreementSentAt", a == null ? null : a.getAgreementEmailSentAt());
             rows.add(r);
@@ -526,35 +530,29 @@ public class AdminController {
     @GetMapping("/operations/exceptions")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> exceptions() {
         List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        java.time.LocalDateTime cutoff = java.time.LocalDateTime.now().minusDays(7);
+        java.time.LocalDateTime cutoff48h = java.time.LocalDateTime.now().minusHours(48);
         for (com.spire.backend.entity.User u : userRepository.findAll()) {
-            String status = u.getCurrentStatus();
-            if (status == null) continue;
-            // Stalled past document submission.
-            if (("DOCUMENTS_SUBMITTED".equals(status) || "DOC_REVIEW_PENDING".equals(status))
-                    && u.getCreatedAt() != null && u.getCreatedAt().isBefore(cutoff)) {
+            // Phase 5B: DOC_REVIEW_STALLED branch removed — the
+            // DOCUMENTS_SUBMITTED / DOC_REVIEW_PENDING statuses no
+            // longer exist, and program-selection is now boolean-gated;
+            // if we need a "docs uploaded but participant idle" signal
+            // it can be reimplemented on the documentsComplete flag +
+            // the participant's last-activity timestamp.
+            if (!"REFERENCE".equals(u.getPipeline())) continue;
+            // Agreement stalled: participant received the agreement
+            // email > 48h ago but hasn't signed (agreementComplete false).
+            if (Boolean.TRUE.equals(u.getAgreementComplete())) continue;
+            com.spire.backend.entity.AgreementAcceptance a =
+                    agreementAcceptanceRepository.findByUserId(u.getId()).orElse(null);
+            if (a != null && a.getAgreementEmailSentAt() != null
+                    && a.getAgreementEmailSentAt().isBefore(cutoff48h)) {
                 Map<String, Object> r = new java.util.LinkedHashMap<>();
-                r.put("type", "DOC_REVIEW_STALLED");
+                r.put("type", "AGREEMENT_STALLED");
                 r.put("userId", u.getId());
                 r.put("fullName", u.getFullName());
-                r.put("currentStatus", status);
-                r.put("openSince", u.getCreatedAt());
+                r.put("currentStatus", u.getCurrentStatus());
+                r.put("openSince", a.getAgreementEmailSentAt());
                 rows.add(r);
-            }
-            // Agreement window past 48h with no completion.
-            if ("AGREEMENT_SENT".equals(status)) {
-                com.spire.backend.entity.AgreementAcceptance a =
-                        agreementAcceptanceRepository.findByUserId(u.getId()).orElse(null);
-                if (a != null && a.getAgreementEmailSentAt() != null
-                        && a.getAgreementEmailSentAt().isBefore(java.time.LocalDateTime.now().minusHours(48))) {
-                    Map<String, Object> r = new java.util.LinkedHashMap<>();
-                    r.put("type", "AGREEMENT_STALLED");
-                    r.put("userId", u.getId());
-                    r.put("fullName", u.getFullName());
-                    r.put("currentStatus", status);
-                    r.put("openSince", a.getAgreementEmailSentAt());
-                    rows.add(r);
-                }
             }
         }
         return ResponseEntity.ok(ApiResponse.success(rows));

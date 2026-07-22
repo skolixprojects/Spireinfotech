@@ -49,32 +49,17 @@ export interface OnboardingProgressBarProps {
  * without re-implementing the mapping.
  */
 export function stepFromStatus(status: string | null | undefined): number {
+  // Phase 5B: collapsed to survivor-only cases. The pre-dashboard
+  // onboarding is a single step now (the 6 sub-steps live inside the
+  // "Complete Your Profile" tab and drive off the boolean flags).
   switch (status) {
     case "DRAFT_STARTED":
-    case "BASIC_INFO_SUBMITTED":
       return 1;
-    case "EMAIL_VERIFICATION_PENDING":
-    case "EMAIL_VERIFIED":
-      return 2;
-    case "PARTICIPANT_ID_CREATED":
-    case "ID_EMAIL_SENT":
-      return 3;
-    case "ACKNOWLEDGMENT_ACCEPTED":
-      return 4;
-    case "DOCUMENTS_SUBMITTED":
-    case "DOC_REVIEW_PENDING":
-      return 5;
-    case "PROGRAM_SELECTED":
-      return 6;
-    case "AGREEMENT_SENT":
-    case "CHECK_COPY_UPLOADED":
-    case "AGREEMENT_COMPLETED":
-    case "SIGNED_AGREEMENT_SENT_TO_ERM":
-      return 7;
     case "WELCOME_SENT":
+      return 2;
     case "DEEPTHI_INTRO_SENT":
     case "ERM_ASSIGNED":
-      return 8;
+      return 3;
     case "DASHBOARD_ENABLED":
     case "WEEKLY_REPORTING_ACTIVE":
     case "EMPLOYMENT_ACCEPTED":
@@ -83,7 +68,7 @@ export function stepFromStatus(status: string | null | undefined): number {
     case "CHECK_TRACKING_ADDED":
     case "INVOICING_ACTIVE":
     case "PAYMENTS_TRACKED":
-      return 9;
+      return 4;
     default:
       return 1;
   }

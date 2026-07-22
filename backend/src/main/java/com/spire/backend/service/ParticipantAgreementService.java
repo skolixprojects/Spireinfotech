@@ -77,18 +77,10 @@ public class ParticipantAgreementService {
         user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.AGREEMENT_SENT)) {
-            workflowService.transition(user,
-                    WorkflowService.Status.AGREEMENT_SENT,
-                    "agreement_sent");
-        }
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.AGREEMENT_COMPLETED)) {
-            workflowService.transition(user,
-                    WorkflowService.Status.AGREEMENT_COMPLETED,
-                    "agreement_completed");
-        }
+        // Phase 5B: AGREEMENT_SENT + AGREEMENT_COMPLETED status
+        // transitions removed along with their write-side idempotent
+        // guards; the boolean flag flipped by markStepComplete is
+        // authoritative.
         profileCompletionService.markStepComplete(user, "AGREEMENT");
 
         // The agreement row records on-site signing; the

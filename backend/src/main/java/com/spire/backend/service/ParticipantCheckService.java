@@ -99,7 +99,7 @@ public class ParticipantCheckService {
         // Workflow advance — first check upload bumps the user to
         // CHECK_COPY_UPLOADED, then runs the post-agreement chain.
         // Subsequent uploads are idempotent.
-        advancePastCheckUpload(user, "check_uploaded");
+        advancePastCheckUpload(user);
 
         // File metadata only on the audit row — actual amount /
         // check number are sensitive and stay in the check_documents
@@ -133,7 +133,7 @@ public class ParticipantCheckService {
         // distinction matters for finance reconciliation: a missing
         // row + CHECK_COPY_UPLOADED status means the participant
         // confirmed no check was applicable, vs. truly absent.
-        advancePastCheckUpload(user, "check_not_applicable");
+        advancePastCheckUpload(user);
         recordService.logAction(userId, RecordService.Category.DOCUMENT,
                 "Check upload marked N/A", "user=" + userId, null);
     }
@@ -150,14 +150,11 @@ public class ParticipantCheckService {
      *   → runs OnboardingService.completeOnboarding chain
      *     (welcome → coordinator intro → ERM → coaches → dashboard)
      */
-    private void advancePastCheckUpload(User user, String triggerEvent) {
+    private void advancePastCheckUpload(User user) {
         Long userId = user.getId();
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.CHECK_COPY_UPLOADED)) {
-            workflowService.transition(user,
-                    WorkflowService.Status.CHECK_COPY_UPLOADED,
-                    triggerEvent);
-        }
+        // Phase 5B: CHECK_COPY_UPLOADED + SIGNED_AGREEMENT_SENT_TO_ERM
+        // status transitions removed along with their write-side
+        // idempotent guards.
 
         agreementRepository.findByUserId(userId).ifPresent(row -> {
             if (!Boolean.TRUE.equals(row.getErmNotified())) {
@@ -165,13 +162,6 @@ public class ParticipantCheckService {
                 agreementRepository.save(row);
             }
         });
-
-        if (!workflowService.isStatusAtLeast(user,
-                WorkflowService.Status.SIGNED_AGREEMENT_SENT_TO_ERM)) {
-            workflowService.transition(user,
-                    WorkflowService.Status.SIGNED_AGREEMENT_SENT_TO_ERM,
-                    "erm_routed");
-        }
 
         // Phase 1C: the welcome → coordinator → ERM → coaches chain
         // no longer fires from here. It moved to
