@@ -8,8 +8,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -117,26 +115,8 @@ public class OnboardingService {
         }
     }
 
-    /** Snapshot used by the /welcome-status polling endpoint. */
-    @Transactional(readOnly = true)
-    public Map<String, Object> snapshotForWelcome(User user) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        boolean welcome = workflowService.isStatusAtLeast(user, WorkflowService.Status.WELCOME_SENT);
-        boolean coord = workflowService.isStatusAtLeast(user, WorkflowService.Status.DEEPTHI_INTRO_SENT);
-        boolean erm = workflowService.isStatusAtLeast(user, WorkflowService.Status.ERM_ASSIGNED);
-        boolean dashboard = workflowService.isStatusAtLeast(user, WorkflowService.Status.DASHBOARD_ENABLED);
-        out.put("workflowStatus", user.getCurrentStatus());
-        out.put("welcomeEmailSent", welcome);
-        out.put("coordinatorIntroSent", coord);
-        out.put("ermAssigned", erm);
-        out.put("dashboardReady", dashboard);
-
-        ermAssignmentService.getAssignedErm(user.getId()).ifPresent(e -> {
-            out.put("ermName", e.getFullName());
-            out.put("ermEmail", e.getEmail());
-        });
-        return out;
-    }
+    // Phase 6A: snapshotForWelcome removed — the /welcome page and
+    // /welcome-status endpoints it served were deleted alongside it.
 
     // ── Internals ────────────────────────────────────────────────
 

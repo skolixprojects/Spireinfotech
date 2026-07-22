@@ -33,7 +33,6 @@ export interface UserDTO {
   role: string;
   avatarUrl: string | null;
   bio: string | null;
-  onboardingCompleted?: boolean;
   isActive?: boolean;
   instructorApproved?: boolean;
   // True after the user has completed the OTP-confirmed Terms of
@@ -724,33 +723,6 @@ export async function listMyChecks(): Promise<CheckDocumentDTO[]> {
   const wrapper = await apiFetch<ApiResponse<CheckDocumentDTO[]>>(
     "/api/participants/checks");
   return wrapper.data ?? [];
-}
-
-// ─── Phase 4: welcome / team-assembly status ──────────────────────
-
-export interface WelcomeStatus {
-  workflowStatus?: string;
-  welcomeEmailSent?: boolean;
-  coordinatorIntroSent?: boolean;
-  ermAssigned?: boolean;
-  dashboardReady?: boolean;
-  ermName?: string | null;
-  ermEmail?: string | null;
-}
-
-export async function getWelcomeStatus(): Promise<WelcomeStatus> {
-  const wrapper = await apiFetch<ApiResponse<WelcomeStatus>>(
-    "/api/participants/welcome-status");
-  return wrapper.data ?? {};
-}
-
-/** Re-runs the OnboardingService chain (idempotent). Used by the
- *  /welcome page when the user clicks "Check now". */
-export async function refreshWelcomeStatus(): Promise<WelcomeStatus> {
-  const wrapper = await apiFetch<ApiResponse<WelcomeStatus>>(
-    "/api/participants/welcome-status/refresh",
-    { method: "POST" });
-  return wrapper.data ?? {};
 }
 
 // ─── Phase 5A: participant dashboard ───────────────────────────────
@@ -1932,14 +1904,6 @@ export interface AdminSessionRow {
 export async function getAdminSessions() {
   const wrapper = await apiFetch<ApiResponse<AdminSessionRow[]>>(
     "/api/admin/sessions"
-  );
-  return wrapper.data;
-}
-
-export async function completeOnboarding(): Promise<UserDTO> {
-  const wrapper = await apiFetch<ApiResponse<UserDTO>>(
-    "/api/users/complete-onboarding",
-    { method: "PUT" }
   );
   return wrapper.data;
 }

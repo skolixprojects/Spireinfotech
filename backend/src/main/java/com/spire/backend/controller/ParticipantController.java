@@ -397,46 +397,14 @@ public class ParticipantController {
         return ResponseEntity.ok(ApiResponse.success(rows));
     }
 
-    // ─── Phase 4: welcome page polling + dashboard gate ─────────────
-
-    /**
-     * Status snapshot for the /welcome page. The page polls this
-     * every 5 seconds to update its checklist + team cards as the
-     * post-agreement onboarding chain runs.
-     */
-    @GetMapping("/welcome-status")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> welcomeStatus(Authentication auth) {
-        Long userId = Long.parseLong(auth.getPrincipal().toString());
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        return ResponseEntity.ok(ApiResponse.success(
-                onboardingService.snapshotForWelcome(user)));
-    }
-
-    /**
-     * Idempotent re-run of the OnboardingService chain. Useful when
-     * an admin has just manually assigned an ERM and we want the
-     * participant's workflow to roll forward without waiting on a
-     * scheduled tick.
-     */
-    @PostMapping("/welcome-status/refresh")
-    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> refreshWelcome(Authentication auth) {
-        Long userId = Long.parseLong(auth.getPrincipal().toString());
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        // Only re-run when the chain is mid-flight — already at
-        // DASHBOARD_ENABLED means no-op.
-        if (!workflowService.isStatusAtLeast(user,
-                com.spire.backend.service.WorkflowService.Status.DASHBOARD_ENABLED)) {
-            onboardingService.completeOnboarding(user);
-            user = userRepository.findById(userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        }
-        return ResponseEntity.ok(ApiResponse.success(
-                onboardingService.snapshotForWelcome(user)));
-    }
+    // Phase 6A: /welcome-status + /welcome-status/refresh endpoints
+    // deleted alongside the /welcome page they served. In the two-
+    // pipeline model DIRECT users go straight to /dashboard and
+    // REFERENCE users wait on /referral-pending until ERM approval,
+    // so the "welcome page polls until the chain completes" screen is
+    // unreachable. AdminController.assignErm still runs the same
+    // onboardingService.completeOnboarding(...) chain, so ERM-driven
+    // roll-forward is unchanged.
 
     // ─── Phase 5A: dashboard + team + weekly reports ───────────────
 

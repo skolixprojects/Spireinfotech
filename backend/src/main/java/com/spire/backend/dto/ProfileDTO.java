@@ -32,7 +32,6 @@ public class ProfileDTO {
     private String phone;
     private String location;
     private LocalDateTime createdAt;
-    private Boolean onboardingCompleted;
 
     // ── UserDTO parity fields ───────────────────────────────────
     // Critical for the auth-context refresh path: the frontend
@@ -192,7 +191,6 @@ public class ProfileDTO {
                 .phone(user.getPhone())
                 .location(user.getLocation())
                 .createdAt(user.getCreatedAt())
-                .onboardingCompleted(Boolean.TRUE.equals(user.getOnboardingCompleted()))
                 .isActive(Boolean.TRUE.equals(user.getIsActive()))
                 .instructorApproved(Boolean.TRUE.equals(user.getInstructorApproved()))
                 .agreementAccepted(Boolean.TRUE.equals(user.getAgreementAccepted()))

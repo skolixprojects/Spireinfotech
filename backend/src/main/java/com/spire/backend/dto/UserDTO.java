@@ -21,7 +21,6 @@ public class UserDTO {
     private String role;
     private String avatarUrl;
     private String bio;
-    private Boolean onboardingCompleted;
     private Boolean isActive;
     private Boolean instructorApproved;
     /**
@@ -90,7 +89,6 @@ public class UserDTO {
                 .role(user.getRole().getName())
                 .avatarUrl(user.getAvatarUrl())
                 .bio(user.getBio())
-                .onboardingCompleted(Boolean.TRUE.equals(user.getOnboardingCompleted()))
                 .isActive(Boolean.TRUE.equals(user.getIsActive()))
                 .instructorApproved(Boolean.TRUE.equals(user.getInstructorApproved()))
                 .agreementAccepted(Boolean.TRUE.equals(user.getAgreementAccepted()))

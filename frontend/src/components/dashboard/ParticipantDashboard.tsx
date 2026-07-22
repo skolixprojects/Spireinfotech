@@ -92,17 +92,18 @@ function greeting(): string {
 export default function ParticipantDashboard() {
   const { user, logout } = useAuth();
   const searchParams = useSearchParams();
-  // Two-pipeline gate: the Phase-1C checklist + tab-locks only apply
-  // to REFERENCE users. DIRECT users see the full dashboard with no
-  // "Complete Profile" tab, no banner, no sidebar % badge, no lock
-  // screens on Weekly / My Courses.
-  const isReferenceGated = user?.pipeline === "REFERENCE";
-  // Sync the tab to the ?tab=... query param so the gate modal /
-  // banner / "Continue Setup" links can deep-link into the right
-  // section. Defaults to "home" otherwise. Non-reference users who
-  // land here via a stale link get bounced to "home".
+  // Single source of truth for "is this user still onboarding":
+  // REFERENCE users whose profile isn't yet complete. Everyone else
+  // — DIRECT users, and completed REFERENCE users — sees the clean
+  // dashboard with no checklist, no banner, no % badge, no tab-locks.
+  const showOnboarding = user?.pipeline === "REFERENCE"
+    && !user?.profileComplete;
+  // Sync the tab to the ?tab=... query param so the banner /
+  // "Continue Setup" links can deep-link into the checklist. Stale
+  // /dashboard?tab=complete-profile links from users who no longer
+  // need the checklist fall back to "home".
   const requestedTab = (searchParams.get("tab") as TabId) || "home";
-  const initialTab: TabId = (!isReferenceGated && requestedTab === "complete-profile")
+  const initialTab: TabId = (!showOnboarding && requestedTab === "complete-profile")
     ? "home" : requestedTab;
   const [active, setActive] = useState<TabId>(initialTab);
   const [data, setData] = useState<DashboardData | null>(null);
@@ -175,13 +176,12 @@ export default function ParticipantDashboard() {
         </button>
       </div>
       <nav className="flex-1 px-2 py-3 space-y-0.5 overflow-y-auto">
-        {NAV.filter((n) => n.id !== "complete-profile" || isReferenceGated).map((n) => {
+        {NAV.filter((n) => n.id !== "complete-profile" || showOnboarding).map((n) => {
           const isActive = active === n.id;
-          // Sidebar completion percentage badge — reference-only, and
-          // hidden once the user is fully done.
+          // Sidebar completion percentage badge — visible only while
+          // the user is still onboarding.
           const showBadge = n.id === "complete-profile"
-            && isReferenceGated
-            && !user?.profileComplete
+            && showOnboarding
             && typeof user?.profileCompletionPct === "number";
           return (
             <button
@@ -262,7 +262,7 @@ export default function ParticipantDashboard() {
           </button>
           <span className="text-[10px] font-mono text-gray-400">{data.participantId ?? ""}</span>
         </div>
-        {isReferenceGated && (
+        {showOnboarding && (
           <ProfileCompletionBanner
             onContinueSetup={() => setActive("complete-profile")}
           />
@@ -272,17 +272,17 @@ export default function ParticipantDashboard() {
             <HomeTab data={data} team={team} userEmail={user?.email ?? null}
               onJumpTo={(t) => setActive(t)} />
           )}
-          {active === "complete-profile" && isReferenceGated && <ProfileCompletionChecklist />}
+          {active === "complete-profile" && showOnboarding && <ProfileCompletionChecklist />}
           {active === "courses" && (
-            // DIRECT users skip the gate entirely; MyCoursesTab receives
-            // profileComplete=true and renders the real tab.
+            // Only users still onboarding see the lock; everyone else
+            // gets the real tab.
             <MyCoursesTab
-              profileComplete={!isReferenceGated || Boolean(user?.profileComplete)}
+              profileComplete={!showOnboarding}
               onContinueSetup={() => setActive("complete-profile")}
             />
           )}
           {active === "weekly" && (
-            (!isReferenceGated || user?.profileComplete)
+            !showOnboarding
               ? <WeeklyTab dashboardData={data} />
               : <LockedTabView
                   title="Weekly Report"
