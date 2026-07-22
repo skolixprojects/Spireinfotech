@@ -54,7 +54,6 @@ public class WorkflowService {
         ID_EMAIL_SENT,
         ACKNOWLEDGMENT_ACCEPTED,
         DOCUMENTS_SUBMITTED,
-        DOC_REVIEW_PENDING,
         PROGRAM_SELECTED,
         AGREEMENT_SENT,
         AGREEMENT_COMPLETED,
