@@ -64,3 +64,4 @@ See [database/README.md](database/README.md) for Supabase setup.
 | Admin | admin@spire.dev | admin123 |
 | Student | student@spire.dev | student123 |
 | Instructor | arjun@spire.dev | password123 |
+"# Spireinfotech" 
