@@ -208,10 +208,6 @@ function LoginForm() {
         </button>
       </form>
 
-      <div className="mt-6 p-3 rounded-lg bg-teal-50 border border-teal-200 text-xs text-teal-700">
-        <strong>Demo:</strong> admin@spire.dev / admin123
-      </div>
-
       <p className="text-sm text-center text-gray-500 mt-6">
         Don&apos;t have an account?{" "}
         <Link href="/signup" className="text-[#0F766E] font-semibold hover:underline">Create one</Link>
