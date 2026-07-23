@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -36,6 +37,16 @@ public class MailAttachmentController {
             @RequestParam("file") MultipartFile file) {
         return ResponseEntity.ok(ApiResponse.success("Attachment added",
                 mailAttachmentService.upload(principal(auth), draftId, file)));
+    }
+
+    /** Copy a source message's attachments onto a draft (forwarding attachments). */
+    @PostMapping("/attachments/copy")
+    public ResponseEntity<ApiResponse<List<MailAttachmentSummary>>> copyFromMessage(
+            Authentication auth,
+            @RequestParam("draftId") Long draftId,
+            @RequestParam("fromMessageId") Long fromMessageId) {
+        return ResponseEntity.ok(ApiResponse.success("Attachments copied",
+                mailAttachmentService.copyFromMessage(principal(auth), draftId, fromMessageId)));
     }
 
     @DeleteMapping("/attachments/{id}")

@@ -121,6 +121,16 @@ export function deleteAttachment(id: number) {
   return mailApiFetch<ApiResponse<unknown>>(`/api/mail/attachments/${id}`, { method: "DELETE" });
 }
 
+/**
+ * Copy a source message's attachments onto a draft — used when forwarding, since
+ * attachments are anchored to the original message and must be duplicated onto
+ * the new one. Returns the new (draft-anchored) attachment summaries.
+ */
+export function copyAttachmentsFromMessage(draftId: number, fromMessageId: number) {
+  return unwrap(mailApiFetch<ApiResponse<MailAttachmentSummary[]>>(
+    `/api/mail/attachments/copy?draftId=${draftId}&fromMessageId=${fromMessageId}`, { method: "POST" }));
+}
+
 // ─── Reply / Forward builders (pure) ────────────────────────────────
 
 export interface ComposeInit {
@@ -135,8 +145,11 @@ export interface ComposeInit {
   subject?: string;
   bodyHtml?: string;
   inReplyToId?: number | null;
-  /** Pre-existing attachments when re-opening a draft (Phase 8). */
+  /** Pre-existing attachments when re-opening a draft (Phase 8); for a forward,
+   *  the SOURCE message's attachments (shown pending until copied). */
   attachments?: MailAttachmentSummary[];
+  /** Forward only: the message to copy attachments from onto the new draft. */
+  sourceMessageId?: number;
 }
 
 const ensurePrefix = (subject: string | null | undefined, prefix: "Re:" | "Fwd:") => {
@@ -202,5 +215,9 @@ export function buildForward(orig: MailMessageDetail): ComposeInit {
     subject: ensurePrefix(orig.subject, "Fwd:"),
     bodyHtml: header + bodyOrText(orig),
     inReplyToId: null,
+    // Carry the source's attachments so they're forwarded too: shown pending in
+    // the tray, then copied onto the new draft (they can't just be re-referenced).
+    attachments: orig.attachments ?? [],
+    sourceMessageId: orig.messageId,
   };
 }

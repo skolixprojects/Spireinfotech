@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { X, Minus, Send, Save, Trash2, Paperclip, Loader2, FileText, AlertCircle } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -8,7 +8,7 @@ import { RecipientInput } from "./RecipientInput";
 import { RichTextEditor } from "./RichTextEditor";
 import {
   sendMessage, saveDraft, updateDraft, sendDraft,
-  uploadAttachment, deleteAttachment, MAX_ATTACHMENT_BYTES,
+  uploadAttachment, deleteAttachment, copyAttachmentsFromMessage, MAX_ATTACHMENT_BYTES,
   type ComposeInit, type ComposePayload,
 } from "@/lib/mail-compose-api";
 
@@ -61,10 +61,15 @@ export function ComposeWindow({
   const [busy, setBusy] = useState<"send" | "draft" | null>(null);
   const [minimized, setMinimized] = useState(false);
 
-  // Attachments tray, seeded with any attachments already on an opened draft.
+  // Attachments tray. Re-opening a draft seeds its real attachments as "done";
+  // a FORWARD seeds the source's as pending placeholders (no draft id yet) that
+  // the copy effect below replaces with the draft-anchored copies.
+  const forwarding = init.mode === "forward" && init.sourceMessageId != null && (init.attachments?.length ?? 0) > 0;
   const [attachments, setAttachments] = useState<AttachItem[]>(
     (init.attachments ?? []).map((a, i) => ({
-      key: i, name: a.filename, size: a.sizeBytes, progress: 100, status: "done", id: a.id,
+      key: i, name: a.filename, size: a.sizeBytes, progress: 100,
+      status: forwarding ? "uploading" : "done",
+      id: forwarding ? undefined : a.id,
     })),
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -98,6 +103,30 @@ export function ComposeWindow({
     }
     return draftInFlight.current;
   };
+
+  // Forward: create a draft and copy the source message's attachments onto it,
+  // then swap the pending placeholders for the real (draft-anchored) copies so
+  // sendDraft carries them. Runs once on mount (the window remounts per compose).
+  useEffect(() => {
+    if (!forwarding || init.sourceMessageId == null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const id = await ensureDraftId();
+        const copied = await copyAttachmentsFromMessage(id, init.sourceMessageId!);
+        if (cancelled) return;
+        setAttachments(copied.map((a) => ({
+          key: attachKey.current++, name: a.filename, size: a.sizeBytes, progress: 100, status: "done", id: a.id,
+        })));
+      } catch (e) {
+        if (cancelled) return;
+        setAttachments((prev) => prev.map((r) => ({ ...r, status: "error", error: "Couldn't forward this attachment" })));
+        toast("error", e instanceof Error ? e.message : "Could not forward the attachments");
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const patchItem = (key: number, patch: Partial<AttachItem>) =>
     setAttachments((prev) => prev.map((a) => (a.key === key ? { ...a, ...patch } : a)));

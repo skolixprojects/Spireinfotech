@@ -22,6 +22,9 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Attachment lifecycle. Add/remove are restricted to a DRAFT the caller
  * owns; downloads go through a walled proxy that checks the caller has a
@@ -115,6 +118,75 @@ public class MailAttachmentService {
             mailMessageRepository.save(msg);
         }
         return toSummary(att);
+    }
+
+    /** A source attachment's copyable scalars (storage key resolved inside the read tx). */
+    public record CopyAtt(String storageKey, String filename, String contentType, long sizeBytes) {}
+
+    /**
+     * Copy every attachment of a source message onto a DRAFT the caller owns —
+     * used to FORWARD attachments (they're anchored to the original message, so
+     * they must be duplicated onto the new message). Walled: the caller must own
+     * the draft AND hold a mailbox entry for the source message. Orchestrated
+     * like {@link #upload}: authorize + gather in a read tx, copy blobs OUTSIDE
+     * any tx, persist rows in a short write tx, and clean up new blobs on failure.
+     */
+    public List<MailAttachmentSummary> copyFromMessage(MailPrincipal principal, Long draftId, Long sourceMessageId) {
+        List<CopyAtt> sources = self.resolveForwardSources(principal, draftId, sourceMessageId);
+        if (sources.isEmpty()) return List.of();
+        List<CopyAtt> stored = new ArrayList<>();   // new blob keys we've written
+        try {
+            for (CopyAtt s : sources) {
+                byte[] bytes;
+                try {
+                    bytes = blobStore.fetch(s.storageKey());
+                } catch (MailBlobStore.BlobNotFoundException e) {
+                    continue;   // a source blob vanished out-of-band — skip it, don't fail the forward
+                }
+                String newKey = blobStore.store(bytes);
+                stored.add(new CopyAtt(newKey, s.filename(), s.contentType(), s.sizeBytes()));
+            }
+            return self.persistCopiedAttachments(principal, draftId, stored);
+        } catch (RuntimeException e) {
+            stored.forEach(c -> blobStore.delete(c.storageKey()));   // don't strand the copies
+            throw e;
+        }
+    }
+
+    /** Authorize (own draft + hold a source entry) and gather the source attachments. */
+    @Transactional(readOnly = true)
+    public List<CopyAtt> resolveForwardSources(MailPrincipal principal, Long draftId, Long sourceMessageId) {
+        MailAccount caller = loadCaller(principal);
+        ownDraftNoLock(caller, draftId);
+        // Walled: only forward attachments from a message the caller can actually see.
+        mailboxRepository.findByAccount_IdAndMessage_IdAndDeletedAtIsNull(caller.getId(), sourceMessageId)
+                .orElseThrow(() -> new ResourceNotFoundException("MailMessage", "id", sourceMessageId));
+        return mailAttachmentRepository.findByMessage_Id(sourceMessageId).stream()
+                .map(a -> new CopyAtt(a.getStorageKey(), a.getFilename(), a.getContentType(), a.getSizeBytes()))
+                .toList();
+    }
+
+    /** Persist the copied attachment rows on the (re-locked) draft. */
+    @Transactional
+    public List<MailAttachmentSummary> persistCopiedAttachments(MailPrincipal principal, Long draftId, List<CopyAtt> copies) {
+        MailAccount caller = loadCaller(principal);
+        MailMessage draft = ownDraft(caller, draftId).getMessage();   // lock + re-assert DRAFTS (TOCTOU)
+        List<MailAttachmentSummary> out = new ArrayList<>();
+        for (CopyAtt c : copies) {
+            MailAttachment att = mailAttachmentRepository.save(MailAttachment.builder()
+                    .message(draft)
+                    .filename(c.filename())
+                    .contentType(c.contentType())
+                    .sizeBytes(c.sizeBytes())
+                    .storageKey(c.storageKey())
+                    .build());
+            out.add(toSummary(att));
+        }
+        if (!copies.isEmpty() && !Boolean.TRUE.equals(draft.getHasAttachments())) {
+            draft.setHasAttachments(true);
+            mailMessageRepository.save(draft);
+        }
+        return out;
     }
 
     @Transactional
