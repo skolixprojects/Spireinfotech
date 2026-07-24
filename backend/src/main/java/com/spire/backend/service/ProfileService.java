@@ -37,8 +37,6 @@ public class ProfileService {
     private final LessonRepository lessonRepository;
     private final ProgressRepository progressRepository;
     private final CertificateRepository certificateRepository;
-    private final com.spire.backend.repository.AgreementAcceptanceRepository agreementRepository;
-    private final RecordService recordService;
 
     @Transactional(readOnly = true)
     public ProfileDTO getProfile(Long userId) {
@@ -48,8 +46,6 @@ public class ProfileService {
         List<Enrollment> enrollments = enrollmentRepository.findByUserId(userId);
         int enrolled = enrollments.size();
 
-        // Build the per-course summary list while we already have the data,
-        // so admin oversight gets actual course titles + progress.
         List<ProfileDTO.CourseSummary> enrolledCourses = new java.util.ArrayList<>();
         int completed = 0;
         for (Enrollment e : enrollments) {
@@ -86,7 +82,6 @@ public class ProfileService {
                         .build())
                 .toList();
 
-        // Activity analytics — derived from the user's per-lesson Progress rows.
         List<Progress> rows = progressRepository.findByUserId(userId);
         int streakDays = rows.stream()
                 .map(Progress::getStreakDays)
@@ -108,8 +103,6 @@ public class ProfileService {
                 .max(Comparator.naturalOrder())
                 .orElse(null);
 
-        // Daily contribution map for the heatmap. Counts lesson-completions
-        // per day over the last 365 days.
         LocalDate cutoff = LocalDate.now().minusDays(365);
         Map<String, Integer> contributions = rows.stream()
                 .filter(p -> Boolean.TRUE.equals(p.getCompleted()))
@@ -119,42 +112,10 @@ public class ProfileService {
                         p -> p.getLastAccessed().toLocalDate().toString(),
                         Collectors.summingInt(p -> 1)));
 
-        ProfileDTO dto = ProfileDTO.from(
+        return ProfileDTO.from(
                 user, enrolled, completed, certificates,
                 streakDays, totalLessonsCompleted, totalLearningMinutes,
                 lastActiveAt, contributions, enrolledCourses, certSummaries);
-
-        // Attach Terms of Service acceptance for the admin user-detail
-        // panel + the user's own self-view. Pulled here so the
-        // AgreementService doesn't have to know about ProfileDTO.
-        agreementRepository.findByUserId(userId).ifPresent(a -> {
-            int year = a.getAcceptedAt() != null
-                    ? a.getAcceptedAt().getYear()
-                    : (a.getCreatedAt() != null ? a.getCreatedAt().getYear() : LocalDate.now().getYear());
-            String recordId = String.format("AGR-%d-%05d", year, a.getId());
-            dto.setAgreement(ProfileDTO.AgreementSummary.builder()
-                    .id(a.getId())
-                    .accepted(Boolean.TRUE.equals(a.getCodeVerified()))
-                    .status(a.getStatus())
-                    .legalName(a.getLegalName())
-                    .version(a.getAgreementVersion())
-                    .acceptedAt(a.getAcceptedAt())
-                    .agreementEmailSentAt(a.getAgreementEmailSentAt())
-                    .userReplyReceivedAt(a.getUserReplyReceivedAt())
-                    .userReplyContent(a.getUserReplyContent())
-                    .verificationCodeSentAt(a.getVerificationCodeSentAt())
-                    .verificationCodeVerifiedAt(a.getVerificationCodeVerifiedAt())
-                    .ipAddress(a.getIpAddress())
-                    .browser(a.getBrowser())
-                    .os(a.getOs())
-                    .recordId(recordId)
-                    .signedAgreementPdfUrl(a.getSignedAgreementPdfUrl())
-                    .signatureImage(a.getSignatureImage())
-                    .signatureMethod(a.getSignatureMethod())
-                    .build());
-        });
-
-        return dto;
     }
 
     @Transactional
@@ -162,74 +123,24 @@ public class ProfileService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
-        // Snapshot the old values BEFORE applying the patch so we have
-        // a complete before/after pair for the audit record.
-        java.util.Map<String, Object> oldValues = new java.util.LinkedHashMap<>();
-        java.util.Map<String, Object> newValues = new java.util.LinkedHashMap<>();
-        java.util.List<String> changed = new java.util.ArrayList<>();
-
-        // fullName: required, never overwritten with blank
         if (dto.getFullName() != null && !dto.getFullName().isBlank()) {
-            String fresh = dto.getFullName().trim();
-            if (!java.util.Objects.equals(user.getFullName(), fresh)) {
-                oldValues.put("fullName", user.getFullName());
-                newValues.put("fullName", fresh);
-                changed.add("fullName");
-                user.setFullName(fresh);
-            }
+            user.setFullName(dto.getFullName().trim());
         }
-        // avatarUrl: optional. Treat empty string as "clear" → null.
         if (dto.getAvatarUrl() != null) {
-            String fresh = emptyToNull(dto.getAvatarUrl());
-            if (!java.util.Objects.equals(user.getAvatarUrl(), fresh)) {
-                oldValues.put("avatarUrl", user.getAvatarUrl());
-                newValues.put("avatarUrl", fresh);
-                changed.add("avatarUrl");
-                user.setAvatarUrl(fresh);
-            }
+            user.setAvatarUrl(emptyToNull(dto.getAvatarUrl()));
         }
         if (dto.getBio() != null) {
-            String fresh = emptyToNull(dto.getBio());
-            if (!java.util.Objects.equals(user.getBio(), fresh)) {
-                oldValues.put("bio", user.getBio());
-                newValues.put("bio", fresh);
-                changed.add("bio");
-                user.setBio(fresh);
-            }
+            user.setBio(emptyToNull(dto.getBio()));
         }
         if (dto.getPhone() != null) {
-            String fresh = emptyToNull(dto.getPhone().trim());
-            if (!java.util.Objects.equals(user.getPhone(), fresh)) {
-                oldValues.put("phone", user.getPhone());
-                newValues.put("phone", fresh);
-                changed.add("phone");
-                user.setPhone(fresh);
-            }
+            user.setPhone(emptyToNull(dto.getPhone().trim()));
         }
         if (dto.getLocation() != null) {
-            String fresh = emptyToNull(dto.getLocation().trim());
-            if (!java.util.Objects.equals(user.getLocation(), fresh)) {
-                oldValues.put("location", user.getLocation());
-                newValues.put("location", fresh);
-                changed.add("location");
-                user.setLocation(fresh);
-            }
+            user.setLocation(emptyToNull(dto.getLocation().trim()));
         }
 
         userRepository.save(user);
-
-        if (!changed.isEmpty()) {
-            recordService.record(userId, "ACCOUNT_PROFILE_UPDATED", RecordService.Category.ACCOUNT,
-                    "Profile updated",
-                    "Changed: " + String.join(", ", changed),
-                    java.util.Map.of(
-                            "changedFields", changed,
-                            "oldValues", oldValues,
-                            "newValues", newValues
-                    ));
-        }
-
-        return getProfile(userId); // refetch with counts
+        return getProfile(userId);
     }
 
     private static String emptyToNull(String s) {

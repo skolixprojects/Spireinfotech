@@ -35,7 +35,6 @@ public class AdminService {
     private final CertificateRepository certificateRepository;
     private final SessionRequestRepository sessionRequestRepository;
     private final MentorAssignmentRepository mentorAssignmentRepository;
-    private final RecordService recordService;
 
     /**
      * Platform-wide statistics powering the admin Overview tab.
@@ -262,14 +261,7 @@ public class AdminService {
         }
 
         user.setRole(role);
-        UserDTO saved = UserDTO.from(userRepository.save(user));
-
-        recordService.record(userId, "ACCOUNT_ROLE_CHANGED", RecordService.Category.ACCOUNT,
-                "Role changed by admin",
-                "Role changed from " + oldRole + " to " + normalizedRole,
-                java.util.Map.of("oldRole", oldRole, "newRole", normalizedRole));
-
-        return saved;
+        return UserDTO.from(userRepository.save(user));
     }
 
     /**
@@ -297,11 +289,6 @@ public class AdminService {
             throw new IllegalArgumentException("Admin accounts cannot be deactivated this way. Change their role first.");
         }
 
-        // Capture identifiers before scrubbing so the audit record
-        // can name the original account, not the placeholder.
-        String originalEmail = user.getEmail();
-        String originalName = user.getFullName();
-
         user.setIsActive(false);
         user.setDeactivatedAt(java.time.LocalDateTime.now());
         user.setEmail("deleted_" + user.getId() + "@removed.com");
@@ -317,18 +304,7 @@ public class AdminService {
         user.setResetToken(null);
         user.setResetTokenExpiresAt(null);
 
-        UserDTO saved = UserDTO.from(userRepository.save(user));
-
-        recordService.record(userId, "ACCOUNT_DEACTIVATED", RecordService.Category.ACCOUNT,
-                "Account deactivated by admin",
-                "Admin soft-deleted this account; personal data scrubbed",
-                java.util.Map.of(
-                        "deactivatedBy", currentAdminId,
-                        "originalEmail", originalEmail != null ? originalEmail : "",
-                        "originalName", originalName != null ? originalName : ""
-                ));
-
-        return saved;
+        return UserDTO.from(userRepository.save(user));
     }
 
     /**
@@ -348,20 +324,6 @@ public class AdminService {
         // an accurate value for every inactive row, and reactivated
         // users don't carry a stale timestamp.
         user.setDeactivatedAt(active ? null : java.time.LocalDateTime.now());
-        UserDTO saved = UserDTO.from(userRepository.save(user));
-
-        if (active) {
-            recordService.record(userId, "ACCOUNT_REACTIVATED", RecordService.Category.ACCOUNT,
-                    "Account reactivated by admin",
-                    "Admin reactivated this account",
-                    java.util.Map.of("reactivatedBy", currentAdminId));
-        } else {
-            recordService.record(userId, "ACCOUNT_DEACTIVATED", RecordService.Category.ACCOUNT,
-                    "Account deactivated by admin",
-                    "Admin deactivated this account",
-                    java.util.Map.of("deactivatedBy", currentAdminId));
-        }
-
-        return saved;
+        return UserDTO.from(userRepository.save(user));
     }
 }

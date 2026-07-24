@@ -72,7 +72,6 @@ public class QuizService {
     private final LessonRepository lessonRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final UserRepository userRepository;
-    private final RecordService recordService;
     private final ObjectMapper objectMapper;
 
     private static final int DEFAULT_PASS_THRESHOLD = 60;
@@ -442,20 +441,6 @@ public class QuizService {
         details.put("totalQuestions", questions.size());
         details.put("correctAnswers", correctCount);
         details.put("attemptNumber", attempt.getAttemptNumber());
-        try {
-            recordService.record(userId, "QUIZ_ATTEMPTED", RecordService.Category.ASSESSMENT,
-                    "Attempted quiz: " + quiz.getTitle(),
-                    "Scored " + scorePercent + "% (" + (passed ? "passed" : "failed") + ") on '" + quiz.getTitle() + "'",
-                    details);
-            if (passed) {
-                recordService.record(userId, "QUIZ_PASSED", RecordService.Category.ASSESSMENT,
-                        "Passed quiz: " + quiz.getTitle(),
-                        "Passed '" + quiz.getTitle() + "' with " + scorePercent + "%",
-                        details);
-            }
-        } catch (Exception e) {
-            log.warn("Couldn't write quiz audit record for user {} quiz {}", userId, quiz.getId(), e);
-        }
 
         Integer attemptsRemaining = quiz.getMaxAttempts() != null
                 ? Math.max(0, quiz.getMaxAttempts() - (int) alreadyAttempted - 1)

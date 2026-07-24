@@ -51,7 +51,6 @@ public class CertificateService {
     private final QuizRepository quizRepository;
     private final SubmissionRepository submissionRepository;
     private final AssignmentRepository assignmentRepository;
-    private final RecordService recordService;
     private final EmailTemplateService emailTemplateService;
 
     /**
@@ -151,15 +150,6 @@ public class CertificateService {
         certificate.setCertificateUrl("/api/certificates/download/" + courseId + "/" + fileName);
         Certificate saved = certificateRepository.save(certificate);
 
-        recordService.record(userId, "CERTIFICATE_GENERATED", RecordService.Category.CERTIFICATE,
-                "Certificate earned: " + course.getTitle(),
-                "Certificate " + saved.getCertificateId() + " issued for '" + course.getTitle() + "'",
-                java.util.Map.of(
-                        "certificateId", saved.getCertificateId(),
-                        "courseId", course.getId(),
-                        "courseTitle", course.getTitle(),
-                        "verificationUrl", "/verify/" + saved.getCertificateId()
-                ));
 
         // Best-effort email — never blocks issuance.
         try { emailTemplateService.sendCertificateEmail(user, course, saved); } catch (Exception ignored) {}

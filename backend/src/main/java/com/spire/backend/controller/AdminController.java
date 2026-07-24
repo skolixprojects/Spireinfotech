@@ -5,22 +5,14 @@ import com.spire.backend.dto.AdminSessionRow;
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.dto.CourseDTO;
 import com.spire.backend.dto.InstructorRequestDTO;
-import com.spire.backend.dto.ParticipantDocumentDTO;
 import com.spire.backend.dto.ProfileDTO;
 import com.spire.backend.dto.UserDTO;
-import com.spire.backend.entity.ParticipantDocument;
 import com.spire.backend.entity.Payment;
 import com.spire.backend.service.AdminRevenueService;
 import com.spire.backend.service.AdminService;
 import com.spire.backend.service.CourseService;
-import com.spire.backend.service.DocumentService;
-import com.spire.backend.service.ErmAssignmentService;
 import com.spire.backend.service.InstructorRequestService;
-import com.spire.backend.service.OnboardingService;
 import com.spire.backend.service.ProfileService;
-import com.spire.backend.repository.ErmAssignmentRepository;
-import com.spire.backend.repository.UserRepository;
-import com.spire.backend.entity.ErmAssignment;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -50,18 +42,7 @@ public class AdminController {
     private final InstructorRequestService instructorRequestService;
     private final ProfileService profileService;
     private final AdminRevenueService adminRevenueService;
-    private final DocumentService documentService;
-    private final ErmAssignmentService ermAssignmentService;
-    private final OnboardingService onboardingService;
-    private final UserRepository userRepository;
-    private final ErmAssignmentRepository ermAssignmentRepository;
-    private final com.spire.backend.repository.UserRecordRepository userRecordRepository;
-    private final com.spire.backend.repository.AgreementAcceptanceRepository agreementAcceptanceRepository;
 
-    // CSV timestamps render in IST. The DB stores LocalDateTime
-    // (timezone-naive, server-local = UTC on Railway) so we rebase
-    // UTC→IST before formatting. Headers carry an "(IST)" suffix so
-    // a recipient downloading the file knows what the column is in.
     private static final ZoneId IST = ZoneId.of("Asia/Kolkata");
     private static final DateTimeFormatter CSV_TS = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -76,24 +57,11 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.getAllUsers(status)));
     }
 
-    /**
-     * Active / inactive / total user counts. Drives the count badges
-     * on the admin Users tab pills (Active users (15) / Deactivated
-     * users (3)).
-     */
     @GetMapping("/users/counts")
     public ResponseEntity<ApiResponse<Map<String, Long>>> getUserCounts() {
         return ResponseEntity.ok(ApiResponse.success(adminService.getUserCounts()));
     }
 
-    /**
-     * Reactivates a previously soft-deactivated account. Sugar over
-     * {@link #updateUserStatus} with active=true; exists as its own
-     * verb so the admin UI's "Reactivate" button has a clean,
-     * intent-revealing URL and so we can later add reactivate-only
-     * side-effects (welcome-back email, etc.) without touching the
-     * generic toggle.
-     */
     @PutMapping("/users/{id}/reactivate")
     public ResponseEntity<ApiResponse<UserDTO>> reactivateUser(
             @PathVariable Long id,
@@ -103,8 +71,6 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("User reactivated", user));
     }
 
-    // Admin oversight: full profile of any user — name, contact, learning
-    // stats, activity analytics, contribution heatmap.
     @GetMapping("/users/{userId}/profile")
     public ResponseEntity<ApiResponse<ProfileDTO>> getUserProfile(@PathVariable Long userId) {
         return ResponseEntity.ok(ApiResponse.success(profileService.getProfile(userId)));
@@ -136,11 +102,6 @@ public class AdminController {
                 active ? "User activated" : "User deactivated", user));
     }
 
-    /**
-     * Soft-delete: deactivates the account and scrubs personal data.
-     * Foreign-key heavy entities (records, certificates, enrollments)
-     * stay intact for audit. See {@link AdminService#softDeleteUser}.
-     */
     @DeleteMapping("/users/{id}")
     public ResponseEntity<ApiResponse<UserDTO>> softDeleteUser(
             @PathVariable Long id,
@@ -150,8 +111,6 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(
                 "User deactivated and anonymized", user));
     }
-
-    // ─── Platform-wide oversight ────────────────────────────────────
 
     @GetMapping("/enrollments")
     public ResponseEntity<ApiResponse<List<AdminEnrollmentRow>>> getAllEnrollments() {
@@ -163,14 +122,10 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.getAllSessions()));
     }
 
-    // ─── All Courses (including unpublished) ─────────────────────────
-
     @GetMapping("/courses")
     public ResponseEntity<ApiResponse<List<CourseDTO>>> getAllCourses() {
         return ResponseEntity.ok(ApiResponse.success(courseService.getAllCoursesAdmin()));
     }
-
-    // ─── Instructor Approval System ─────────────────────────────────
 
     @GetMapping("/instructor-requests")
     public ResponseEntity<ApiResponse<List<InstructorRequestDTO>>> getPendingRequests() {
@@ -191,8 +146,6 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("Instructor request rejected"));
     }
 
-    // ─── Revenue Dashboard ───────────────────────────────────────────
-
     @GetMapping("/revenue/summary")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getRevenueSummary() {
         return ResponseEntity.ok(ApiResponse.success(adminRevenueService.getSummary()));
@@ -206,8 +159,6 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(
                 adminRevenueService.getTransactions(from, to, status)));
     }
-
-    // ─── CSV Exports ─────────────────────────────────────────────────
 
     @GetMapping("/export/users")
     public void exportUsers(HttpServletResponse response) throws IOException {
@@ -310,269 +261,5 @@ public class AdminController {
             s = "\"" + s.replace("\"", "\"\"") + "\"";
         }
         return s;
-    }
-
-    // ─── Phase 2B: document review queue ────────────────────────────
-
-    /**
-     * Returns all documents currently in PENDING review, oldest
-     * first. Drives the Operations Admin "Documents" tab. Filter
-     * by reviewStatus query param to view APPROVED / REJECTED /
-     * NOT_APPLICABLE buckets.
-     */
-    @GetMapping("/documents")
-    public ResponseEntity<ApiResponse<List<ParticipantDocumentDTO>>> listDocumentsForReview(
-            @RequestParam(value = "status", required = false, defaultValue = "PENDING") String status) {
-        List<ParticipantDocumentDTO> rows = adminService.getAllUsers(null).stream()
-                .flatMap(u -> documentService.listForUser(u.getId()).stream())
-                .filter(d -> status.equalsIgnoreCase(d.getReviewStatus()))
-                .map(ParticipantDocumentDTO::from)
-                .toList();
-        return ResponseEntity.ok(ApiResponse.success(rows));
-    }
-
-    /**
-     * Approve / reject a participant document. Body: { status:
-     * "APPROVED"|"REJECTED", notes: "..." }. The participant sees
-     * the notes on the rejected row so they know what to resubmit.
-     */
-    @PutMapping("/documents/{documentId}/review")
-    public ResponseEntity<ApiResponse<ParticipantDocumentDTO>> reviewDocument(
-            @PathVariable Long documentId,
-            @RequestBody Map<String, String> body,
-            Authentication auth) {
-        Long reviewerId = Long.parseLong(auth.getPrincipal().toString());
-        String newStatus = body.get("status");
-        String notes = body.get("notes");
-        ParticipantDocument saved = documentService.review(documentId, reviewerId, newStatus, notes);
-        return ResponseEntity.ok(ApiResponse.success(
-                "APPROVED".equals(newStatus) ? "Document approved" : "Document rejected",
-                ParticipantDocumentDTO.from(saved)));
-    }
-
-    // ─── Phase 4: assignment queue (manual ERM / coach assignment) ──
-
-    /**
-     * Returns participants whose onboarding chain is stuck waiting
-     * on a manual ERM / coach assignment. Used by the Operations
-     * admin "Assignments" tab.
-     */
-    @GetMapping("/assignments/queue")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> assignmentQueue() {
-        List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        // Anyone who's past program-selection but not yet at
-        // DASHBOARD_ENABLED is potentially in the queue. We surface
-        // the workflow status + which slots are pending.
-        for (com.spire.backend.entity.User u : userRepository.findAll()) {
-            String status = u.getCurrentStatus();
-            if (status == null) continue;
-            boolean pending = "WELCOME_SENT".equals(status)
-                    || "DEEPTHI_INTRO_SENT".equals(status)
-                    || "ERM_ASSIGNED".equals(status);
-            if (!pending) continue;
-
-            Map<String, Object> row = new java.util.LinkedHashMap<>();
-            row.put("userId", u.getId());
-            row.put("participantId", u.getParticipantId());
-            row.put("fullName", u.getFullName());
-            row.put("email", u.getEmail());
-            row.put("skillset", u.getSelectedTechnology());
-            row.put("currentStatus", status);
-            row.put("ermAssigned", ermAssignmentService.getAssignedErm(u.getId()).isPresent());
-            rows.add(row);
-        }
-        return ResponseEntity.ok(ApiResponse.success(rows));
-    }
-
-    /**
-     * Manually assigns an ERM to a participant. Body: {@code
-     * { ermUserId: 42 }}. After saving the assignment row, re-runs
-     * the OnboardingService chain so the participant's workflow
-     * rolls forward without waiting on a scheduled tick.
-     */
-    @PutMapping("/assignments/erm/{participantId}")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> assignErm(
-            @PathVariable Long participantId,
-            @RequestBody Map<String, Object> body) {
-        Object ermIdRaw = body.get("ermUserId");
-        if (ermIdRaw == null) throw new IllegalArgumentException("ermUserId is required");
-        Long ermUserId = ermIdRaw instanceof Number n ? n.longValue() : Long.parseLong(ermIdRaw.toString());
-
-        com.spire.backend.entity.User participant = userRepository.findById(participantId)
-                .orElseThrow(() -> new com.spire.backend.exception.ResourceNotFoundException(
-                        "User", "id", participantId));
-        com.spire.backend.entity.User erm = userRepository.findById(ermUserId)
-                .orElseThrow(() -> new com.spire.backend.exception.ResourceNotFoundException(
-                        "User", "id", ermUserId));
-
-        ErmAssignment row = ermAssignmentRepository
-                .findFirstByUserIdOrderByAssignedDateDesc(participantId)
-                .orElseGet(() -> ErmAssignment.builder().userId(participantId).build());
-        row.setErmUserId(erm.getId());
-        row.setIntroEmailStatus("SENT");
-        ermAssignmentRepository.save(row);
-
-        // Push the chain forward — this also fires the intro
-        // emails and (if a coach was also assigned) opens the
-        // dashboard.
-        onboardingService.completeOnboarding(participant);
-        com.spire.backend.entity.User refreshed = userRepository.findById(participantId).orElse(participant);
-        return ResponseEntity.ok(ApiResponse.success(
-                "ERM assigned",
-                Map.of(
-                        "ermUserId", erm.getId(),
-                        "ermName", erm.getFullName() == null ? "" : erm.getFullName(),
-                        "workflowStatus", refreshed.getCurrentStatus()
-                )));
-    }
-
-    // ─── Phase 5B Operations tabs ───────────────────────────────────
-
-    /**
-     * Participants stuck at DRAFT_STARTED — Operations Admin's
-     * "Enrollment Queue" tab. Phase 5B: with the lower ladder gone,
-     * every mid-onboarding user rests at DRAFT_STARTED.
-     */
-    @GetMapping("/operations/enrollment-queue")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> enrollmentQueue() {
-        java.util.Set<String> incomplete = java.util.Set.of("DRAFT_STARTED");
-        List<Map<String, Object>> rows = userRepository.findAll().stream()
-                .filter(u -> incomplete.contains(u.getCurrentStatus() == null ? "" : u.getCurrentStatus()))
-                .map(u -> {
-                    Map<String, Object> r = new java.util.LinkedHashMap<>();
-                    r.put("userId", u.getId());
-                    r.put("fullName", u.getFullName());
-                    r.put("email", u.getEmail());
-                    r.put("currentStatus", u.getCurrentStatus());
-                    r.put("createdAt", u.getCreatedAt());
-                    r.put("emailVerified", Boolean.TRUE.equals(u.getEmailVerified()));
-                    return r;
-                })
-                .toList();
-        return ResponseEntity.ok(ApiResponse.success(rows));
-    }
-
-    /**
-     * All participants who reached the agreement step but haven't
-     * completed it — Operations Admin's "Agreement Queue" tab.
-     *
-     * Phase 5B: reimplemented on the boolean {@code agreementComplete}
-     * flag (authoritative for the 6-step gate) instead of the removed
-     * AGREEMENT_SENT / CHECK_COPY_UPLOADED statuses. Scoped to
-     * pipeline=REFERENCE participants who have started the agreement
-     * step — a REFERENCE user must have completed program-selection
-     * before the agreement step is meaningful, and a DIRECT user
-     * doesn't run the 6-step gate at all.
-     */
-    @GetMapping("/operations/agreement-queue")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> agreementQueue() {
-        List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        for (com.spire.backend.entity.User u : userRepository.findAll()) {
-            if (!"REFERENCE".equals(u.getPipeline())) continue;
-            if (!Boolean.TRUE.equals(u.getProgramSelectionComplete())) continue;
-            if (Boolean.TRUE.equals(u.getAgreementComplete())) continue;
-            com.spire.backend.entity.AgreementAcceptance a =
-                    agreementAcceptanceRepository.findByUserId(u.getId()).orElse(null);
-            Map<String, Object> r = new java.util.LinkedHashMap<>();
-            r.put("userId", u.getId());
-            r.put("participantId", u.getParticipantId());
-            r.put("fullName", u.getFullName());
-            r.put("email", u.getEmail());
-            r.put("currentStatus", u.getCurrentStatus());
-            r.put("agreementStatus", a == null ? "NOT_STARTED" : a.getStatus());
-            r.put("agreementSentAt", a == null ? null : a.getAgreementEmailSentAt());
-            rows.add(r);
-        }
-        return ResponseEntity.ok(ApiResponse.success(rows));
-    }
-
-    /**
-     * Audit trail — user_records for any participant, filtered by
-     * category or date range. Drives the "Audit Trail" tab.
-     */
-    @GetMapping("/operations/audit")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> auditTrail(
-            @RequestParam(value = "userId", required = false) Long userId,
-            @RequestParam(value = "category", required = false) String category,
-            @RequestParam(value = "limit", required = false, defaultValue = "200") Integer limit) {
-        var stream = userId != null
-                ? userRecordRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
-                : userRecordRepository.findAll().stream()
-                        .sorted((a, b) -> {
-                            if (a.getCreatedAt() == null) return 1;
-                            if (b.getCreatedAt() == null) return -1;
-                            return b.getCreatedAt().compareTo(a.getCreatedAt());
-                        });
-        List<Map<String, Object>> rows = stream
-                .filter(r -> category == null || category.isBlank()
-                        || category.equalsIgnoreCase(r.getCategory()))
-                .limit(Math.max(1, Math.min(limit == null ? 200 : limit, 1000)))
-                .map(r -> {
-                    Map<String, Object> row = new java.util.LinkedHashMap<>();
-                    row.put("id", r.getId());
-                    row.put("userId", r.getUserId());
-                    row.put("recordType", r.getRecordType());
-                    row.put("category", r.getCategory());
-                    row.put("title", r.getTitle());
-                    row.put("description", r.getDescription());
-                    row.put("createdAt", r.getCreatedAt());
-                    return row;
-                })
-                .toList();
-        return ResponseEntity.ok(ApiResponse.success(rows));
-    }
-
-    /**
-     * Exceptions surface — derived view across the lifecycle (missing
-     * docs, stalled agreements, overdue weekly reports, etc.).
-     * Lightweight pass; expand as the data model grows.
-     */
-    @GetMapping("/operations/exceptions")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> exceptions() {
-        List<Map<String, Object>> rows = new java.util.ArrayList<>();
-        java.time.LocalDateTime cutoff48h = java.time.LocalDateTime.now().minusHours(48);
-        for (com.spire.backend.entity.User u : userRepository.findAll()) {
-            // Phase 5B: DOC_REVIEW_STALLED branch removed — the
-            // DOCUMENTS_SUBMITTED / DOC_REVIEW_PENDING statuses no
-            // longer exist, and program-selection is now boolean-gated;
-            // if we need a "docs uploaded but participant idle" signal
-            // it can be reimplemented on the documentsComplete flag +
-            // the participant's last-activity timestamp.
-            if (!"REFERENCE".equals(u.getPipeline())) continue;
-            // Agreement stalled: participant received the agreement
-            // email > 48h ago but hasn't signed (agreementComplete false).
-            if (Boolean.TRUE.equals(u.getAgreementComplete())) continue;
-            com.spire.backend.entity.AgreementAcceptance a =
-                    agreementAcceptanceRepository.findByUserId(u.getId()).orElse(null);
-            if (a != null && a.getAgreementEmailSentAt() != null
-                    && a.getAgreementEmailSentAt().isBefore(cutoff48h)) {
-                Map<String, Object> r = new java.util.LinkedHashMap<>();
-                r.put("type", "AGREEMENT_STALLED");
-                r.put("userId", u.getId());
-                r.put("fullName", u.getFullName());
-                r.put("currentStatus", u.getCurrentStatus());
-                r.put("openSince", a.getAgreementEmailSentAt());
-                rows.add(r);
-            }
-        }
-        return ResponseEntity.ok(ApiResponse.success(rows));
-    }
-
-    /**
-     * Available staff for the Assignments tab dropdowns. Returns
-     * ERM-eligible users and coach-eligible users grouped by role.
-     */
-    @GetMapping("/operations/staff-pool")
-    public ResponseEntity<ApiResponse<Map<String, List<Map<String, Object>>>>> staffPool() {
-        Map<String, List<Map<String, Object>>> out = new java.util.LinkedHashMap<>();
-        java.util.function.Function<com.spire.backend.entity.User, Map<String, Object>> toRow = u ->
-                Map.of("id", u.getId(), "fullName", u.getFullName() == null ? "" : u.getFullName(),
-                        "email", u.getEmail() == null ? "" : u.getEmail());
-        var byRole = userRepository.findAll().stream()
-                .filter(u -> Boolean.TRUE.equals(u.getIsActive()))
-                .filter(u -> u.getRole() != null && u.getRole().getName() != null)
-                .collect(java.util.stream.Collectors.groupingBy(u -> u.getRole().getName().toUpperCase()));
-        out.put("erm", byRole.getOrDefault("ERM", java.util.List.of()).stream().map(toRow).toList());
-        return ResponseEntity.ok(ApiResponse.success(out));
     }
 }

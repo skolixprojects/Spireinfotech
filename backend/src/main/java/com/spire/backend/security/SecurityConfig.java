@@ -3,10 +3,8 @@ package com.spire.backend.security;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -26,16 +24,9 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
-    private final AgreementGateFilter agreementGateFilter;
-
     private final CorsConfigurationSource corsConfigurationSource;
 
-    // @Order(2): the mail security chain (MailSecurityConfig, @Order(1))
-    // is scoped to /api/mail/** and must be evaluated first. This chain
-    // is the catch-all for every other request, so it stays last. The
-    // ordering is behavior-neutral for all existing /api/** routes.
     @Bean
-    @Order(2)
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
@@ -44,24 +35,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
-                        // Phase 1B participant enrollment is public.
-                        .requestMatchers(HttpMethod.POST, "/api/participants/enroll").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/courses", "/api/courses/**").permitAll()
                         .requestMatchers("/api/webhooks/**").permitAll()
-                        .requestMatchers("/api/certificates/verify/**").permitAll()
-                        .requestMatchers("/api/certificates/download/**").permitAll()
                         .requestMatchers("/api/verify/**").permitAll()
-                        // Public read of the active Terms of Service text.
-                        .requestMatchers(HttpMethod.GET, "/api/agreement/terms").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                // Agreement gate runs after JWT auth so it can read the
-                // resolved principal. It exempts /api/auth/* and
-                // /api/agreement/* internally so the user can always
-                // reach the flow that lets them satisfy it.
-                .addFilterAfter(agreementGateFilter, JwtAuthFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

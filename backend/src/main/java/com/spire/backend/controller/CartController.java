@@ -2,11 +2,7 @@ package com.spire.backend.controller;
 
 import com.spire.backend.dto.ApiResponse;
 import com.spire.backend.dto.CourseDTO;
-import com.spire.backend.entity.User;
-import com.spire.backend.exception.ResourceNotFoundException;
-import com.spire.backend.repository.UserRepository;
 import com.spire.backend.service.CartService;
-import com.spire.backend.service.ProfileCompletionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,8 +19,6 @@ import java.util.Map;
 public class CartController {
 
     private final CartService cartService;
-    private final ProfileCompletionService profileCompletionService;
-    private final UserRepository userRepository;
 
     @PostMapping("/{courseId}")
     @PreAuthorize("isAuthenticated()")
@@ -66,21 +60,6 @@ public class CartController {
             Authentication authentication,
             @RequestBody(required = false) Map<String, Object> body) {
         Long userId = Long.parseLong(authentication.getPrincipal().toString());
-
-        // Phase 1C gate — checkout is profile-complete-only. Cart
-        // add / browse stays open so a user can curate while finishing
-        // their profile; only the moment of purchase is blocked.
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
-        if (!profileCompletionService.canEnrollInCourses(user)) {
-            Map<String, Object> payload = Map.of(
-                    "message", "Complete your profile to check out",
-                    "completion", profileCompletionService.getStatus(user)
-            );
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(
-                    ApiResponse.<Map<String, Object>>error("PROFILE_INCOMPLETE", payload));
-        }
-
         String couponCode = body != null && body.get("couponCode") != null
                 ? body.get("couponCode").toString() : null;
         Map<String, Object> result = cartService.checkout(userId, couponCode);

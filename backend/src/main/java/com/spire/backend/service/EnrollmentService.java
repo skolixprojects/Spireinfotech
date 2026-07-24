@@ -30,7 +30,6 @@ public class EnrollmentService {
     private final ModuleRepository moduleRepository;
     private final LessonRepository lessonRepository;
     private final MentorAssignmentService mentorAssignmentService;
-    private final RecordService recordService;
     private final EmailTemplateService emailTemplateService;
 
     @Transactional
@@ -79,10 +78,6 @@ public class EnrollmentService {
         details.put("courseType", course.getType());
         details.put("amountPaid", course.getPrice());
         details.put("isFree", Boolean.TRUE.equals(course.getIsFree()));
-        recordService.record(userId, "COURSE_ENROLLED", RecordService.Category.LEARNING,
-                "Enrolled in " + course.getTitle(),
-                "Enrolled in course '" + course.getTitle() + "' (ID: " + course.getId() + ")",
-                details);
 
         // Confirmation email — best-effort. Mentor name is left blank
         // when no mentor has capacity yet (assignment row still gets

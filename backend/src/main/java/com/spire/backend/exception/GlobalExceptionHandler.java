@@ -45,22 +45,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
-    // 403 — Agreement not accepted. Frontend's apiFetch interceptor
-    // checks for { message: "AGREEMENT_REQUIRED" } and routes the
-    // user to /agreement. The error field on the body keeps the
-    // shape compatible with code that reads either spelling.
-    @ExceptionHandler(AgreementRequiredException.class)
-    public ResponseEntity<ApiResponse<Map<String, String>>> handleAgreementRequired(AgreementRequiredException ex) {
-        Map<String, String> data = new HashMap<>();
-        data.put("error", "AGREEMENT_REQUIRED");
-        ApiResponse<Map<String, String>> body = ApiResponse.<Map<String, String>>builder()
-                .success(false)
-                .message("AGREEMENT_REQUIRED")
-                .data(data)
-                .build();
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
-    }
-
     // 401 — Authentication failed
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnauthorized(UnauthorizedException ex) {
