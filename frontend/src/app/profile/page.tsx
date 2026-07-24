@@ -3,29 +3,20 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-
 import { useAuth } from "@/lib/auth-context";
-import { dashboardRouteForRole } from "@/lib/api";
 
-/**
- * /profile is no longer a standalone page. Every role has a Profile
- * tab inside its own dashboard (the participant dashboard's Profile
- * tab, the ERM dashboard's Profile tab, etc.). This stub just sends
- * the user to the correct dashboard — they can click the Profile
- * tab from the sidebar there.
- */
 export default function ProfileRedirectPage() {
   const router = useRouter();
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { isLoading, isAuthenticated } = useAuth();
 
   useEffect(() => {
     if (isLoading) return;
-    if (!isAuthenticated || !user) {
+    if (!isAuthenticated) {
       router.replace("/login");
       return;
     }
-    router.replace(dashboardRouteForRole(user.role));
-  }, [isLoading, isAuthenticated, user, router]);
+    router.replace("/dashboard");
+  }, [isLoading, isAuthenticated, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC]">

@@ -73,7 +73,6 @@ import {
 import { useToast } from "@/components/ui/Toast";
 import { ConversationThread } from "@/components/sales/ConversationThread";
 import { Eye, Trash2, Globe, GlobeLock, Calendar, ClipboardList, ExternalLink, ShieldCheck } from "lucide-react";
-import { OperationsPanel } from "@/components/admin/OperationsPanel";
 import Link from "next/link";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { cn } from "@/lib/utils";
@@ -2391,7 +2390,7 @@ function AdminContent() {
                 admin tabs above continue to handle courses, sessions, and
                 revenue.
               </p>
-              <OperationsPanel />
+              <div className="text-sm text-gray-500 italic">Operations panel removed.</div>
             </>
           )}
         </motion.div>

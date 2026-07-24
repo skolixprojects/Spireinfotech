@@ -5,67 +5,47 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, LogOut, User, LayoutDashboard, BookOpen, MessageSquare } from "lucide-react";
+import { Menu, X, LogOut, User, LayoutDashboard, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { APP_NAME } from "@/lib/constants";
 import { useAuth } from "@/lib/auth-context";
 import { BRAND } from "@/config/brand";
 
-// Links by audience. /courses and /services are now login-protected,
-// so the public nav doesn't reference them — visitors must sign up
-// to browse. Logged-in nav varies by role: students get cart access;
-// instructors don't see Services (they don't author them); trainers
-// don't see Courses (they don't author them); admins see everything.
 const PUBLIC_LINKS = [
+  { label: "Courses", href: "/courses" },
+  { label: "Categories", href: "/categories" },
   { label: "About", href: "/about" },
   { label: "Support", href: "/support" },
 ];
 
 const STUDENT_LINKS = [
-  { label: "Courses", href: "/courses" },
-  { label: "Services", href: "/services" },
   { label: "Dashboard", href: "/dashboard" },
-  { label: "Messages", href: "/messages" },
-  { label: "Profile", href: "/profile" },
+  { label: "Courses", href: "/courses" },
   { label: "Cart", href: "/cart" },
+  { label: "Profile", href: "/profile" },
 ];
 
 const INSTRUCTOR_LINKS = [
-  { label: "Courses", href: "/courses" },
-  { label: "My Courses", href: "/instructor" },
   { label: "Dashboard", href: "/dashboard" },
-  { label: "Messages", href: "/messages" },
+  { label: "Courses", href: "/courses" },
+  { label: "Instructor", href: "/instructor" },
   { label: "Profile", href: "/profile" },
 ];
 
 const ADMIN_LINKS = [
+  { label: "Dashboard", href: "/dashboard" },
   { label: "Courses", href: "/courses" },
-  { label: "Services", href: "/services" },
+  { label: "Instructor", href: "/instructor" },
   { label: "Admin", href: "/admin" },
   { label: "Profile", href: "/profile" },
 ];
 
-function pickNavLinks(
-  isAuthenticated: boolean,
-  role?: string,
-  profileComplete?: boolean,
-) {
+function pickNavLinks(isAuthenticated: boolean, role?: string) {
   if (!isAuthenticated) return PUBLIC_LINKS;
-  const upper = role?.toUpperCase();
-  switch (upper) {
+  switch (role?.toUpperCase()) {
     case "ADMIN": return ADMIN_LINKS;
     case "INSTRUCTOR": return INSTRUCTOR_LINKS;
-    default:
-      // Phase 1C: hide /courses, /services, and /cart from
-      // participant nav until the profile is 100% complete. They
-      // can still reach the marketing About / Support pages via
-      // their dropdown if needed.
-      if (!profileComplete) {
-        return STUDENT_LINKS.filter(
-          (l) => l.href !== "/courses" && l.href !== "/services" && l.href !== "/cart",
-        );
-      }
-      return STUDENT_LINKS;
+    default: return STUDENT_LINKS;
   }
 }
 
@@ -76,11 +56,7 @@ export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
   const pathname = usePathname();
 
-  const navLinks = pickNavLinks(
-    isAuthenticated,
-    user?.role,
-    Boolean(user?.profileComplete),
-  );
+  const navLinks = pickNavLinks(isAuthenticated, user?.role);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 50);
@@ -88,7 +64,6 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  // Close mobile menu on route change
   useEffect(() => {
     setMobileOpen(false);
     setDropdownOpen(false);
@@ -96,7 +71,6 @@ export function Navbar() {
 
   return (
     <>
-      {/* Navbar */}
       <header
         className={cn(
           "fixed inset-x-0 top-0 z-50 transition-all duration-300",
@@ -106,7 +80,6 @@ export function Navbar() {
         )}
       >
         <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3">
-          {/* Logo + wordmark */}
           <Link
             href={isAuthenticated ? "/dashboard" : "/"}
             className="flex items-center gap-2 font-serif text-lg font-bold text-[#0F766E] tracking-tight"
@@ -122,7 +95,6 @@ export function Navbar() {
             <span>{APP_NAME}</span>
           </Link>
 
-          {/* Desktop nav links */}
           <ul className="hidden lg:flex items-center gap-8">
             {navLinks.map((link) => (
               <li key={link.href}>
@@ -141,7 +113,6 @@ export function Navbar() {
             ))}
           </ul>
 
-          {/* Desktop actions */}
           <div className="hidden lg:flex items-center gap-4">
             {isAuthenticated && user ? (
               <div className="relative">
@@ -177,16 +148,9 @@ export function Navbar() {
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
                           <LayoutDashboard size={16} /> Dashboard
                         </Link>
-                        {user.role?.toUpperCase() !== "STUDENT"
-                          || user.profileComplete ? (
-                          <Link href="/courses" onClick={() => setDropdownOpen(false)}
-                            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
-                            <BookOpen size={16} /> Courses
-                          </Link>
-                        ) : null}
-                        <Link href="/messages" onClick={() => setDropdownOpen(false)}
+                        <Link href="/courses" onClick={() => setDropdownOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
-                          <MessageSquare size={16} /> Messages
+                          <BookOpen size={16} /> Courses
                         </Link>
                         <Link href="/profile" onClick={() => setDropdownOpen(false)}
                           className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition">
@@ -213,7 +177,7 @@ export function Navbar() {
                 <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-[#0F766E] transition-colors">
                   Sign In
                 </Link>
-                <Link href="/enroll"
+                <Link href="/signup"
                   className="inline-flex items-center justify-center rounded-full bg-[#0F766E] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0D9488] transition-colors shadow-sm">
                   Get Started
                 </Link>
@@ -221,13 +185,11 @@ export function Navbar() {
             )}
           </div>
 
-          {/* Mobile hamburger */}
           <button className="lg:hidden text-[#0F766E] cursor-pointer" onClick={() => setMobileOpen((v) => !v)} aria-label="Toggle menu">
             {mobileOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </nav>
 
-        {/* Mobile menu */}
         <AnimatePresence>
           {mobileOpen && (
             <motion.div
@@ -268,7 +230,7 @@ export function Navbar() {
                 ) : (
                   <>
                     <Link href="/login" className="text-sm font-medium text-gray-700 hover:text-[#0F766E] py-1">Sign In</Link>
-                    <Link href="/enroll"
+                    <Link href="/signup"
                       className="inline-flex items-center justify-center rounded-full bg-[#0F766E] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0D9488] transition-colors mt-1">
                       Get Started
                     </Link>

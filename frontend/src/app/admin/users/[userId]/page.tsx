@@ -18,7 +18,6 @@ import {
   type ProfileData,
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
-import { UserRecordsPanel } from "@/components/admin/UserRecordsPanel";
 import { cn } from "@/lib/utils";
 import { formatISTDate, formatISTWithZone } from "@/lib/datetime";
 
@@ -342,10 +341,7 @@ export default function AdminUserDetailPage({
           </div>
 
           {activeTab === "records" ? (
-            <UserRecordsPanel
-              userId={params.userId}
-              fileBaseName={(profile.email || `user-${profile.id}`).replace(/[^a-zA-Z0-9._-]/g, "_")}
-            />
+            <div className="text-sm text-gray-500 italic">Records panel removed.</div>
           ) : (
           <>
           {/* Learning Stats */}

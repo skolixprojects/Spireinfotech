@@ -18,35 +18,15 @@ import {
   type UserDTO,
 } from "./api";
 
-// Frontend uses same shape as Spring Boot UserDTO (camelCase)
 type AuthUser = UserDTO;
 
 interface AuthContextValue {
   user: AuthUser | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  /**
-   * Logs the user in. Returns the AuthResponse so callers can branch
-   * on flags like {@code user.agreementAccepted} before deciding
-   * where to route. The user state is also updated synchronously
-   * before this resolves.
-   */
   login: (email: string, password: string) => Promise<AuthResponse>;
-  // Register no longer establishes a session — the backend now
-  // requires OTP verification first. Returns the registration
-  // metadata so the signup page can route to /verify-email.
   register: (name: string, email: string, password: string) => Promise<RegistrationResponse>;
-  // Establishes a session from an AuthResponse. Used by the verify
-  // page after a successful OTP submission.
   setSession: (data: AuthResponse) => void;
-  /**
-   * Re-fetches /api/users/profile and updates the user object in
-   * the context. Callers should run this after any backend write
-   * that changes participant-lifecycle fields (currentStatus,
-   * participantId, etc.) before navigating, so the next page's
-   * routing guards read fresh data. Returns the refreshed user
-   * (or null if the fetch fails / the user isn't signed in).
-   */
   refreshUser: () => Promise<AuthUser | null>;
   logout: () => void;
 }
@@ -90,22 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const profile = await getProfile();
         setUser(profile);
-      } catch (err) {
-        // AGREEMENT_REQUIRED isn't an auth failure — the user is
-        // logged in, they just haven't accepted the Terms yet.
-        // Don't clear the token; the apiFetch interceptor has
-        // already redirected to /agreement, and we want the gate
-        // page to know who's signed in. Any other error genuinely
-        // means the token is bad → clear and force re-login.
-        if (err instanceof Error && err.message === "AGREEMENT_REQUIRED") {
-          // Leave user as null; the agreement page reads `email`
-          // off the JWT-derived profile via a fresh fetch once
-          // the gate is satisfied. (See exemption for
-          // /api/users/profile in AgreementGateFilter — this
-          // catch is just a defensive fallback.)
-        } else {
-          clearAuth();
-        }
+      } catch {
+        clearAuth();
       } finally {
         setIsLoading(false);
       }
@@ -119,9 +85,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data;
   }, []);
 
-  // Register no longer auto-logs-in. The backend response carries
-  // requiresVerification=true; the signup page routes the user to
-  // /verify-email?email=… to enter the OTP that completes signup.
   const register = useCallback(
     async (name: string, email: string, password: string) => {
       return apiRegister({ fullName: name, email, password });
@@ -129,18 +92,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  // Hands a session to the caller — used by the verify page after
-  // a successful OTP submission to flip the UI into authenticated
-  // state without forcing a full reload.
   const setSession = useCallback((data: AuthResponse) => {
     storeTokens(data);
   }, []);
 
-  // Refresh the in-memory user from the backend. Used between
-  // soft-navigations after status-changing writes (agreement sign,
-  // check upload, welcome poll, etc.) so the next page's routing
-  // guards see the current state instead of the stale login-time
-  // copy.
   const refreshUser = useCallback(async (): Promise<AuthUser | null> => {
     const token = typeof window === "undefined"
       ? null : localStorage.getItem("access_token");

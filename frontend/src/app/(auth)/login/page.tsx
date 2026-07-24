@@ -22,31 +22,19 @@ type LoginValues = z.infer<typeof loginSchema>;
 function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
-  // Set when login is rejected because the account isn't verified.
-  // Carries the email so we can render a "Verify Now" link that
-  // routes straight to /verify-email with the address pre-filled.
   const [needsVerification, setNeedsVerification] = useState<string | null>(null);
-  const { login, user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { login, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/dashboard";
-  // Banner cues from email-confirmation flows. ?verified=true after
-  // a fresh email-verification click; ?reset=true after a password
-  // reset succeeds. Both are positive — render as a green note above
-  // the form so the user knows their action landed.
   const verified = searchParams.get("verified") === "true";
   const resetDone = searchParams.get("reset") === "true";
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
-      // Already-logged-in shortcut — bounce to whichever dashboard
-      // matches the user's role.
-      (async () => {
-        const { dashboardRouteForRole } = await import("@/lib/api");
-        router.push(dashboardRouteForRole(user?.role));
-      })();
+      router.push("/dashboard");
     }
-  }, [authLoading, isAuthenticated, user, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   const {
     register,
@@ -60,40 +48,10 @@ function LoginForm() {
     setError("");
     setNeedsVerification(null);
     try {
-      const auth = await login(data.email, data.password);
-      // Routing after login:
-      //   - New participant lifecycle (has currentStatus) → route
-      //     to whichever onboarding step matches the status.
-      //   - Staff roles → role-specific dashboard.
-      //   - Everyone else → original redirect target.
-      const status = auth.user?.currentStatus;
-      const role = auth.user?.role ?? "";
-      // Lazy import to avoid pulling the helpers into every page
-      // bundle just for this branch.
-      const { getOnboardingRoute, isDashboardStatus, dashboardRouteForRole } =
-        await import("@/lib/api");
-      // Staff roles route to their own dashboards regardless of
-      // currentStatus (they don't have a participant lifecycle).
-      // Resolve via dashboardRouteForRole so ADMIN, ERM, ACCOUNTS,
-      // INSTRUCTOR all funnel through the same map — no hand-
-      // maintained role list to forget on.
-      const roleRoute = dashboardRouteForRole(role);
-      if (roleRoute !== "/dashboard") {
-        window.location.href = roleRoute;
-        return;
-      }
-      if (status) {
-        if (!isDashboardStatus(status)) {
-          window.location.href = getOnboardingRoute(status);
-          return;
-        }
-      }
+      await login(data.email, data.password);
       window.location.href = redirect;
     } catch (err: unknown) {
       if (err instanceof EmailNotVerifiedError) {
-        // Stash the email so the banner below can render a deep link
-        // to /verify-email with it pre-filled. No "wrong password"
-        // copy in this case — credentials are fine, account isn't.
         setNeedsVerification(err.email);
         return;
       }

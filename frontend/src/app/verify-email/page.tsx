@@ -5,26 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, MailCheck, AlertCircle } from "lucide-react";
-import OnboardingLayout from "@/components/layouts/OnboardingLayout";
 import { useAuth } from "@/lib/auth-context";
 import { resendVerificationCode, verifyCode } from "@/lib/api";
 
-/**
- * /verify-email?email=… — OTP gate for new signups (Phase 1B).
- *
- * The user lands here straight from /enroll with their email
- * pre-populated. They paste or type the 6-digit code we emailed
- * them; on success the backend hands back an AuthResponse (now
- * including a freshly-minted participantId) and the page promotes
- * the session and routes them to /participant-id.
- *
- * Lives outside the {@code (auth)} route group so the
- * marketing-panel layout doesn't stack on top of OnboardingLayout.
- */
-
 const RESEND_COOLDOWN_SECONDS = 150;
 const CODE_LENGTH = 6;
-const QUICK_SIGNUP_STEPS = ["Sign Up", "Verify"] as const;
 
 function maskEmail(email: string | null | undefined): string {
   if (!email) return "your email";
@@ -66,8 +51,6 @@ function VerifyEmailInner() {
     const t = setInterval(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
     return () => clearInterval(t);
   }, [resendCooldown]);
-
-  // ── Input handlers ──────────────────────────────────────────────
 
   const setDigitAt = (i: number, value: string) => {
     setDigits((prev) => { const next = [...prev]; next[i] = value; return next; });
@@ -125,8 +108,6 @@ function VerifyEmailInner() {
     inputRefs.current[target]?.focus();
   };
 
-  // ── Submit / resend ─────────────────────────────────────────────
-
   const handleSubmit = async () => {
     if (!email || !ready || submitting) return;
     setSubmitting(true);
@@ -135,13 +116,7 @@ function VerifyEmailInner() {
       const auth = await verifyCode(email, code);
       setSuccess(true);
       setSession(auth);
-      // Two-pipeline (Prompt 3): freshly verified users always have a
-      // null pipeline, so they land on the attribution screen. That
-      // screen sets pipeline=DIRECT (→ /dashboard) or
-      // pipeline=REFERENCE (→ /referral-pending) and re-routes them
-      // via routeAfterAuth. Full page reload keeps the auth-context
-      // stale-user race away from the guard.
-      setTimeout(() => { window.location.href = "/how-did-you-hear"; }, 800);
+      setTimeout(() => { window.location.href = "/dashboard"; }, 800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");
       setShake((n) => n + 1);
@@ -171,18 +146,16 @@ function VerifyEmailInner() {
   };
 
   useEffect(() => {
-    if (!email) router.replace("/enroll");
+    if (!email) router.replace("/signup");
   }, [email, router]);
 
-  // ── Render ──────────────────────────────────────────────────────
-
   return (
-    <OnboardingLayout currentStep={2} steps={QUICK_SIGNUP_STEPS} contentMaxWidth="xl">
+    <div className="min-h-screen flex items-center justify-center bg-[#F8FAFC] px-4">
       <motion.section
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8 text-center"
+        className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-100 p-6 sm:p-8 text-center"
       >
         <h1 className="font-serif text-2xl font-bold text-gray-900">
           <span className="inline-flex items-center gap-2">
@@ -245,7 +218,7 @@ function VerifyEmailInner() {
             animate={{ scale: 1, opacity: 1 }}
             className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700"
           >
-            ✅ Email verified! Taking you to the next step…
+            ✅ Email verified! Taking you to your dashboard…
           </motion.div>
         )}
 
@@ -284,12 +257,12 @@ function VerifyEmailInner() {
 
         <p className="mt-6 text-xs text-gray-400">
           Wrong email?{" "}
-          <Link href="/enroll" className="text-[#0F766E] font-semibold hover:underline">
-            Go back to enrollment
+          <Link href="/signup" className="text-[#0F766E] font-semibold hover:underline">
+            Go back to sign up
           </Link>
         </p>
       </motion.section>
-    </OnboardingLayout>
+    </div>
   );
 }
 

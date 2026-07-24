@@ -16,7 +16,6 @@ import { friendlyEnrollmentError } from "@/lib/utils";
 import type { MentorInfo, SessionRequest } from "@/lib/types";
 import { ContactSalesModal } from "@/components/sales/ContactSalesModal";
 import { RequestSessionModal } from "@/components/mentorship/RequestSessionModal";
-import ProfileGateModal from "@/components/dashboard/ProfileGateModal";
 import {
   CourseSalesView,
   type SalesCourseData, type SalesModule, type SalesLesson,
@@ -440,10 +439,6 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
         courseId={course.id}
         courseTitle={course.title}
         listedPrice={course.price}
-      />
-      <ProfileGateModal
-        open={showProfileGate}
-        onClose={() => setShowProfileGate(false)}
       />
     </>
   );
