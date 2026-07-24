@@ -814,15 +814,15 @@ public class DataSeeder implements CommandLineRunner {
             log.debug("Couldn't grandfather pre-agreement users: {}", e.getMessage());
         }
 
-        // Backfill the signed-PDF URL column on agreement_acceptances.
+        // Backfill the signed-PDF URL column on agreement_records.
         // Set when the post-OTP PDF generator successfully writes the
         // personalized signed agreement; nullable so historic rows
         // (accepted before this flow shipped) stay valid.
         try {
             jdbcTemplate.execute(
-                    "ALTER TABLE agreement_acceptances ADD COLUMN IF NOT EXISTS "
+                    "ALTER TABLE agreement_records ADD COLUMN IF NOT EXISTS "
                             + "signed_agreement_pdf_url VARCHAR(512)");
-            log.info("Ensured agreement_acceptances.signed_agreement_pdf_url exists");
+            log.info("Ensured agreement_records.signed_agreement_pdf_url exists");
         } catch (Exception e) {
             log.debug("Couldn't add agreement_acceptances.signed_agreement_pdf_url "
                     + "(likely already present, or table not yet created): {}", e.getMessage());
@@ -835,17 +835,17 @@ public class DataSeeder implements CommandLineRunner {
         // keep validating.
         try {
             jdbcTemplate.execute(
-                    "ALTER TABLE agreement_acceptances ADD COLUMN IF NOT EXISTS "
+                    "ALTER TABLE agreement_records ADD COLUMN IF NOT EXISTS "
                             + "signature_image TEXT");
-            log.info("Ensured agreement_acceptances.signature_image exists");
+            log.info("Ensured agreement_records.signature_image exists");
         } catch (Exception e) {
             log.debug("Couldn't add agreement_acceptances.signature_image: {}", e.getMessage());
         }
         try {
             jdbcTemplate.execute(
-                    "ALTER TABLE agreement_acceptances ADD COLUMN IF NOT EXISTS "
+                    "ALTER TABLE agreement_records ADD COLUMN IF NOT EXISTS "
                             + "signature_method VARCHAR(20)");
-            log.info("Ensured agreement_acceptances.signature_method exists");
+            log.info("Ensured agreement_records.signature_method exists");
         } catch (Exception e) {
             log.debug("Couldn't add agreement_acceptances.signature_method: {}", e.getMessage());
         }
@@ -949,9 +949,9 @@ public class DataSeeder implements CommandLineRunner {
         // post-processing routes the signed agreement to ERM.
         try {
             jdbcTemplate.execute(
-                    "ALTER TABLE agreement_acceptances ADD COLUMN IF NOT EXISTS "
+                    "ALTER TABLE agreement_records ADD COLUMN IF NOT EXISTS "
                             + "erm_notified BOOLEAN NOT NULL DEFAULT FALSE");
-            log.info("Ensured agreement_acceptances.erm_notified exists");
+            log.info("Ensured agreement_records.erm_notified exists");
         } catch (Exception e) {
             log.debug("Couldn't add agreement_acceptances.erm_notified: {}", e.getMessage());
         }
