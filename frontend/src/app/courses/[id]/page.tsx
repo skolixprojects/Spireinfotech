@@ -103,13 +103,6 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   const role = user?.role?.toUpperCase() ?? "";
   const isStaff = role === "ADMIN" || role === "INSTRUCTOR"
     || role === "ERM" || role === "ACCOUNTS";
-  useEffect(() => {
-    if (user && !isStaff
-        && user.pipeline === "REFERENCE"
-        && user.profileComplete === false) {
-      router.replace("/dashboard?tab=complete-profile");
-    }
-  }, [user, isStaff, router]);
 
   // ── Data state ─────────────────────────────────────────────────
   const [course, setCourse] = useState<CourseData | null>(null);
@@ -128,9 +121,6 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   const [enrolled, setEnrolled] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [enrollMsg, setEnrollMsg] = useState("");
-  // Phase 1C — pop the profile-completion gate modal whenever an
-  // incomplete-profile user tries to enroll.
-  const [showProfileGate, setShowProfileGate] = useState(false);
   const [generatingCert, setGeneratingCert] = useState(false);
   const [certError, setCertError] = useState("");
   const [showContactSales, setShowContactSales] = useState(false);
@@ -220,15 +210,6 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
       router.push(`/login?redirect=/courses/${id}`);
       return;
     }
-    // Two-pipeline gate: only REFERENCE users with an incomplete
-    // profile hit the modal. Backend ships the same 403 as a race
-    // guard; the catch below re-pops the modal in that case.
-    if (user
-        && user.pipeline === "REFERENCE"
-        && user.profileComplete === false) {
-      setShowProfileGate(true);
-      return;
-    }
     setEnrolling(true);
     setEnrollMsg("");
     try {
@@ -247,13 +228,6 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
       if (a.status === "fulfilled") setAssignments((a.value ?? []) as LearningAssignment[]);
       if (qs.status === "fulfilled") setQuizzes(qs.value ?? []);
     } catch (err) {
-      // Phase 1C — backend ships 403 PROFILE_INCOMPLETE if the gate
-      // wasn't caught client-side. Pop the same modal.
-      const message = err instanceof Error ? err.message : String(err);
-      if (message.includes("PROFILE_INCOMPLETE")) {
-        setShowProfileGate(true);
-        return;
-      }
       const msg = friendlyEnrollmentError(err);
       setEnrollMsg(msg);
       if (msg.startsWith("You're already enrolled")) {

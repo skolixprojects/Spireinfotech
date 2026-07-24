@@ -59,13 +59,6 @@ export default function CoursesPage() {
   // profile are bounced to the checklist. DIRECT users (and any
   // legacy/null pipeline) pass through freely. Staff + anonymous
   // visitors also fall through.
-  useEffect(() => {
-    if (user && !isStaff
-        && user.pipeline === "REFERENCE"
-        && user.profileComplete === false) {
-      router.replace("/dashboard?tab=complete-profile");
-    }
-  }, [user, isStaff, router]);
 
   useEffect(() => {
     getDashboardSummary()

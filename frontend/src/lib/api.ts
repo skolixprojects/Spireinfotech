@@ -35,53 +35,12 @@ export interface UserDTO {
   bio: string | null;
   isActive?: boolean;
   instructorApproved?: boolean;
-  // True after the user has completed the OTP-confirmed Terms of
-  // Service flow. Optional so older payloads still parse.
-  agreementAccepted?: boolean;
   createdAt?: string | null;
-  // Stamped when an admin deactivates the account; cleared on
-  // reactivate. Drives the "Deactivated on …" column on the admin
-  // Deactivated Users tab.
-  deactivatedAt?: string | null;
-  // Phase 1B — participant lifecycle fields surfaced on every
-  // login / profile read. The onboarding routing guard reads
-  // currentStatus to decide which page the user should be on.
-  participantId?: string | null;
-  currentStatus?: string | null;
   emailVerified?: boolean;
-  // Phase 3A pre-fill: skillset + availability the participant
-  // captured at enrollment. The /program-selection form pre-fills
-  // these but allows overrides.
-  selectedTechnology?: string | null;
-  availability?: string | null;
   /** Captured at enrollment; displayed on the agreement summary. */
   phone?: string | null;
   /** Free-form city / region, editable from the Profile tab. */
   location?: string | null;
-
-  // ── Phase 1C progressive-completion flags ─────────────────────
-  // Mirrored from the backend so the dashboard banner, gate modal,
-  // and sidebar badge can all read off the auth-context user
-  // object without an extra /completion fetch on every render.
-  profileComplete?: boolean;
-  profileCompletionPct?: number;
-  basicInfoComplete?: boolean;
-  acknowledgmentComplete?: boolean;
-  documentsComplete?: boolean;
-  programSelectionComplete?: boolean;
-  agreementComplete?: boolean;
-  checkUploadComplete?: boolean;
-
-  // ── Two-pipeline attribution + fork ───────────────────────────
-  // Null pipeline means the user has not yet answered the
-  // /how-did-you-hear screen. routeAfterAuth uses these three
-  // fields to pick the correct post-verify landing page.
-  /** SOCIAL_MEDIA | GOOGLE_SEARCH | FRIEND_COLLEAGUE | EVENT_WEBINAR | REFERENCE. */
-  referralSource?: string | null;
-  /** DIRECT | REFERENCE. */
-  pipeline?: string | null;
-  /** PENDING | APPROVED | REJECTED — set only for REFERENCE pipeline. */
-  referralStatus?: string | null;
 }
 
 export interface AuthResponse {
@@ -254,1283 +213,6 @@ export async function register(data: { fullName: string; email: string; password
   return wrapper.data;
 }
 
-// ─── Phase 1B: participant enrollment ────────────────────────────────
-
-export interface ParticipantEnrollRequest {
-  fullName: string;
-  email: string;
-  phone: string;
-  password: string;
-}
-
-/**
- * Phase 1B enrollment — wider than the legacy {@link register}.
- * Body matches the backend ParticipantEnrollRequest record;
- * response shape stays {@link RegistrationResponse} so call sites
- * can route to /verify-email the same way.
- */
-export async function enrollParticipant(
-  data: ParticipantEnrollRequest,
-): Promise<RegistrationResponse> {
-  const wrapper = await apiFetch<ApiResponse<RegistrationResponse>>(
-    "/api/participants/enroll",
-    {
-      method: "POST",
-      body: JSON.stringify(data),
-    },
-  );
-  return wrapper.data;
-}
-
-/** Fetches the caller's full profile incl. participantId + currentStatus. */
-export async function getParticipantMe(): Promise<UserDTO> {
-  const wrapper = await apiFetch<ApiResponse<UserDTO>>("/api/participants/me");
-  return wrapper.data;
-}
-
-// ─── Phase 1C: progressive profile completion ──────────────────────
-
-export interface ProfileCompletionStep {
-  key:
-    | "BASIC_INFO"
-    | "ACKNOWLEDGMENT"
-    | "DOCUMENTS"
-    | "PROGRAM_SELECTION"
-    | "AGREEMENT"
-    | "CHECK_UPLOAD";
-  title: string;
-  description: string;
-  estimatedTime: string;
-  completed: boolean;
-}
-
-export interface ProfileCompletion {
-  completionPercentage: number;
-  completedSteps: number;
-  totalSteps: number;
-  /** Backend ships {@code isComplete} (Jackson serialises {@code isXxx}). */
-  isComplete?: boolean;
-  /** Lombok-generated alternate name. Some downstream wrappers re-key as {@code complete}. */
-  complete?: boolean;
-  nextStep: ProfileCompletionStep["key"] | "COMPLETE";
-  steps: ProfileCompletionStep[];
-}
-
-/** Reads the participant's progressive-completion snapshot. */
-export async function getProfileCompletion(): Promise<ProfileCompletion> {
-  const wrapper = await apiFetch<ApiResponse<ProfileCompletion>>(
-    "/api/participants/profile/completion",
-  );
-  return wrapper.data;
-}
-
-export interface BasicInfoSubmit {
-  location?: string;
-  availability: string;
-  selectedTechnology: string;
-  targetExperienceLevel: string;
-}
-
-/** Submits Step 1 ("About You") of the dashboard checklist. */
-export async function submitBasicInfo(
-  data: BasicInfoSubmit,
-): Promise<{ success: boolean; completion: ProfileCompletion }> {
-  const wrapper = await apiFetch<
-    ApiResponse<{ success: boolean; completion: ProfileCompletion }>
-  >("/api/participants/profile/basic-info", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-  return wrapper.data;
-}
-
-// ─── Two-pipeline attribution ─────────────────────────────────────
-
-export type AttributionSource =
-  | "SOCIAL_MEDIA"
-  | "GOOGLE_SEARCH"
-  | "FRIEND_COLLEAGUE"
-  | "EVENT_WEBINAR"
-  | "REFERENCE";
-
-/**
- * Captures how the user heard about Spire and forks their pipeline.
- * REFERENCE users enter a PENDING state and wait for ERM approval;
- * every other source flips them straight to the DIRECT pipeline
- * with full dashboard access. Idempotent — a re-submission returns
- * the current user unchanged.
- */
-export async function submitAttribution(source: AttributionSource): Promise<UserDTO> {
-  const wrapper = await apiFetch<ApiResponse<UserDTO>>(
-    "/api/participants/attribution",
-    { method: "POST", body: JSON.stringify({ source }) },
-  );
-  return wrapper.data;
-}
-
-// ─── Phase 1C: wishlist ────────────────────────────────────────────
-
-export interface WishlistItem {
-  id: number;
-  kind: "COURSE" | "SERVICE";
-  targetId: number;
-  title: string;
-  thumbnailUrl: string | null;
-  price: number | null;
-  addedAt: string;
-}
-
-export async function getWishlist(): Promise<WishlistItem[]> {
-  const wrapper = await apiFetch<ApiResponse<WishlistItem[]>>("/api/participants/wishlist");
-  return wrapper.data ?? [];
-}
-
-export async function addToWishlist(courseId: number): Promise<void> {
-  await apiFetch<ApiResponse<Record<string, unknown>>>("/api/participants/wishlist/add", {
-    method: "POST",
-    body: JSON.stringify({ courseId }),
-  });
-}
-
-export async function removeFromWishlist(courseId: number): Promise<void> {
-  await apiFetch<ApiResponse<Record<string, unknown>>>(
-    `/api/participants/wishlist/${courseId}`,
-    { method: "DELETE" },
-  );
-}
-
-export async function enrollAllFromWishlist(): Promise<{
-  success: boolean;
-  enrolledCount: number;
-  skipped: string[];
-}> {
-  const wrapper = await apiFetch<
-    ApiResponse<{ success: boolean; enrolledCount: number; skipped: string[] }>
-  >("/api/participants/wishlist/enroll-all", { method: "POST" });
-  return wrapper.data;
-}
-
-export interface ParticipantProfileUpdate {
-  fullName?: string;
-  phone?: string;
-  location?: string;
-  bio?: string;
-  availability?: string;
-}
-
-export async function getParticipantProfile(): Promise<UserDTO> {
-  const wrapper = await apiFetch<ApiResponse<UserDTO>>("/api/participants/profile");
-  return wrapper.data;
-}
-
-export async function updateParticipantProfile(
-  body: ParticipantProfileUpdate,
-): Promise<UserDTO> {
-  const wrapper = await apiFetch<ApiResponse<UserDTO>>(
-    "/api/participants/profile",
-    { method: "PUT", body: JSON.stringify(body) },
-  );
-  return wrapper.data;
-}
-
-// ─── Phase 2A: acknowledgment ────────────────────────────────────────
-
-export interface AcknowledgmentSubmitRequest {
-  legalName: string;
-  /** Base64 data-URL (data:image/png;base64,…). */
-  signatureImage: string;
-  signatureMethod: "draw" | "upload";
-  interestAccepted: boolean;
-  documentationConsent: boolean;
-  communicationConsent: boolean;
-  /** Pinned to the exact text version the user accepted ("ACK-v1.0"). */
-  acknowledgmentVersion: string;
-}
-
-export interface AcknowledgmentSubmitResponse {
-  acknowledgmentId: number;
-  version: string;
-  nextStep: string;
-  success: boolean;
-}
-
-/**
- * Phase 2A step-4 submission. Server enforces the workflow gate
- * (status &gt;= ID_EMAIL_SENT) and is idempotent — re-submitting
- * once already past ACKNOWLEDGMENT_ACCEPTED returns the existing
- * row rather than writing a duplicate.
- */
-export async function submitAcknowledgment(
-  body: AcknowledgmentSubmitRequest,
-): Promise<AcknowledgmentSubmitResponse> {
-  const wrapper = await apiFetch<ApiResponse<AcknowledgmentSubmitResponse>>(
-    "/api/participants/acknowledgments",
-    { method: "POST", body: JSON.stringify(body) },
-  );
-  return wrapper.data;
-}
-
-// ─── Phase 2B: document vault ──────────────────────────────────────
-
-export type DocumentType =
-  | "GOVERNMENT_ID" | "WORK_AUTHORIZATION" | "RESUME"
-  | "SSN_DOCUMENT" | "DRIVERS_LICENSE" | "OTHER";
-
-export type DocumentReviewStatus =
-  | "PENDING" | "APPROVED" | "REJECTED" | "NOT_APPLICABLE";
-
-export interface ParticipantDocument {
-  id: number;
-  documentType: DocumentType;
-  fileName: string | null;
-  fileSize: number | null;
-  reviewStatus: DocumentReviewStatus;
-  reviewerNotes: string | null;
-  uploadedAt: string | null;
-  reviewedAt: string | null;
-  notApplicable: boolean;
-}
-
-/** Uploads a single file as the named documentType (multipart/form-data). */
-export async function uploadParticipantDocument(
-  documentType: DocumentType, file: File,
-): Promise<ParticipantDocument> {
-  const token = typeof window === "undefined"
-    ? null : localStorage.getItem("access_token");
-  const form = new FormData();
-  form.append("file", file);
-  form.append("documentType", documentType);
-  const res = await fetch(`${API_BASE_URL}/api/participants/documents/upload`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
-  });
-  if (!res.ok) {
-    let msg = `Upload failed (${res.status})`;
-    try {
-      const body = await res.json();
-      if (body?.message) msg = body.message;
-    } catch { /* ignore */ }
-    throw new Error(msg);
-  }
-  const body = (await res.json()) as ApiResponse<ParticipantDocument>;
-  return body.data;
-}
-
-export async function listParticipantDocuments(): Promise<ParticipantDocument[]> {
-  const wrapper = await apiFetch<ApiResponse<ParticipantDocument[]>>("/api/participants/documents");
-  return wrapper.data ?? [];
-}
-
-export async function deleteParticipantDocument(documentId: number): Promise<void> {
-  await apiFetch<ApiResponse<unknown>>(
-    `/api/participants/documents/${documentId}`,
-    { method: "DELETE" });
-}
-
-export async function markDocumentNotApplicable(
-  documentType: DocumentType,
-): Promise<ParticipantDocument> {
-  const wrapper = await apiFetch<ApiResponse<ParticipantDocument>>(
-    "/api/participants/documents/mark-na",
-    { method: "POST", body: JSON.stringify({ documentType }) },
-  );
-  return wrapper.data;
-}
-
-export interface CompleteDocumentsResponse {
-  success: boolean;
-  missing: DocumentType[];
-  message?: string;
-  nextStep?: string;
-}
-
-export async function completeDocuments(): Promise<CompleteDocumentsResponse> {
-  const wrapper = await apiFetch<ApiResponse<CompleteDocumentsResponse>>(
-    "/api/participants/documents/complete",
-    { method: "POST" },
-  );
-  return wrapper.data;
-}
-
-/**
- * Streams the underlying file via the auth-gated view endpoint and
- * opens it in a new tab. For Cloudinary-backed documents the server
- * returns a 5-minute signed URL; for local-disk documents the
- * server streams the bytes inline.
- */
-export async function viewParticipantDocument(documentId: number): Promise<void> {
-  const token = typeof window === "undefined"
-    ? null : localStorage.getItem("access_token");
-  const res = await fetch(`${API_BASE_URL}/api/participants/documents/${documentId}/view`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok) throw new Error(`Couldn't load document (${res.status})`);
-  const contentType = res.headers.get("content-type") ?? "";
-  if (contentType.includes("application/json")) {
-    // Cloudinary path: ApiResponse with { url, expiresIn }.
-    const body = (await res.json()) as ApiResponse<{ url: string }>;
-    const url = body?.data?.url;
-    if (url) window.open(url, "_blank", "noopener,noreferrer");
-    return;
-  }
-  // Local-disk path: blob stream.
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  window.open(objectUrl, "_blank", "noopener,noreferrer");
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
-}
-
-// ─── Phase 3A: program selection ───────────────────────────────────
-
-export interface ProgramSelectionRequest {
-  program?: string;
-  phase?: string;
-  skillset?: string;
-  targetJobTitle?: string;
-  coachingPreference?: string;
-  availability?: string;
-  servicePackage?: string;
-  serviceSummaryVersion?: string;
-  notes?: string;
-}
-
-export interface ProgramSelectionDTO {
-  id: number;
-  program: string | null;
-  phase: string | null;
-  skillset: string | null;
-  targetJobTitle: string | null;
-  coachingPreference: string | null;
-  availability: string | null;
-  servicePackage: string | null;
-  serviceSummaryVersion: string | null;
-  notes: string | null;
-  selectionDate: string | null;
-}
-
-export interface ProgramSelectionSubmitResponse {
-  selectionId: number;
-  serviceSummaryVersion: string;
-  nextStep: string;
-  success: boolean;
-}
-
-/** Returns the current saved selection (or null), used to pre-fill the form. */
-export async function getProgramSelection(): Promise<ProgramSelectionDTO | null> {
-  const wrapper = await apiFetch<ApiResponse<ProgramSelectionDTO | null>>(
-    "/api/participants/program-selection",
-  );
-  return wrapper.data ?? null;
-}
-
-/**
- * Partial save — survives a refresh / sign-out. Server doesn't
- * validate or transition workflow on this path.
- */
-export async function saveProgramSelectionDraft(
-  body: ProgramSelectionRequest,
-): Promise<ProgramSelectionDTO> {
-  const wrapper = await apiFetch<ApiResponse<ProgramSelectionDTO>>(
-    "/api/participants/program-selection/draft",
-    { method: "POST", body: JSON.stringify(body) },
-  );
-  return wrapper.data;
-}
-
-/**
- * Final submit. Server validates required fields, transitions
- * workflow to PROGRAM_SELECTED, fires the confirmation email.
- */
-export async function submitProgramSelection(
-  body: ProgramSelectionRequest,
-): Promise<ProgramSelectionSubmitResponse> {
-  const wrapper = await apiFetch<ApiResponse<ProgramSelectionSubmitResponse>>(
-    "/api/participants/program-selection",
-    { method: "POST", body: JSON.stringify(body) },
-  );
-  return wrapper.data;
-}
-
-// ─── Phase 3B: participant agreement signing (one-click) ───────────
-
-export interface SignAgreementRequest {
-  legalName: string;
-  signatureImage: string;
-  signatureMethod: "draw" | "upload";
-}
-
-export async function signParticipantAgreement(
-  body: SignAgreementRequest,
-): Promise<{ success: boolean; status: string; nextStep: string; alreadySigned?: boolean }> {
-  const wrapper = await apiFetch<ApiResponse<{
-    success: boolean; status: string; nextStep: string; alreadySigned?: boolean;
-  }>>(
-    "/api/participants/agreement/sign",
-    { method: "POST", body: JSON.stringify(body) },
-  );
-  return wrapper.data;
-}
-
-// ─── Phase 3B: check soft-copy uploads ────────────────────────────
-
-export interface CheckDocumentDTO {
-  id: number;
-  checkNumber: string | null;
-  amount: number | null;
-  checkDate: string | null;
-  notes: string | null;
-  reviewStatus: string;
-  uploadedAt: string | null;
-}
-
-export async function uploadCheckSoftCopy(
-  file: File,
-  meta: { checkNumber?: string; amount?: number; checkDate?: string; notes?: string },
-): Promise<CheckDocumentDTO> {
-  const token = typeof window === "undefined"
-    ? null : localStorage.getItem("access_token");
-  const form = new FormData();
-  form.append("file", file);
-  if (meta.checkNumber) form.append("checkNumber", meta.checkNumber);
-  if (meta.amount !== undefined && meta.amount !== null) form.append("amount", String(meta.amount));
-  if (meta.checkDate) form.append("checkDate", meta.checkDate);
-  if (meta.notes) form.append("notes", meta.notes);
-  const res = await fetch(`${API_BASE_URL}/api/participants/checks/upload`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
-  });
-  if (!res.ok) {
-    let msg = `Upload failed (${res.status})`;
-    try {
-      const body = await res.json();
-      if (body?.message) msg = body.message;
-    } catch { /* ignore */ }
-    throw new Error(msg);
-  }
-  const body = (await res.json()) as ApiResponse<CheckDocumentDTO>;
-  return body.data;
-}
-
-export async function markCheckNotApplicable(): Promise<void> {
-  await apiFetch<ApiResponse<unknown>>(
-    "/api/participants/checks/mark-na",
-    { method: "POST" });
-}
-
-export async function listMyChecks(): Promise<CheckDocumentDTO[]> {
-  const wrapper = await apiFetch<ApiResponse<CheckDocumentDTO[]>>(
-    "/api/participants/checks");
-  return wrapper.data ?? [];
-}
-
-// ─── Phase 5A: participant dashboard ───────────────────────────────
-
-export interface ParticipantDashboard {
-  participantId: string | null;
-  fullName: string | null;
-  email: string | null;
-  currentStatus: string | null;
-  roadmapTotal: number;
-  roadmapStep: number;
-  roadmapLabels: string[];
-  nextAction: { label: string; href: string };
-  program?: {
-    program?: string;
-    phase?: string;
-    skillset?: string;
-    targetJobTitle?: string;
-    availability?: string;
-  };
-  team?: {
-    ermName?: string | null;
-    ermEmail?: string | null;
-  };
-  recentActivity?: { title: string; category: string; createdAt: string }[];
-  stats?: { weeksEnrolled: number; reportsSubmitted: number };
-  currentWeekStart?: string;
-  currentWeekEnd?: string;
-  currentWeekReportStatus?: string;
-  currentWeekReportId?: number;
-}
-
-export async function getParticipantDashboard(): Promise<ParticipantDashboard> {
-  const wrapper = await apiFetch<ApiResponse<ParticipantDashboard>>(
-    "/api/participants/dashboard");
-  return wrapper.data;
-}
-
-export interface ParticipantTeam {
-  erm?: { name: string | null; email: string | null; bio: string | null };
-}
-
-export async function getParticipantTeam(): Promise<ParticipantTeam> {
-  const wrapper = await apiFetch<ApiResponse<ParticipantTeam>>(
-    "/api/participants/team");
-  return wrapper.data ?? {};
-}
-
-// ─── Weekly reports ───────────────────────────────────────────────
-
-export interface WeeklyReportJobSubmission {
-  company?: string;
-  client?: string;
-  jobTitle?: string;
-  technology?: string;
-  portal?: string;
-  applicationLink?: string;
-  submissionDate?: string;
-  status?: string;
-  followUpDate?: string;
-}
-
-export interface WeeklyReportRequest {
-  weekStart?: string;
-  weekEnd?: string;
-  jobSubmissions?: WeeklyReportJobSubmission[];
-  resumeActivities?: Record<string, string>;
-  interviewTraining?: Record<string, string>;
-  communications?: Record<string, string>;
-}
-
-export interface WeeklyReportDTO {
-  id: number;
-  weekStart: string | null;
-  weekEnd: string | null;
-  submissionDueDate: string | null;
-  submittedAt: string | null;
-  ermReviewDate: string | null;
-  ermNotes: string | null;
-  /** JSON-encoded form payload. */
-  reportData: string | null;
-  status: string;
-}
-
-export async function submitWeeklyReport(body: WeeklyReportRequest): Promise<WeeklyReportDTO> {
-  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO>>(
-    "/api/participants/reports/weekly",
-    { method: "POST", body: JSON.stringify(body) });
-  return wrapper.data;
-}
-
-export async function saveWeeklyReportDraft(body: WeeklyReportRequest): Promise<WeeklyReportDTO> {
-  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO>>(
-    "/api/participants/reports/weekly/draft",
-    { method: "POST", body: JSON.stringify(body) });
-  return wrapper.data;
-}
-
-export async function listWeeklyReports(): Promise<WeeklyReportDTO[]> {
-  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO[]>>(
-    "/api/participants/reports/weekly");
-  return wrapper.data ?? [];
-}
-
-export async function getWeeklyReport(id: number): Promise<WeeklyReportDTO> {
-  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO>>(
-    `/api/participants/reports/weekly/${id}`);
-  return wrapper.data;
-}
-
-// ─── Phase 6: employment + Phase 1 completion ────────────────────
-
-export interface EmploymentAcceptRequest {
-  employer: string;
-  jobTitle: string;
-  startDate: string;        // YYYY-MM-DD
-  location?: string | null;
-  employmentType?: string | null;
-  offerDocumentUrl?: string | null;
-  notes?: string | null;
-}
-
-export interface EmploymentStatus {
-  submitted: boolean;
-  ermVerified: boolean;
-  ermName?: string | null;
-  ermEmail?: string | null;
-  details?: {
-    id: number;
-    employerClient: string | null;
-    jobTitle: string | null;
-    startDate: string | null;
-    location: string | null;
-    employmentType: string | null;
-    offerDocumentUrl: string | null;
-    notes: string | null;
-    acceptanceDate: string | null;
-    ermVerifiedDate: string | null;
-    ermNotes: string | null;
-  };
-  phase1?: {
-    acceptedAt: string | null;
-    acknowledgmentVersion: string | null;
-    ermApproved: boolean;
-    ermApprovedDate: string | null;
-  };
-}
-
-export async function acceptEmployment(body: EmploymentAcceptRequest): Promise<{
-  success: boolean; pendingVerification: boolean; employmentId: number;
-}> {
-  const wrapper = await apiFetch<ApiResponse<{
-    success: boolean; pendingVerification: boolean; employmentId: number;
-  }>>("/api/participants/employment/accept",
-    { method: "POST", body: JSON.stringify(body) });
-  return wrapper.data;
-}
-
-export async function uploadOfferDocument(file: File): Promise<{ url: string }> {
-  const token = typeof window === "undefined"
-    ? null : localStorage.getItem("access_token");
-  const form = new FormData();
-  form.append("file", file);
-  const res = await fetch(`${API_BASE_URL}/api/participants/employment/offer-upload`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    body: form,
-  });
-  if (!res.ok) {
-    let msg = `Upload failed (${res.status})`;
-    try { const b = await res.json(); if (b?.message) msg = b.message; } catch {}
-    throw new Error(msg);
-  }
-  const body = (await res.json()) as ApiResponse<{ url: string }>;
-  return body.data;
-}
-
-export async function getEmploymentStatus(): Promise<EmploymentStatus> {
-  const wrapper = await apiFetch<ApiResponse<EmploymentStatus>>(
-    "/api/participants/employment/status");
-  return wrapper.data ?? { submitted: false, ermVerified: false };
-}
-
-export async function acceptPhase1Completion(version = "PH1-v1.0"): Promise<{
-  success: boolean; paymentEnabled: boolean; phaseCompletionId: number; acceptedAt: string;
-}> {
-  const wrapper = await apiFetch<ApiResponse<{
-    success: boolean; paymentEnabled: boolean; phaseCompletionId: number; acceptedAt: string;
-  }>>("/api/participants/phases/phase-1-complete",
-    { method: "POST", body: JSON.stringify({
-      acknowledgmentAccepted: true, acknowledgmentVersion: version,
-    }) });
-  return wrapper.data;
-}
-
-// ── ERM-side ─────────────────────────────────────────────────────
-
-export interface ErmPendingEmploymentRow {
-  userId: number;
-  participantId: string | null;
-  fullName: string | null;
-  employmentId: number;
-  employerClient: string | null;
-  jobTitle: string | null;
-  startDate: string | null;
-  location: string | null;
-  employmentType: string | null;
-  offerDocumentUrl: string | null;
-  notes: string | null;
-  acceptanceDate: string | null;
-}
-
-export async function getErmPendingEmployment(): Promise<ErmPendingEmploymentRow[]> {
-  const wrapper = await apiFetch<ApiResponse<ErmPendingEmploymentRow[]>>(
-    "/api/erm/employment/pending");
-  return wrapper.data ?? [];
-}
-
-export async function verifyEmployment(participantId: number, notes = ""): Promise<unknown> {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(
-    `/api/erm/employment/${participantId}/verify`,
-    { method: "PUT", body: JSON.stringify({ verified: true, notes }) });
-  return wrapper.data;
-}
-
-export interface ErmPendingPhaseRow {
-  userId: number;
-  participantId: string | null;
-  fullName: string | null;
-  phaseCompletionId: number;
-  acceptedAt: string | null;
-  acknowledgmentVersion: string | null;
-}
-
-export async function getErmPendingPhaseApprovals(): Promise<ErmPendingPhaseRow[]> {
-  const wrapper = await apiFetch<ApiResponse<ErmPendingPhaseRow[]>>(
-    "/api/erm/phases/pending");
-  return wrapper.data ?? [];
-}
-
-export async function approvePhase1(participantId: number, notes = ""): Promise<unknown> {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(
-    `/api/erm/phases/${participantId}/approve`,
-    { method: "PUT", body: JSON.stringify({ approved: true, notes }) });
-  return wrapper.data;
-}
-
-// ─── Phase 7: payment plans, invoices, ledger, check tracking ────
-
-export interface PaymentScheduleItem {
-  dueDate: string | null;
-  amount: string | number | null;
-  label?: string | null;
-}
-
-export interface PaymentPlanDTO {
-  id: number;
-  planId: string;
-  userId: number;
-  totalAmount: string | number | null;
-  installments: number | null;
-  schedule: string | null;
-  acceptanceTextVersion: string | null;
-  acceptedAt: string | null;
-  ipAddress: string | null;
-  status: string;
-}
-
-export interface ParticipantPaymentPlanResponse {
-  plan: PaymentPlanDTO | null;
-  schedule: PaymentScheduleItem[];
-  acknowledgmentVersion: string;
-}
-
-export interface InvoiceDTO {
-  id: number;
-  invoiceNumber: string;
-  userId: number;
-  paymentPlanId: number | null;
-  amount: string | number | null;
-  dueDate: string | null;
-  issueDate: string | null;
-  paidDate: string | null;
-  balance: string | number | null;
-  status: string;
-}
-
-export interface PaymentLedgerDTO {
-  id: number;
-  invoiceId: number | null;
-  userId: number;
-  amountReceived: string | number | null;
-  receiptDate: string | null;
-  method: string | null;
-  adjustment: string | number | null;
-  balance: string | number | null;
-  notes: string | null;
-  financeReviewer: string | null;
-  createdAt: string | null;
-}
-
-export interface PaymentSummary {
-  totalDue?: string | number;
-  totalPaid?: string | number;
-  balance?: string | number;
-  overdue?: string | number;
-  nextDueAmount?: string | number | null;
-  nextDueDate?: string | null;
-  nextDueInvoice?: string | null;
-}
-
-export interface CheckTrackingDTO {
-  id: number;
-  checkNumber: string | null;
-  carrier: string | null;
-  trackingId: string | null;
-  mailedDate: string | null;
-  expectedReceiptDate: string | null;
-  receivedDate: string | null;
-  status: string;
-}
-
-export async function getParticipantPaymentPlan(): Promise<ParticipantPaymentPlanResponse> {
-  const wrapper = await apiFetch<ApiResponse<ParticipantPaymentPlanResponse>>(
-    "/api/participants/payments/plan");
-  return wrapper.data ?? { plan: null, schedule: [], acknowledgmentVersion: "PPL-v1.0" };
-}
-
-export async function acceptPaymentPlan(planId?: number, version = "PPL-v1.0"): Promise<unknown> {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(
-    "/api/participants/payments/plan/accept",
-    { method: "POST", body: JSON.stringify({
-      accepted: true,
-      planId: planId ?? null,
-      acknowledgmentVersion: version,
-    }) });
-  return wrapper.data;
-}
-
-export async function submitCheckTracking(body: {
-  checkNumber: string;
-  carrier: string;
-  trackingId: string;
-  mailedDate: string;
-  expectedReceiptDate?: string | null;
-}): Promise<unknown> {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(
-    "/api/participants/payments/check-tracking",
-    { method: "POST", body: JSON.stringify(body) });
-  return wrapper.data;
-}
-
-export async function listParticipantCheckTracking(): Promise<CheckTrackingDTO[]> {
-  const wrapper = await apiFetch<ApiResponse<CheckTrackingDTO[]>>(
-    "/api/participants/payments/check-tracking");
-  return wrapper.data ?? [];
-}
-
-export async function listParticipantInvoices(): Promise<InvoiceDTO[]> {
-  const wrapper = await apiFetch<ApiResponse<InvoiceDTO[]>>(
-    "/api/participants/payments/invoices");
-  return wrapper.data ?? [];
-}
-
-export async function getParticipantPaymentSummary(): Promise<PaymentSummary> {
-  const wrapper = await apiFetch<ApiResponse<PaymentSummary>>(
-    "/api/participants/payments/summary");
-  return wrapper.data ?? {};
-}
-
-export async function listParticipantPaymentHistory(): Promise<PaymentLedgerDTO[]> {
-  const wrapper = await apiFetch<ApiResponse<PaymentLedgerDTO[]>>(
-    "/api/participants/payments/history");
-  return wrapper.data ?? [];
-}
-
-// ── Finance side ──────────────────────────────────────────────────
-
-export interface FinancePlanRow {
-  id: number;
-  planNumber: string;
-  userId: number;
-  participantId: string | null;
-  participantName: string | null;
-  totalAmount: string | number | null;
-  installments: number | null;
-  status: string;
-  acceptedAt: string | null;
-  schedule: PaymentScheduleItem[];
-}
-
-export async function getFinancePlans(): Promise<FinancePlanRow[]> {
-  const wrapper = await apiFetch<ApiResponse<FinancePlanRow[]>>("/api/finance/plans");
-  return wrapper.data ?? [];
-}
-
-export async function createFinancePlan(body: {
-  participantId: number;
-  totalAmount: number;
-  installments: number;
-  schedule: { dueDate: string; amount: number; label?: string }[];
-}): Promise<PaymentPlanDTO> {
-  const wrapper = await apiFetch<ApiResponse<PaymentPlanDTO>>(
-    "/api/finance/plans",
-    { method: "POST", body: JSON.stringify(body) });
-  return wrapper.data;
-}
-
-export async function getFinanceInvoices(status?: string): Promise<InvoiceDTO[]> {
-  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
-  const wrapper = await apiFetch<ApiResponse<InvoiceDTO[]>>(
-    `/api/finance/invoices${qs}`);
-  return wrapper.data ?? [];
-}
-
-export async function generateInvoice(paymentPlanId: number): Promise<InvoiceDTO> {
-  const wrapper = await apiFetch<ApiResponse<InvoiceDTO>>(
-    "/api/finance/invoices/generate",
-    { method: "POST", body: JSON.stringify({ paymentPlanId }) });
-  return wrapper.data;
-}
-
-export async function bulkGenerateInvoices(): Promise<{ issued: number; invoices: string[] }> {
-  const wrapper = await apiFetch<ApiResponse<{ issued: number; invoices: string[] }>>(
-    "/api/finance/invoices/bulk-generate",
-    { method: "POST" });
-  return wrapper.data;
-}
-
-export async function markOverdueInvoices(): Promise<{ marked: number }> {
-  const wrapper = await apiFetch<ApiResponse<{ marked: number }>>(
-    "/api/finance/invoices/mark-overdue",
-    { method: "POST" });
-  return wrapper.data;
-}
-
-export async function getFinanceLedger(): Promise<PaymentLedgerDTO[]> {
-  const wrapper = await apiFetch<ApiResponse<PaymentLedgerDTO[]>>(
-    "/api/finance/payments");
-  return wrapper.data ?? [];
-}
-
-export async function recordPaymentReceipt(body: {
-  invoiceId: number;
-  amountReceived: number;
-  receiptDate?: string;
-  method?: string;
-  notes?: string;
-}): Promise<PaymentLedgerDTO> {
-  const wrapper = await apiFetch<ApiResponse<PaymentLedgerDTO>>(
-    "/api/finance/payments/receive",
-    { method: "PUT", body: JSON.stringify(body) });
-  return wrapper.data;
-}
-
-export interface FinanceTrackingRow extends CheckTrackingDTO {
-  paymentPlanId: number;
-  userId: number | null;
-  participantId: string | null;
-  participantName: string | null;
-}
-
-export async function getFinanceTrackings(status?: string): Promise<FinanceTrackingRow[]> {
-  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
-  const wrapper = await apiFetch<ApiResponse<FinanceTrackingRow[]>>(
-    `/api/finance/check-tracking${qs}`);
-  return wrapper.data ?? [];
-}
-
-export async function updateTrackingStatus(
-  trackingId: number,
-  status: "RECEIVED" | "EXCEPTION" | "IN_TRANSIT" | "RETURNED" | "LOST",
-  receivedDate?: string,
-): Promise<CheckTrackingDTO> {
-  const wrapper = await apiFetch<ApiResponse<CheckTrackingDTO>>(
-    `/api/finance/check-tracking/${trackingId}/update`,
-    { method: "PUT", body: JSON.stringify({ status, receivedDate: receivedDate ?? null }) });
-  return wrapper.data;
-}
-
-export interface FinanceDashboardSummary {
-  totalPlans: number;
-  activePlans: number;
-  unpaidInvoices: number;
-  overdueInvoices: number;
-  totalCollected: string | number;
-}
-
-export async function getFinanceDashboard(): Promise<FinanceDashboardSummary> {
-  const wrapper = await apiFetch<ApiResponse<FinanceDashboardSummary>>(
-    "/api/finance/dashboard");
-  return wrapper.data ?? {
-    totalPlans: 0, activePlans: 0,
-    unpaidInvoices: 0, overdueInvoices: 0, totalCollected: 0,
-  };
-}
-
-// ─── Phase 5B: ERM dashboard ─────────────────────────────────────
-
-export interface ErmRosterRow {
-  userId: number;
-  participantId: string | null;
-  fullName: string | null;
-  email: string | null;
-  program: string | null;
-  technology: string | null;
-  targetJobTitle: string | null;
-  currentStatus: string | null;
-  lastActivity: string | null;
-}
-
-export async function getErmRoster(): Promise<ErmRosterRow[]> {
-  const wrapper = await apiFetch<ApiResponse<ErmRosterRow[]>>("/api/erm/participants");
-  return wrapper.data ?? [];
-}
-
-export async function getErmParticipantDetail(participantId: number): Promise<Record<string, unknown>> {
-  const wrapper = await apiFetch<ApiResponse<Record<string, unknown>>>(
-    `/api/erm/participants/${participantId}`);
-  return wrapper.data ?? {};
-}
-
-export async function getErmReports(): Promise<WeeklyReportDTO[]> {
-  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO[]>>("/api/erm/reports");
-  return wrapper.data ?? [];
-}
-
-export async function reviewErmReport(reportId: number, notes: string): Promise<WeeklyReportDTO> {
-  const wrapper = await apiFetch<ApiResponse<WeeklyReportDTO>>(
-    `/api/erm/reports/${reportId}/review`,
-    { method: "PUT", body: JSON.stringify({ notes }) });
-  return wrapper.data;
-}
-
-export async function addErmNote(
-  participantId: number,
-  note: string,
-  escalation = false,
-): Promise<unknown> {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(
-    `/api/erm/participants/${participantId}/notes`,
-    { method: "POST", body: JSON.stringify({ note, escalation }) });
-  return wrapper.data;
-}
-
-// ─── ERM referral review (Prompt 4) ──────────────────────────────
-
-export interface ReferralQueueRow {
-  userId: number;
-  fullName: string | null;
-  email: string | null;
-  referralSource: string | null;
-  createdAt: string | null;
-  emailVerified: boolean;
-}
-
-export interface ReferralStats {
-  pending: number;
-  approvedThisWeek: number;
-  rejected: number;
-}
-
-export interface ReferralQueue {
-  stats: ReferralStats;
-  pending: ReferralQueueRow[];
-}
-
-export interface ReferralReviewResult {
-  success: boolean;
-  alreadyReviewed: boolean;
-  userId: number;
-  referralStatus: string;
-  email: string | null;
-  fullName: string | null;
-}
-
-export async function getReferralQueue(): Promise<ReferralQueue> {
-  const wrapper = await apiFetch<ApiResponse<ReferralQueue>>("/api/erm/referrals");
-  return wrapper.data ?? { stats: { pending: 0, approvedThisWeek: 0, rejected: 0 }, pending: [] };
-}
-
-export async function approveReferral(userId: number, note?: string): Promise<ReferralReviewResult> {
-  const wrapper = await apiFetch<ApiResponse<ReferralReviewResult>>(
-    `/api/erm/referrals/${userId}/approve`,
-    { method: "PUT", body: JSON.stringify({ note: note ?? "" }) });
-  return wrapper.data;
-}
-
-export async function rejectReferral(userId: number, note?: string): Promise<ReferralReviewResult> {
-  const wrapper = await apiFetch<ApiResponse<ReferralReviewResult>>(
-    `/api/erm/referrals/${userId}/reject`,
-    { method: "PUT", body: JSON.stringify({ note: note ?? "" }) });
-  return wrapper.data;
-}
-
-// ─── Phase 5B: Finance dashboard ─────────────────────────────────
-
-export interface FinanceCheckRow {
-  id: number;
-  userId: number;
-  participantId: string | null;
-  participantName: string | null;
-  checkNumber: string | null;
-  amount: number | null;
-  checkDate: string | null;
-  notes: string | null;
-  reviewStatus: string;
-  maskingStatus: string;
-  fileUrl: string | null;
-  uploadedAt: string | null;
-}
-
-export async function getFinanceChecks(status?: string): Promise<FinanceCheckRow[]> {
-  const qs = status ? `?status=${encodeURIComponent(status)}` : "";
-  const wrapper = await apiFetch<ApiResponse<FinanceCheckRow[]>>(
-    `/api/finance/checks${qs}`);
-  return wrapper.data ?? [];
-}
-
-export async function reviewFinanceCheck(
-  checkId: number,
-  status: "APPROVED" | "REJECTED",
-  notes = "",
-): Promise<FinanceCheckRow> {
-  const wrapper = await apiFetch<ApiResponse<FinanceCheckRow>>(
-    `/api/finance/checks/${checkId}/review`,
-    { method: "PUT", body: JSON.stringify({ status, notes }) });
-  return wrapper.data;
-}
-
-// ─── Phase 5B: Operations admin tabs ─────────────────────────────
-
-export interface OperationsQueueRow {
-  userId: number;
-  participantId?: string | null;
-  fullName: string | null;
-  email: string | null;
-  currentStatus: string | null;
-  createdAt?: string | null;
-  emailVerified?: boolean;
-  agreementStatus?: string | null;
-  agreementSentAt?: string | null;
-}
-
-export async function getEnrollmentQueue(): Promise<OperationsQueueRow[]> {
-  const wrapper = await apiFetch<ApiResponse<OperationsQueueRow[]>>(
-    "/api/admin/operations/enrollment-queue");
-  return wrapper.data ?? [];
-}
-
-export async function getAgreementQueue(): Promise<OperationsQueueRow[]> {
-  const wrapper = await apiFetch<ApiResponse<OperationsQueueRow[]>>(
-    "/api/admin/operations/agreement-queue");
-  return wrapper.data ?? [];
-}
-
-export interface AuditRow {
-  id: number;
-  userId: number;
-  recordType: string;
-  category: string;
-  title: string;
-  description: string;
-  createdAt: string;
-}
-
-export async function getAuditTrail(opts: {
-  userId?: number; category?: string; limit?: number;
-} = {}): Promise<AuditRow[]> {
-  const qs = new URLSearchParams();
-  if (opts.userId) qs.set("userId", String(opts.userId));
-  if (opts.category) qs.set("category", opts.category);
-  if (opts.limit) qs.set("limit", String(opts.limit));
-  const wrapper = await apiFetch<ApiResponse<AuditRow[]>>(
-    `/api/admin/operations/audit${qs.size ? `?${qs.toString()}` : ""}`);
-  return wrapper.data ?? [];
-}
-
-export interface OperationsException {
-  type: string;
-  userId: number;
-  fullName: string | null;
-  currentStatus: string | null;
-  openSince: string | null;
-}
-
-export async function getOperationsExceptions(): Promise<OperationsException[]> {
-  const wrapper = await apiFetch<ApiResponse<OperationsException[]>>(
-    "/api/admin/operations/exceptions");
-  return wrapper.data ?? [];
-}
-
-export interface StaffPool {
-  erm: { id: number; fullName: string; email: string }[];
-}
-
-export async function getStaffPool(): Promise<StaffPool> {
-  const wrapper = await apiFetch<ApiResponse<StaffPool>>(
-    "/api/admin/operations/staff-pool");
-  return wrapper.data ?? { erm: [] };
-}
-
-export async function getAssignmentQueue(): Promise<Record<string, unknown>[]> {
-  const wrapper = await apiFetch<ApiResponse<Record<string, unknown>[]>>(
-    "/api/admin/assignments/queue");
-  return wrapper.data ?? [];
-}
-
-export async function assignErmToParticipant(
-  participantId: number,
-  ermUserId: number,
-): Promise<unknown> {
-  const wrapper = await apiFetch<ApiResponse<unknown>>(
-    `/api/admin/assignments/erm/${participantId}`,
-    { method: "PUT", body: JSON.stringify({ ermUserId }) });
-  return wrapper.data;
-}
-
-/**
- * Returns the dashboard route for the caller based on their primary
- * role. Used by /login after a successful auth and by route guards
- * to avoid sending users to the wrong dashboard.
- */
-export function dashboardRouteForRole(role: string | null | undefined): string {
-  const r = (role ?? "").toUpperCase();
-  if (r === "ERM") return "/erm-dashboard";
-  if (r === "ACCOUNTS") return "/accounts-dashboard";
-  if (r === "ADMIN") return "/admin";
-  if (r === "INSTRUCTOR") return "/instructor";
-  return "/dashboard";
-}
-
-/**
- * Canonical post-auth routing for participant-side users, driven by
- * the two-pipeline fields (not the legacy workflow-status ladder).
- * Every post-verify decision funnels through here so verify-email,
- * the attribution screen, /dashboard, /referral-pending, and the
- * per-page guards all agree.
- *
- *   pipeline null              → /how-did-you-hear (attribution)
- *   pipeline DIRECT            → /dashboard
- *   pipeline REFERENCE PENDING → /referral-pending
- *   pipeline REFERENCE APPROVED→ /dashboard
- *   pipeline REFERENCE REJECTED→ /login (account is dropped)
- *
- * Staff role dispatch (ERM/Accounts/Admin/Instructor) is separate
- * and runs BEFORE this — see dashboard/page.tsx.
- */
-export function routeAfterAuth(user: UserDTO | null | undefined): string {
-  if (!user) return "/login";
-  if (!user.pipeline) return "/how-did-you-hear";
-  if (user.pipeline === "DIRECT") return "/dashboard";
-  if (user.pipeline === "REFERENCE") {
-    if (user.referralStatus === "APPROVED") return "/dashboard";
-    if (user.referralStatus === "REJECTED") return "/login";
-    return "/referral-pending"; // PENDING or any other transient state
-  }
-  return "/dashboard";
-}
-
-/**
- * Maps a participant's workflow status to the onboarding page they
- * belong on. Mirrors the backend's WorkflowService.Status enum.
- * Used by each onboarding page on mount to bounce the user to the
- * correct step if they're out of place; pages NOT listed here are
- * considered "general" (dashboard, admin, courses, etc.) and the
- * guard leaves the user alone.
- */
-export function getOnboardingRoute(status: string | null | undefined): string {
-  switch (status) {
-    // Phase 5B: only DRAFT_STARTED remains as a pre-dashboard status.
-    // Its natural landing page is /how-did-you-hear if the user has
-    // no pipeline yet, else /dashboard — the dashboard guard picks
-    // via routeAfterAuth. Every survivor status lands on /dashboard.
-    case "DRAFT_STARTED":
-    case "WELCOME_SENT":
-    case "DEEPTHI_INTRO_SENT":
-    case "ERM_ASSIGNED":
-    case "DASHBOARD_ENABLED":
-    case "WEEKLY_REPORTING_ACTIVE":
-    case "EMPLOYMENT_ACCEPTED":
-    case "PHASE_1_COMPLETED":
-    case "PAYMENT_PLAN_ACCEPTED":
-    case "CHECK_TRACKING_ADDED":
-    case "INVOICING_ACTIVE":
-    case "PAYMENTS_TRACKED":
-      return "/dashboard";
-    default:
-      // Unknown / null status. We can't tell where the user is in
-      // their lifecycle. Returning "/enroll" was unsafe — it bounced
-      // signed-in users with a real participant_id back to the
-      // public enrollment page if there was ANY brief moment of
-      // missing currentStatus. Return "/dashboard" instead and let
-      // the dashboard guard run its own refresh + fallback to
-      // /enroll only when participantId is genuinely absent.
-      if (typeof window !== "undefined") {
-        console.warn("[onboarding] unknown status", status,
-                "— routing to /dashboard for re-evaluation");
-      }
-      return "/dashboard";
-  }
-}
-
-/** Coarse "is this user past onboarding?" check the routing guard uses. */
-export function isDashboardStatus(status: string | null | undefined): boolean {
-  return getOnboardingRoute(status) === "/dashboard";
-}
-
 /**
  * Login. Bypasses {@link apiFetch} so a 403 EMAIL_NOT_VERIFIED can
  * be surfaced as a typed error (apiFetch flattens the response body
@@ -1589,125 +271,6 @@ export function logout() {
   return Promise.resolve();
 }
 
-// ─── Agreement (Terms of Service acceptance) ───────────────────────
-
-export interface TermsSection {
-  title: string;
-  content: string;
-}
-
-export interface TermsResponse {
-  version: string;
-  lastUpdated: string;
-  sections: TermsSection[];
-}
-
-export type AgreementStatusValue =
-  | "NOT_STARTED"
-  | "WAITING_REPLY"
-  | "CODE_SENT"
-  | "VERIFIED";
-
-export interface AgreementStatus {
-  status: AgreementStatusValue;
-  accepted: boolean;
-  version: string;
-  agreementExpiresAt?: string | null;
-  acceptedAt?: string | null;
-  legalName?: string | null;
-}
-
-/** Public — no auth required. Fetches the active terms document. */
-export async function getTerms(): Promise<TermsResponse> {
-  const wrapper = await apiFetch<ApiResponse<TermsResponse>>("/api/agreement/terms");
-  return wrapper.data;
-}
-
-/**
- * Polled by the agreement page every few seconds while the user
- * is in WAITING_REPLY — the IMAP cron flips the row to CODE_SENT
- * once it sees the YES reply, at which point the page enables the
- * OTP entry boxes.
- */
-export async function getAgreementStatus(): Promise<AgreementStatus> {
-  const wrapper = await apiFetch<ApiResponse<AgreementStatus>>("/api/auth/agreement/check-status");
-  return wrapper.data;
-}
-
-/**
- * Submits the agreement acceptance form. Server validates the legal
- * name + checkbox state and emails the user a "Reply YES" prompt;
- * no OTP yet — that comes after the IMAP cron sees the reply.
- * Returns {@code alreadyAccepted: true} on idempotent re-submits.
- */
-export async function acceptAgreement(payload: {
-  legalName: string;
-  termsAccepted: boolean;
-  contentPolicyAccepted: boolean;
-  // Base64 data-URL of the user's drawn / uploaded signature.
-  // Server-side validation requires the data:image/* prefix and
-  // a payload under ~2 MB.
-  signatureImage: string;
-  signatureMethod: "draw" | "upload";
-}): Promise<{ success: boolean; alreadyAccepted: boolean; status: AgreementStatusValue; message: string; expiresAt?: string }> {
-  const wrapper = await apiFetch<ApiResponse<{
-    success: boolean; alreadyAccepted: boolean;
-    status: AgreementStatusValue; message: string; expiresAt?: string;
-  }>>(
-    "/api/auth/agreement/accept",
-    { method: "POST", body: JSON.stringify(payload) },
-  );
-  return wrapper.data;
-}
-
-export async function verifyAgreementCode(code: string): Promise<void> {
-  await apiFetch<ApiResponse<unknown>>("/api/auth/agreement/verify-code", {
-    method: "POST",
-    body: JSON.stringify({ code }),
-  });
-}
-
-export async function resendAgreementCode(): Promise<{ cooldownSeconds: number }> {
-  const wrapper = await apiFetch<ApiResponse<{ cooldownSeconds: number }>>(
-    "/api/auth/agreement/resend",
-    { method: "POST" },
-  );
-  return wrapper.data ?? { cooldownSeconds: 60 };
-}
-
-/**
- * Fetches the signed-agreement PDF as a blob with the user's JWT
- * attached, then triggers a browser download. Used by both the
- * student profile and the admin user-detail panel; the backend
- * gates the call to the owning user or any admin.
- */
-export async function downloadSignedAgreementPdf(
-  relativePath: string,
-  filename = "Spire-Agreement.pdf",
-): Promise<void> {
-  const token = typeof window === "undefined"
-    ? null
-    : localStorage.getItem("access_token");
-  const url = relativePath.startsWith("http")
-    ? relativePath
-    : `${API_BASE_URL}${relativePath}`;
-  const res = await fetch(url, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok) {
-    throw new Error(`Download failed (${res.status})`);
-  }
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = objectUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(objectUrl);
-}
-
 // ─── Password reset ─────────────────────────────────────────────────
 
 /**
@@ -1733,32 +296,6 @@ export async function resetPassword(token: string, newPassword: string) {
 
 // ─── User / Profile ─────────────────────────────────────────────────
 
-export interface ProfileAgreementSummary {
-  id: number;
-  accepted: boolean;
-  status?: AgreementStatusValue;
-  legalName: string | null;
-  version: string;
-  acceptedAt: string | null;
-  agreementEmailSentAt?: string | null;
-  userReplyReceivedAt?: string | null;
-  userReplyContent?: string | null;
-  verificationCodeSentAt?: string | null;
-  verificationCodeVerifiedAt?: string | null;
-  ipAddress: string | null;
-  browser: string | null;
-  os: string | null;
-  recordId: string;
-  // Personalized signed-agreement PDF download URL (relative to API_BASE_URL).
-  // Null for legacy verified rows that pre-date the PDF flow.
-  signedAgreementPdfUrl?: string | null;
-  // Base64 data-URL of the user's drawn or uploaded signature.
-  // Rendered in the admin user-detail panel; null for rows that
-  // pre-date the signature feature.
-  signatureImage?: string | null;
-  signatureMethod?: "draw" | "upload" | null;
-}
-
 export interface ProfileData extends UserDTO {
   phone: string | null;
   location: string | null;
@@ -1773,10 +310,6 @@ export interface ProfileData extends UserDTO {
   contributions: Record<string, number>;
   enrolledCourses: ProfileCourseSummary[] | null;
   certificates: ProfileCertSummary[] | null;
-  // Terms of Service acceptance — null when the user has never
-  // started the flow. Admin user-detail panel renders this; the
-  // self-service profile page can ignore it.
-  agreement: ProfileAgreementSummary | null;
 }
 
 export interface ProfileCourseSummary {
@@ -2257,234 +790,7 @@ export async function deleteAnnouncement(id: number) {
   return apiFetch<ApiResponse<unknown>>(`/api/announcements/${id}`, { method: "DELETE" });
 }
 
-// ─── User Records (immutable audit log) ────────────────────────────
-
-export interface UserRecord {
-  id: number;
-  userId: number;
-  recordType: string;
-  category: string;
-  title: string;
-  description: string;
-  details: string | null;
-  ipAddress: string | null;
-  deviceType: string | null;
-  browser: string | null;
-  os: string | null;
-  city: string | null;
-  createdAt: string;
-}
-
-export interface UserRecordsPage {
-  records: UserRecord[];
-  page: number;
-  size: number;
-  totalPages: number;
-  totalElements: number;
-  hasNext: boolean;
-}
-
-export interface UserRecordsSummary {
-  total: number;
-  byCategory: Record<string, number>;
-}
-
-export async function getUserRecords(
-  userId: number | string,
-  params: { category?: string; from?: string; to?: string; page?: number; size?: number } = {}
-) {
-  const qs = "?" + new URLSearchParams(
-    Object.entries(params)
-      .filter(([, v]) => v !== undefined && v !== null && v !== "")
-      .map(([k, v]) => [k, String(v)])
-  ).toString();
-  const wrapper = await apiFetch<ApiResponse<UserRecordsPage>>(
-    `/api/admin/users/${userId}/records${qs}`
-  );
-  return wrapper.data;
-}
-
-export async function getUserRecordsSummary(userId: number | string) {
-  const wrapper = await apiFetch<ApiResponse<UserRecordsSummary>>(
-    `/api/admin/users/${userId}/records/summary`
-  );
-  return wrapper.data;
-}
-
-export async function downloadUserRecordsCsv(userId: number | string, fileBaseName: string) {
-  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
-  const res = await fetch(`${BASE_URL}/api/admin/users/${userId}/records/download`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-  if (!res.ok) throw new Error(`Download failed (${res.status})`);
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  const today = new Date().toISOString().slice(0, 10);
-  a.download = `${fileBaseName}_records_${today}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-// ─── Sales / Contact Sales ──────────────────────────────────────────
-
-export interface SalesQuoteItem {
-  item: string;
-  price: number;
-}
-
-export interface SalesMessage {
-  id: number;
-  senderId: number | null;
-  senderName: string | null;
-  senderRole: string | null;
-  message: string;
-  attachmentUrl: string | null;
-  isQuote: boolean;
-  quotedPrice: number | null;
-  /** Raw JSON string returned from the server; parse with parseQuoteItems(). */
-  quotedItems: string | null;
-  /** ACCEPTED / DECLINED / COUNTER_OFFERED, or null. */
-  quoteStatus: string | null;
-  createdAt: string;
-}
-
-export interface SalesInquiry {
-  id: number;
-  userId: number | null;
-  studentName: string | null;
-  studentEmail: string | null;
-  courseId: number | null;
-  courseTitle: string | null;
-  courseType: string | null;
-  instructorId: number | null;
-  instructorName: string | null;
-  status: "NEW" | "IN_PROGRESS" | "QUOTED" | "CONVERTED" | "CLOSED" | "LOST";
-  subject: string;
-  budgetRange: string | null;
-  createdAt: string;
-  updatedAt: string;
-  closedAt: string | null;
-  lastMessagePreview: string | null;
-  lastMessageSenderName: string | null;
-  lastMessageAt: string | null;
-  messages: SalesMessage[] | null;
-}
-
-export function parseQuoteItems(raw: string | null): SalesQuoteItem[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((p: { item?: unknown; price?: unknown }) => ({
-      item: typeof p.item === "string" ? p.item : "",
-      price: Number(p.price ?? 0),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-export async function createSalesInquiry(data: {
-  courseId: number;
-  subject?: string;
-  budgetRange?: string;
-  message: string;
-}) {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>("/api/sales/inquiries", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-  return wrapper.data;
-}
-
-export async function getMySalesInquiries() {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry[]>>("/api/sales/inquiries/my");
-  return wrapper.data;
-}
-
-export async function getSalesInquiry(id: number) {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(`/api/sales/inquiries/${id}`);
-  return wrapper.data;
-}
-
-export async function postSalesMessage(id: number, message: string) {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
-    `/api/sales/inquiries/${id}/messages`,
-    { method: "POST", body: JSON.stringify({ message }) }
-  );
-  return wrapper.data;
-}
-
-export async function acceptSalesQuote(inquiryId: number, messageId: number) {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
-    `/api/sales/inquiries/${inquiryId}/accept-quote`,
-    { method: "POST", body: JSON.stringify({ messageId }) }
-  );
-  return wrapper.data;
-}
-
-export async function declineSalesQuote(inquiryId: number, messageId: number) {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
-    `/api/sales/inquiries/${inquiryId}/decline-quote`,
-    { method: "POST", body: JSON.stringify({ messageId }) }
-  );
-  return wrapper.data;
-}
-
-export async function closeSalesInquiry(id: number, reason?: string) {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
-    `/api/sales/inquiries/${id}/close`,
-    { method: "POST", body: JSON.stringify({ reason: reason ?? null }) }
-  );
-  return wrapper.data;
-}
-
-export async function getInstructorSalesInquiries() {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry[]>>("/api/sales/inquiries/instructor");
-  return wrapper.data;
-}
-
-export async function sendSalesQuote(id: number, data: {
-  message: string;
-  quotedPrice: number;
-  quotedItems: SalesQuoteItem[];
-}) {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(
-    `/api/sales/inquiries/${id}/quote`,
-    { method: "POST", body: JSON.stringify(data) }
-  );
-  return wrapper.data;
-}
-
-export async function getAdminSalesInquiries() {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry[]>>("/api/admin/sales/inquiries");
-  return wrapper.data;
-}
-
-export async function getAdminSalesInquiry(id: number) {
-  const wrapper = await apiFetch<ApiResponse<SalesInquiry>>(`/api/admin/sales/inquiries/${id}`);
-  return wrapper.data;
-}
-
-export interface SalesStats {
-  totalInquiries: number;
-  newCount: number;
-  inProgressCount: number;
-  quotedCount: number;
-  convertedCount: number;
-  closedCount: number;
-  lostCount: number;
-  conversionRate: number;
-}
-
-export async function getAdminSalesStats() {
-  const wrapper = await apiFetch<ApiResponse<SalesStats>>("/api/admin/sales/stats");
-  return wrapper.data;
-}
+// ─── Admin: CSV Export download ─────────────────────────────────────
 
 export async function downloadAdminCsv(kind: "users" | "enrollments" | "sessions" | "revenue") {
   const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
@@ -3322,4 +1628,146 @@ export async function removeMentorFromCourse(courseId: number, userId: number) {
     `/api/admin/courses/${courseId}/mentors/${userId}`,
     { method: "DELETE" }
   );
+}
+
+// ─── Deprecated: Sales inquiry stubs ────────────────────────────────
+//
+// The /api/sales/** and /api/admin/sales/** backend surface was removed
+// alongside the participant lifecycle strip. These stubs exist so the
+// legacy Sales UI in /admin and /components/sales still type-checks and
+// compiles for the junior-dev training sandbox; each call throws at
+// runtime because the corresponding endpoints no longer exist. Delete
+// the calling UI (or wire it up to a new backend) before removing.
+
+/** @deprecated Backend endpoint removed. */
+export interface SalesQuoteItem {
+  item: string;
+  price: number;
+}
+
+/** @deprecated Backend endpoint removed. */
+export interface SalesMessage {
+  id: number;
+  senderId: number | null;
+  senderName: string | null;
+  senderRole: string | null;
+  message: string;
+  attachmentUrl: string | null;
+  isQuote: boolean;
+  quotedPrice: number | null;
+  quotedItems: string | null;
+  quoteStatus: string | null;
+  createdAt: string;
+}
+
+/** @deprecated Backend endpoint removed. */
+export interface SalesInquiry {
+  id: number;
+  userId: number | null;
+  studentName: string | null;
+  studentEmail: string | null;
+  courseId: number | null;
+  courseTitle: string | null;
+  courseType: string | null;
+  instructorId: number | null;
+  instructorName: string | null;
+  status: "NEW" | "IN_PROGRESS" | "QUOTED" | "CONVERTED" | "CLOSED" | "LOST";
+  subject: string;
+  budgetRange: string | null;
+  createdAt: string;
+  updatedAt: string;
+  closedAt: string | null;
+  lastMessagePreview: string | null;
+  lastMessageSenderName: string | null;
+  lastMessageAt: string | null;
+  messages: SalesMessage[] | null;
+}
+
+/** @deprecated Backend endpoint removed. */
+export interface SalesStats {
+  totalInquiries: number;
+  newCount: number;
+  inProgressCount: number;
+  quotedCount: number;
+  convertedCount: number;
+  closedCount: number;
+  lostCount: number;
+  conversionRate: number;
+}
+
+const SALES_REMOVED = "Sales inquiry endpoints have been removed.";
+
+/** @deprecated Backend endpoint removed. */
+export function parseQuoteItems(raw: string | null): SalesQuoteItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((p: { item?: unknown; price?: unknown }) => ({
+      item: typeof p.item === "string" ? p.item : "",
+      price: Number(p.price ?? 0),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function createSalesInquiry(_data: {
+  courseId: number; subject?: string; budgetRange?: string; message: string;
+}): Promise<SalesInquiry> { void _data; throw new Error(SALES_REMOVED); }
+
+/** @deprecated Backend endpoint removed. */
+export async function getMySalesInquiries(): Promise<SalesInquiry[]> {
+  throw new Error(SALES_REMOVED);
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function getSalesInquiry(_id: number): Promise<SalesInquiry> {
+  void _id; throw new Error(SALES_REMOVED);
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function postSalesMessage(_id: number, _message: string): Promise<SalesInquiry> {
+  void _id; void _message; throw new Error(SALES_REMOVED);
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function acceptSalesQuote(_inquiryId: number, _messageId: number): Promise<SalesInquiry> {
+  void _inquiryId; void _messageId; throw new Error(SALES_REMOVED);
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function declineSalesQuote(_inquiryId: number, _messageId: number): Promise<SalesInquiry> {
+  void _inquiryId; void _messageId; throw new Error(SALES_REMOVED);
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function closeSalesInquiry(_id: number, _reason?: string): Promise<SalesInquiry> {
+  void _id; void _reason; throw new Error(SALES_REMOVED);
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function getInstructorSalesInquiries(): Promise<SalesInquiry[]> {
+  throw new Error(SALES_REMOVED);
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function sendSalesQuote(_id: number, _data: {
+  message: string; quotedPrice: number; quotedItems: SalesQuoteItem[];
+}): Promise<SalesInquiry> { void _id; void _data; throw new Error(SALES_REMOVED); }
+
+/** @deprecated Backend endpoint removed. */
+export async function getAdminSalesInquiries(): Promise<SalesInquiry[]> {
+  throw new Error(SALES_REMOVED);
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function getAdminSalesInquiry(_id: number): Promise<SalesInquiry> {
+  void _id; throw new Error(SALES_REMOVED);
+}
+
+/** @deprecated Backend endpoint removed. */
+export async function getAdminSalesStats(): Promise<SalesStats> {
+  throw new Error(SALES_REMOVED);
 }

@@ -21,65 +21,13 @@ public class UserDTO {
     private String role;
     private String avatarUrl;
     private String bio;
+    private String phone;
+    private String location;
     private Boolean isActive;
     private Boolean instructorApproved;
-    /**
-     * True after the user has completed the OTP-confirmed Terms of
-     * Service flow. The frontend reads this to decide whether to
-     * route post-login users to /agreement.
-     */
-    private Boolean agreementAccepted;
-    private LocalDateTime createdAt;
-    /**
-     * When the account was deactivated. Null for active accounts;
-     * powers the "Deactivated on …" column on the admin Deactivated
-     * Users tab and the deactivation banner on the user detail page.
-     */
-    private LocalDateTime deactivatedAt;
-
-    /**
-     * Phase 1A participant fields surfaced on every login / profile
-     * read. The frontend reads {@code currentStatus} to route a user
-     * to the correct onboarding step; {@code participantId} is the
-     * SIT-2026-XXXXX handle shown on the participant-id page and in
-     * every transactional email.
-     */
-    private String participantId;
-    private String currentStatus;
-    /** True after the user has completed the OTP-confirmed email gate. Drives onboarding routing. */
     private Boolean emailVerified;
-    /** Pre-filled into the /program-selection form (the participant can override). */
-    private String selectedTechnology;
-    private String availability;
-    /** Captured at enrollment; displayed on the agreement summary. */
-    private String phone;
-    /** Free-form city / region — editable from the dashboard Profile tab. */
-    private String location;
-
-    // ── Phase 1C progressive-completion flags ───────────────────
-    // Read everywhere — the dashboard banner, gate modal, sidebar
-    // badge, course enroll button. Lives on UserDTO so the auth
-    // context can refresh once and have everything the gating UI
-    // needs in one place.
-    private Boolean profileComplete;
-    private Integer profileCompletionPct;
-    private Boolean basicInfoComplete;
-    private Boolean acknowledgmentComplete;
-    private Boolean documentsComplete;
-    private Boolean programSelectionComplete;
-    private Boolean agreementComplete;
-    private Boolean checkUploadComplete;
-
-    // ── Two-pipeline attribution + fork ─────────────────────────
-    // pipeline drives every post-verify routing decision (see
-    // routeAfterAuth in lib/api.ts). Null pipeline → user has not
-    // yet answered the attribution screen → route to /how-did-you-hear.
-    /** SOCIAL_MEDIA | GOOGLE_SEARCH | FRIEND_COLLEAGUE | EVENT_WEBINAR | REFERENCE. */
-    private String referralSource;
-    /** DIRECT | REFERENCE. */
-    private String pipeline;
-    /** PENDING | APPROVED | REJECTED — set only for REFERENCE pipeline. */
-    private String referralStatus;
+    private LocalDateTime createdAt;
+    private LocalDateTime deactivatedAt;
 
     public static UserDTO from(User user) {
         return UserDTO.builder()
@@ -89,30 +37,13 @@ public class UserDTO {
                 .role(user.getRole().getName())
                 .avatarUrl(user.getAvatarUrl())
                 .bio(user.getBio())
-                .isActive(Boolean.TRUE.equals(user.getIsActive()))
-                .instructorApproved(Boolean.TRUE.equals(user.getInstructorApproved()))
-                .agreementAccepted(Boolean.TRUE.equals(user.getAgreementAccepted()))
-                .createdAt(user.getCreatedAt())
-                .deactivatedAt(user.getDeactivatedAt())
-                .participantId(user.getParticipantId())
-                .currentStatus(user.getCurrentStatus())
-                .emailVerified(Boolean.TRUE.equals(user.getEmailVerified()))
-                .selectedTechnology(user.getSelectedTechnology())
-                .availability(user.getAvailability())
                 .phone(user.getPhone())
                 .location(user.getLocation())
-                .profileComplete(Boolean.TRUE.equals(user.getProfileComplete()))
-                .profileCompletionPct(user.getProfileCompletionPct() == null
-                        ? 0 : user.getProfileCompletionPct())
-                .basicInfoComplete(Boolean.TRUE.equals(user.getBasicInfoComplete()))
-                .acknowledgmentComplete(Boolean.TRUE.equals(user.getAcknowledgmentComplete()))
-                .documentsComplete(Boolean.TRUE.equals(user.getDocumentsComplete()))
-                .programSelectionComplete(Boolean.TRUE.equals(user.getProgramSelectionComplete()))
-                .agreementComplete(Boolean.TRUE.equals(user.getAgreementComplete()))
-                .checkUploadComplete(Boolean.TRUE.equals(user.getCheckUploadComplete()))
-                .referralSource(user.getReferralSource())
-                .pipeline(user.getPipeline())
-                .referralStatus(user.getReferralStatus())
+                .isActive(Boolean.TRUE.equals(user.getIsActive()))
+                .instructorApproved(Boolean.TRUE.equals(user.getInstructorApproved()))
+                .emailVerified(Boolean.TRUE.equals(user.getEmailVerified()))
+                .createdAt(user.getCreatedAt())
+                .deactivatedAt(user.getDeactivatedAt())
                 .build();
     }
 }

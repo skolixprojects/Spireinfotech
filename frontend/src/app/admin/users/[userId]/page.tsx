@@ -8,18 +8,17 @@ import {
   ArrowLeft, Phone, MapPin, Calendar, Loader2, AlertCircle,
   BookOpen, GraduationCap, Award, Flame, CheckCircle2, Clock,
   ShieldCheck, ExternalLink, Briefcase, Activity, FileText,
-  Trash2, X, Globe, Monitor, Download,
+  Trash2, X,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import {
   getUserProfileAsAdmin, updateUserRoleAsAdmin, softDeleteUserAsAdmin,
   reactivateUserAsAdmin,
-  downloadSignedAgreementPdf,
   type ProfileData,
 } from "@/lib/api";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
-import { formatISTDate, formatISTWithZone } from "@/lib/datetime";
+import { formatISTDate } from "@/lib/datetime";
 
 const ROLES = ["STUDENT", "INSTRUCTOR", "ADMIN", "ERM", "ACCOUNTS"] as const;
 
@@ -193,11 +192,6 @@ export default function AdminUserDetailPage({
             <p className="text-sm font-bold text-red-800">
               This account has been deactivated
             </p>
-            {profile.deactivatedAt && (
-              <p className="text-xs text-red-700 mt-0.5">
-                Deactivated on {formatISTDate(profile.deactivatedAt)}
-              </p>
-            )}
             <p className="text-xs text-red-700 mt-1">
               Personal data has been anonymized. The audit trail below remains visible.
             </p>
@@ -536,21 +530,6 @@ export default function AdminUserDetailPage({
             )}
           </div>
 
-          {/* Agreement status — Terms of Service acceptance record.
-              Always renders so admin can confirm whether a user
-              has completed the gate. The "not yet accepted" state
-              is rendered as an amber notice; an accepted record
-              shows the audit fields (legal name, IP, browser, OS)
-              captured at acceptance time. */}
-          <div className="mt-8">
-            <hr className="my-6 border-gray-100" />
-            <h2 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-1.5">
-              <ShieldCheck size={14} className="text-[#0F766E]" />
-              Agreement Status
-            </h2>
-            <AgreementStatusCard agreement={profile.agreement} />
-          </div>
-
           {/* Danger zone — soft-delete. Hidden when viewing own
               profile, another admin's profile, OR a row that's
               already deactivated (the banner at top of the page
@@ -599,188 +578,6 @@ export default function AdminUserDetailPage({
         />
       )}
     </section>
-  );
-}
-
-function AgreementStatusCard({
-  agreement,
-}: {
-  agreement: ProfileData["agreement"];
-}) {
-  // Four states matching the backend row's lifecycle:
-  //   - null            → user never started the flow
-  //   - WAITING_REPLY   → request email sent, awaiting YES
-  //   - CODE_SENT       → reply received, OTP emailed
-  //   - VERIFIED        → fully accepted (immutable)
-  if (!agreement) {
-    return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 flex items-start gap-3">
-        <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
-        <div>
-          <p className="text-sm font-bold text-amber-800">Not yet accepted</p>
-          <p className="text-xs text-amber-700 mt-1">
-            This user hasn&apos;t completed the Terms of Service flow.
-          </p>
-        </div>
-      </div>
-    );
-  }
-  if (!agreement.accepted) {
-    const status = agreement.status ?? "WAITING_REPLY";
-    const label =
-      status === "CODE_SENT"
-        ? "Awaiting OTP entry"
-        : "Awaiting email reply (YES)";
-    const detail =
-      status === "CODE_SENT"
-        ? "User replied YES from their inbox; verification code sent. Waiting for them to enter it on the site."
-        : "Agreement email sent to the user; waiting for them to reply YES from their inbox.";
-    return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
-        <div className="flex items-start gap-3">
-          <AlertCircle size={16} className="text-amber-600 mt-0.5 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-bold text-amber-800">{label}</p>
-            <p className="text-xs text-amber-700 mt-1 leading-relaxed">{detail}</p>
-          </div>
-        </div>
-        <dl className="mt-3 space-y-2 text-sm">
-          <AgreementField label="Legal name" value={agreement.legalName} />
-          <AgreementField label="Version" value={agreement.version} />
-          <AgreementField label="Status" value={status} />
-          <AgreementField
-            label="Email sent"
-            value={agreement.agreementEmailSentAt
-              ? formatISTWithZone(agreement.agreementEmailSentAt) : "—"}
-          />
-          {agreement.userReplyReceivedAt && (
-            <AgreementField
-              label="Reply received"
-              value={formatISTWithZone(agreement.userReplyReceivedAt)}
-            />
-          )}
-          <AgreementField label="Record ID"
-            value={<code className="font-mono text-[#0F766E]">{agreement.recordId}</code>} />
-        </dl>
-      </div>
-    );
-  }
-  return (
-    <div className="rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
-      <p className="inline-flex items-center gap-1.5 text-sm font-bold text-emerald-700">
-        <CheckCircle2 size={14} /> Accepted (verified)
-      </p>
-      <dl className="mt-3 space-y-2 text-sm">
-        <AgreementField label="Legal name" value={agreement.legalName} />
-        <AgreementField label="Version" value={agreement.version} />
-        <AgreementField
-          label="Email sent"
-          value={agreement.agreementEmailSentAt
-            ? formatISTWithZone(agreement.agreementEmailSentAt) : "—"}
-        />
-        <AgreementField
-          label="Reply received"
-          value={agreement.userReplyReceivedAt
-            ? formatISTWithZone(agreement.userReplyReceivedAt) : "—"}
-        />
-        {agreement.userReplyContent && (
-          <AgreementField
-            label="Reply content"
-            value={
-              <code className="font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                {agreement.userReplyContent}
-              </code>
-            }
-          />
-        )}
-        <AgreementField
-          label="Code sent"
-          value={agreement.verificationCodeSentAt
-            ? formatISTWithZone(agreement.verificationCodeSentAt) : "—"}
-        />
-        <AgreementField
-          label="Code verified"
-          value={agreement.verificationCodeVerifiedAt
-            ? formatISTWithZone(agreement.verificationCodeVerifiedAt) : "—"}
-        />
-        <AgreementField
-          label="Accepted at"
-          value={agreement.acceptedAt ? formatISTWithZone(agreement.acceptedAt) : "—"}
-        />
-        <AgreementField
-          label="IP"
-          value={agreement.ipAddress}
-          icon={<Globe size={12} className="text-gray-400" />}
-        />
-        <AgreementField
-          label="Browser / OS"
-          value={(agreement.browser || "—") + " / " + (agreement.os || "—")}
-          icon={<Monitor size={12} className="text-gray-400" />}
-        />
-        <AgreementField label="Record ID"
-          value={<code className="font-mono text-[#0F766E]">{agreement.recordId}</code>} />
-      </dl>
-
-      {agreement.signatureImage && (
-        <div className="mt-4">
-          <p className="text-xs uppercase tracking-wider text-gray-500 font-semibold mb-2">
-            Digital Signature
-          </p>
-          <div className="inline-block rounded-lg border border-dashed border-gray-300 bg-white p-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={agreement.signatureImage}
-              alt="User digital signature"
-              style={{ maxWidth: 240, maxHeight: 96, display: "block" }}
-            />
-          </div>
-          {agreement.signatureMethod && (
-            <p className="text-xs text-gray-500 mt-1">
-              Method:{" "}
-              <span className="font-medium text-gray-700">
-                {agreement.signatureMethod === "draw" ? "Drawn on screen" : "Uploaded image"}
-              </span>
-            </p>
-          )}
-        </div>
-      )}
-
-      {agreement.signedAgreementPdfUrl ? (
-        <button
-          type="button"
-          onClick={() => {
-            void downloadSignedAgreementPdf(
-              agreement.signedAgreementPdfUrl!,
-              `Spire-Agreement-${agreement.recordId}.pdf`,
-            );
-          }}
-          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-emerald-800 active:scale-[0.99] transition-all cursor-pointer"
-        >
-          <Download size={14} /> Download Signed Agreement
-        </button>
-      ) : (
-        <p className="mt-4 text-xs text-gray-500 italic">
-          Signed PDF not available for this acceptance.
-        </p>
-      )}
-    </div>
-  );
-}
-
-function AgreementField({
-  label, value, icon,
-}: {
-  label: string;
-  value: React.ReactNode;
-  icon?: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-baseline gap-2">
-      <dt className="text-xs uppercase tracking-wider text-gray-500 font-semibold w-28 shrink-0 flex items-center gap-1">
-        {icon}{label}
-      </dt>
-      <dd className="text-sm text-gray-900 break-all">{value ?? "—"}</dd>
-    </div>
   );
 }
 
