@@ -5,6 +5,6 @@ buildCommand = "./mvnw package -DskipTests"
 [deploy]
 startCommand = "java -jar target/*.jar"
 healthcheckPath = "/api/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
