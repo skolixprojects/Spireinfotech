@@ -14,7 +14,6 @@ import {
 } from "@/lib/api";
 import { friendlyEnrollmentError } from "@/lib/utils";
 import type { MentorInfo, SessionRequest } from "@/lib/types";
-import { ContactSalesModal } from "@/components/sales/ContactSalesModal";
 import { RequestSessionModal } from "@/components/mentorship/RequestSessionModal";
 import {
   CourseSalesView,
@@ -123,7 +122,6 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
   const [enrollMsg, setEnrollMsg] = useState("");
   const [generatingCert, setGeneratingCert] = useState(false);
   const [certError, setCertError] = useState("");
-  const [showContactSales, setShowContactSales] = useState(false);
   const [showMentorModal, setShowMentorModal] = useState(false);
 
   const isOwner = !!(user && course?.instructor?.id === user.id);
@@ -239,13 +237,6 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
     }
   };
 
-  const handleContactSales = () => {
-    if (!isAuthenticated) {
-      router.push(`/login?redirect=/courses/${id}`);
-      return;
-    }
-    setShowContactSales(true);
-  };
 
   const handleOpenLesson = (lessonId: number) => {
     router.push(`/learn/${id}/${lessonId}`);
@@ -405,14 +396,6 @@ export default function CourseDetailPage({ params }: { params: { id: string } })
         enrolling={enrolling}
         enrollMsg={enrollMsg}
         onEnroll={handleEnroll}
-        onContactSales={handleContactSales}
-      />
-      <ContactSalesModal
-        isOpen={showContactSales}
-        onClose={() => setShowContactSales(false)}
-        courseId={course.id}
-        courseTitle={course.title}
-        listedPrice={course.price}
       />
     </>
   );

@@ -54,7 +54,6 @@ interface Props {
   enrolling: boolean;
   enrollMsg: string;
   onEnroll: () => void;
-  onContactSales: () => void;
 }
 
 const LEVEL_PILL: Record<string, string> = {
@@ -73,7 +72,7 @@ const LEVEL_PILL: Record<string, string> = {
  * UI is owned by CourseLearningView.
  */
 export function CourseSalesView({
-  course, modules, orphanLessons, enrolling, enrollMsg, onEnroll, onContactSales,
+  course, modules, orphanLessons, enrolling, enrollMsg, onEnroll,
 }: Props) {
   // Total duration computed from real lesson durations; if every
   // lesson has 0 we hide the line entirely rather than showing "0h".
@@ -163,7 +162,6 @@ export function CourseSalesView({
                 enrolling={enrolling}
                 enrollMsg={enrollMsg}
                 onEnroll={onEnroll}
-                onContactSales={onContactSales}
               />
             </div>
           </div>
@@ -286,14 +284,6 @@ export function CourseSalesView({
                   ? <><Loader2 size={15} className="animate-spin" /> Enrolling…</>
                   : (course.isFree ? "Enroll free" : "Add to cart")}
               </button>
-              {!course.isFree && (
-                <button
-                  onClick={onContactSales}
-                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-6 py-3 rounded-xl border-2 border-[#0F766E] text-[#0F766E] text-base font-semibold hover:bg-[#0F766E]/5 transition cursor-pointer"
-                >
-                  <MessageSquare size={15} /> Contact sales
-                </button>
-              )}
             </div>
           </div>
         </section>
@@ -305,13 +295,12 @@ export function CourseSalesView({
 // ─── Subcomponents ────────────────────────────────────────────────
 
 function PriceCard({
-  course, enrolling, enrollMsg, onEnroll, onContactSales,
+  course, enrolling, enrollMsg, onEnroll,
 }: {
   course: SalesCourseData;
   enrolling: boolean;
   enrollMsg: string;
   onEnroll: () => void;
-  onContactSales: () => void;
 }) {
   return (
     <div className="bg-white rounded-xl shadow-md border border-gray-100 p-5 lg:p-6">
@@ -332,19 +321,6 @@ function PriceCard({
           : (course.isFree ? "Enroll free" : "Add to cart")}
       </button>
 
-      {!course.isFree && (
-        <button
-          onClick={onContactSales}
-          className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl border-2 border-[#0F766E] text-[#0F766E] text-base font-semibold hover:bg-[#0F766E]/5 transition cursor-pointer"
-        >
-          <MessageSquare size={15} /> Contact sales
-        </button>
-      )}
-      {!course.isFree && (
-        <p className="text-xs text-gray-500 mt-2 text-center">
-          or contact our team for custom pricing
-        </p>
-      )}
 
       {enrollMsg && (
         <p className={cn(
